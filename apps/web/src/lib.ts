@@ -14,7 +14,7 @@ export type Env = {
 
 export type SessionUser = {
   id: string; username: string; display_name: string;
-  wallet_address: string; wallet_chain: string; avatar?: string;
+  wallet_address?: string | null; wallet_chain?: string | null; avatar?: string | null;
 };
 
 export type Game = {

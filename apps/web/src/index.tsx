@@ -6,7 +6,7 @@ import { page } from './components';
 import { ogCard, favicon } from './og';
 import { playDoc, TEMPLATE_IDS } from './play';
 import { ingestZip } from './ingest';
-import { issueNonce, verifyAndLogin, getSession, logout } from './auth';
+import { issueNonce, verifyAndLogin, getSession, logout, loginPassword, onboardPassword } from './auth';
 import { createOrder, confirmOrder, hasEntitlement } from './pay';
 import * as db from './db';
 
@@ -44,6 +44,56 @@ app.get('/api/__version', (c) => c.json(versionPayload(c.env)));
 const nowIso = () => new Date().toISOString();
 const cleanSlug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 44) || 'game';
 const cleanTags = (s: unknown) => String(s ?? '').split(',').map((t) => t.trim().toLowerCase().replace(/[^a-z0-9 -]/g, '')).filter(Boolean).slice(0, 8);
+const cleanText = (s: unknown, max: number) => String(s ?? '').trim().slice(0, max);
+const cleanSlugWithSuffix = (s: string) => `${cleanSlug(s)}-${Math.random().toString(36).slice(2, 6)}`;
+const safeId = () => crypto.randomUUID().replace(/-/g, '').slice(0, 12);
+const mediaExt = (f: File, fallback = 'bin') => {
+  const ct = (f.type || '').toLowerCase();
+  if (ct === 'image/png') return 'png';
+  if (ct === 'image/jpeg') return 'jpg';
+  if (ct === 'image/webp') return 'webp';
+  if (ct === 'video/mp4') return 'mp4';
+  if (ct === 'video/webm') return 'webm';
+  if (ct === 'video/quicktime') return 'mov';
+  return fallback;
+};
+const mediaHeaders = (obj: R2ObjectBody) => {
+  const h = new Headers();
+  h.set('content-type', obj.httpMetadata?.contentType || 'application/octet-stream');
+  if (obj.httpMetadata?.contentEncoding) h.set('content-encoding', obj.httpMetadata.contentEncoding);
+  h.set('cache-control', 'public, max-age=86400');
+  h.set('x-content-type-options', 'nosniff');
+  return h;
+};
+const authJson = (r: Awaited<ReturnType<typeof loginPassword>> | Awaited<ReturnType<typeof onboardPassword>>, c: any) =>
+  r.ok ? c.json({ ok: true, user: r.user }) : c.json({ detail: r.error }, r.status || 400);
+
+async function requireGameOwner(c: any, slug: string) {
+  const user = await getSession(c);
+  if (!user) return { error: c.json({ detail: 'Log in first.' }, 401) };
+  const game = await db.getGame(c.env, slug);
+  if (!game) return { error: c.json({ detail: 'Game not found.' }, 404) };
+  if (game.owner_id !== user.id) return { error: c.json({ detail: 'You do not own this game.' }, 403) };
+  return { user, game };
+}
+
+async function communityRole(c: any, communityId: string, userId?: string | null): Promise<string> {
+  if (!userId) return 'guest';
+  const row = await c.env.DB.prepare(`SELECT role, muted, banned FROM community_memberships WHERE community_id=? AND user_id=?`)
+    .bind(communityId, userId).first();
+  if (!row || row.banned) return 'guest';
+  return row.role || 'member';
+}
+
+async function requireCommunityMod(c: any, slug: string) {
+  const user = await getSession(c);
+  if (!user) return { error: c.json({ detail: 'Log in first.' }, 401) };
+  const community = await db.getCommunity(c.env, slug);
+  if (!community) return { error: c.json({ detail: 'Community not found.' }, 404) };
+  const role = await communityRole(c, community.id, user.id);
+  if (role !== 'owner' && role !== 'moderator') return { error: c.json({ detail: 'Moderator access required.' }, 403) };
+  return { user, community, role };
+}
 
 const apiGame = (g: Game) => ({
   ...g,
@@ -92,8 +142,8 @@ app.post('/api/logout', async (c) => {
   await logout(c);
   return c.json({ ok: true });
 });
-app.post('/api/login', unsupported('Password login is not enabled on the Cloudflare Worker deployment yet. Use the public catalog while auth is being ported.', 501));
-app.post('/api/onboarding', unsupported('Password account creation is not enabled on the Cloudflare Worker deployment yet.', 501));
+app.post('/api/login', async (c) => authJson(await loginPassword(c, await c.req.json().catch(() => ({}))), c));
+app.post('/api/onboarding', async (c) => authJson(await onboardPassword(c, await c.req.json().catch(() => ({}))), c));
 
 app.get('/api/games', async (c) => {
   const limit = Math.min(Number(c.req.query('limit') || 60) || 60, 120);
@@ -102,7 +152,7 @@ app.get('/api/games', async (c) => {
 });
 app.post('/api/games', async (c) => {
   const user = await getSession(c);
-  if (!user) return c.json({ detail: 'Connect a wallet before publishing a game.' }, 401);
+  if (!user) return c.json({ detail: 'Log in before publishing a game.' }, 401);
   const b = await c.req.parseBody();
   const title = String(b.title ?? '').trim().slice(0, 80);
   const pitch = String(b.pitch ?? '').trim().slice(0, 180);
@@ -151,9 +201,67 @@ app.post('/api/games/:slug/play', async (c) => {
   if (g) await c.env.DB.prepare(`UPDATE games SET play_count=play_count+1 WHERE id=?`).bind(g.id).run();
   return c.json({ ok: true });
 });
-app.post('/api/games/:slug/build', unsupported('Build replacement is not enabled on the Cloudflare Worker React API yet.', 501));
-app.post('/api/games/:slug/thumbnail', unsupported('Thumbnail upload is not enabled on the Cloudflare Worker React API yet.', 501));
-app.post('/api/games/:slug/patch', unsupported('Patch notes are not enabled on the Cloudflare Worker React API yet.', 501));
+app.post('/api/games/:slug/build', async (c) => {
+  const owned = await requireGameOwner(c, c.req.param('slug'));
+  if ('error' in owned) return owned.error;
+  const { game } = owned;
+  const b = await c.req.parseBody();
+  const build = b.build;
+  const version = cleanText(b.version, 40) || '1.0.1';
+  const notes = cleanText(b.notes, 2000);
+  if (!(build instanceof File) || build.size <= 0) return c.json({ detail: 'Build zip is required.' }, 400);
+  if (build.size > 95 * 1024 * 1024) return c.json({ detail: 'That build is over 90 MB.' }, 400);
+  const res = ingestZip(new Uint8Array(await build.arrayBuffer()));
+  if (!res.ok) return c.json({ detail: res.error }, 400);
+  await Promise.all(res.files.map((f) =>
+    c.env.UGC.put(`ugc/${game.id}/${f.path}`, f.bytes, { httpMetadata: { contentType: f.ct, contentEncoding: f.enc, cacheControl: 'public, max-age=3600' } })));
+  const paths = res.files.map((f) => f.path.toLowerCase()).join('\n');
+  const engine = paths.includes('.pck') ? 'godot' : (paths.includes('.data') || paths.includes('.unityweb') || paths.includes('.framework.js')) ? 'unity' : 'web';
+  await c.env.DB.batch([
+    c.env.DB.prepare(`UPDATE games SET upload_entry=?, upload_bytes=?, engine=?, play_template=NULL, updated_at=datetime('now') WHERE id=?`)
+      .bind(res.entry, res.total, engine, game.id),
+    c.env.DB.prepare(`UPDATE releases SET is_current=0 WHERE game_id=?`).bind(game.id),
+    c.env.DB.prepare(`INSERT INTO releases (id, game_id, version, changelog, release_notes, channel, status, is_current, release_date) VALUES (?, ?, ?, ?, ?, 'public', 'published', 1, datetime('now'))`)
+      .bind('rel_' + game.id + '_' + safeId(), game.id, version, notes || 'Build replaced.', notes || 'Build replaced.'),
+  ]);
+  return c.json({ ok: true, upload_entry: res.entry, upload_bytes: res.total });
+});
+app.post('/api/games/:slug/thumbnail', async (c) => {
+  const owned = await requireGameOwner(c, c.req.param('slug'));
+  if ('error' in owned) return owned.error;
+  const { game, user } = owned;
+  const b = await c.req.parseBody();
+  const file = b.file || b.thumb;
+  if (!(file instanceof File) || file.size <= 0) return c.json({ detail: 'Image file is required.' }, 400);
+  if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) return c.json({ detail: 'Use PNG, JPEG, or WebP.' }, 400);
+  if (file.size > 5 * 1024 * 1024) return c.json({ detail: 'Image must be under 5 MB.' }, 400);
+  const ext = mediaExt(file, 'png');
+  const key = `media/games/${game.id}/cover.${ext}`;
+  const url = `/api/game-media/${game.id}/cover.${ext}`;
+  await c.env.UGC.put(key, await file.arrayBuffer(), { httpMetadata: { contentType: file.type, cacheControl: 'public, max-age=86400' } });
+  await c.env.DB.batch([
+    c.env.DB.prepare(`DELETE FROM media_assets WHERE game_id=? AND type='capsule'`).bind(game.id),
+    c.env.DB.prepare(`INSERT INTO media_assets (id, owner_id, game_id, type, source_path, sort) VALUES (?, ?, ?, 'capsule', ?, 0)`)
+      .bind('ma_' + safeId(), user.id, game.id, url),
+    c.env.DB.prepare(`UPDATE games SET updated_at=datetime('now') WHERE id=?`).bind(game.id),
+  ]);
+  return c.json({ ok: true, cover_image: url });
+});
+app.post('/api/games/:slug/patch', async (c) => {
+  const owned = await requireGameOwner(c, c.req.param('slug'));
+  if ('error' in owned) return owned.error;
+  const { game } = owned;
+  const b = await c.req.parseBody();
+  const version = cleanText(b.version, 40);
+  const notes = cleanText(b.notes, 2000);
+  if (!version || !notes) return c.json({ detail: 'Version and notes are required.' }, 400);
+  await c.env.DB.prepare(
+    `INSERT INTO releases (id, game_id, version, changelog, release_notes, channel, status, is_current, release_date)
+     VALUES (?, ?, ?, ?, ?, 'public', 'published', 0, datetime('now'))`
+  ).bind('rel_' + game.id + '_' + safeId(), game.id, version, notes, notes).run();
+  await c.env.DB.prepare(`UPDATE games SET updated_at=datetime('now') WHERE id=?`).bind(game.id).run();
+  return c.json({ ok: true });
+});
 app.get('/api/creator/games', async (c) => {
   const user = await getSession(c);
   if (!user) return c.json({ games: [] });
@@ -186,6 +294,13 @@ app.get('/api/ugc/:gid/*', async (c) => {
   h.set('cross-origin-resource-policy', 'cross-origin');
   h.set('x-content-type-options', 'nosniff');
   return new Response(obj.body, { headers: h });
+});
+app.get('/api/game-media/:gid/:file', async (c) => {
+  const file = c.req.param('file');
+  if (!/^cover\.(png|jpg|webp)$/.test(file)) return c.notFound();
+  const obj = await c.env.UGC.get(`media/games/${c.req.param('gid')}/${file}`);
+  if (!obj) return c.notFound();
+  return new Response(obj.body, { headers: mediaHeaders(obj) });
 });
 
 app.get('/api/tags', async (c) => {
@@ -231,7 +346,32 @@ app.get('/api/clips', async (c) => {
   const clips = await db.listClips(c.env, { gameId, limit: Math.min(Number(c.req.query('limit') || 48) || 48, 96) });
   return c.json({ clips: clips.map(apiClip) });
 });
-app.post('/api/clips', unsupported('Clip upload is not enabled on the Cloudflare Worker React API yet.', 501));
+app.post('/api/clips', async (c) => {
+  const user = await getSession(c);
+  if (!user) return c.json({ detail: 'Log in first.' }, 401);
+  const b = await c.req.parseBody();
+  const video = b.video;
+  if (!(video instanceof File) || video.size <= 0) return c.json({ detail: 'Video file is required.' }, 400);
+  if (!['video/mp4', 'video/webm', 'video/quicktime'].includes(video.type)) return c.json({ detail: 'Use MP4, WebM, or MOV.' }, 400);
+  if (video.size > 95 * 1024 * 1024) return c.json({ detail: 'Clip must be under 90 MB.' }, 400);
+  const caption = cleanText(b.caption, 280) || 'Untitled clip';
+  const tags = cleanTags(b.tags).join(',');
+  const gameSlug = cleanText(b.game_slug, 80);
+  const game = gameSlug ? await db.getGame(c.env, gameSlug) : null;
+  const id = 'clip_' + safeId();
+  const slug = cleanSlugWithSuffix(caption);
+  const ext = mediaExt(video, 'mp4');
+  const path = `/api/clip-media/${id}/video.${ext}`;
+  await c.env.UGC.put(`media/clips/${id}/video.${ext}`, await video.arrayBuffer(), {
+    httpMetadata: { contentType: video.type, cacheControl: 'public, max-age=86400' },
+  });
+  await c.env.DB.prepare(
+    `INSERT INTO clips (id, slug, author_id, game_id, video_path, poster_accent, duration, caption, tags, view_count, moderation_status, visibility)
+     VALUES (?, ?, ?, ?, ?, '#d4af37', 0, ?, ?, 0, 'clear', 'public')`
+  ).bind(id, slug, user.id, game?.id || null, path, caption, tags).run();
+  const clip = await db.getClipById(c.env, id);
+  return c.json({ clip: clip ? apiClip(clip) : { id, slug, caption, video_path: path } });
+});
 app.get('/api/clips/:idslug', async (c) => {
   const idslug = c.req.param('idslug');
   const id = idslug.match(/^(clip_[a-z0-9]+)/i)?.[1];
@@ -239,48 +379,216 @@ app.get('/api/clips/:idslug', async (c) => {
   if (!clip) return c.json({ detail: 'Clip not found' }, 404);
   return c.json({ clip: apiClip(clip) });
 });
+app.get('/api/clip-media/:id/:file', async (c) => {
+  const file = c.req.param('file');
+  if (!/^video\.(mp4|webm|mov)$/.test(file)) return c.notFound();
+  const obj = await c.env.UGC.get(`media/clips/${c.req.param('id')}/${file}`);
+  if (!obj) return c.notFound();
+  return new Response(obj.body, { headers: mediaHeaders(obj) });
+});
 
 app.get('/api/communities', async (c) => {
   const communities = await db.listCommunities(c.env, 48);
   return c.json({ communities: communities.map(apiCommunity) });
 });
-app.post('/api/communities', unsupported('Community creation is not enabled on the Cloudflare Worker React API yet.', 501));
+app.post('/api/communities', async (c) => {
+  const user = await getSession(c);
+  if (!user) return c.json({ detail: 'Log in first.' }, 401);
+  const body = await c.req.json().catch(() => ({}));
+  const name = cleanText(body.name, 48);
+  const description = cleanText(body.description, 240);
+  if (name.length < 3) return c.json({ detail: 'Community name must be at least 3 characters.' }, 400);
+  const id = 'com_' + safeId();
+  const slug = cleanSlugWithSuffix(name);
+  await c.env.DB.batch([
+    c.env.DB.prepare(
+      `INSERT INTO communities (id, slug, name, owner_id, description, visibility, accent, official, member_count)
+       VALUES (?, ?, ?, ?, ?, 'public', '#d4af37', 0, 1)`
+    ).bind(id, slug, name, user.id, description),
+    c.env.DB.prepare(
+      `INSERT INTO community_memberships (community_id, user_id, role) VALUES (?, ?, 'owner')`
+    ).bind(id, user.id),
+  ]);
+  const community = await db.getCommunity(c.env, slug);
+  return c.json({ community: community ? apiCommunity(community) : { id, slug, name, description, member_count: 1 } });
+});
 app.get('/api/communities/:slug', async (c) => {
   const community = await db.getCommunity(c.env, c.req.param('slug'));
   if (!community) return c.json({ detail: 'Community not found' }, 404);
+  const user = await getSession(c);
+  const role = await communityRole(c, community.id, user?.id);
   const posts = await c.env.DB.prepare(
     `SELECT p.*, u.username author_username, u.display_name author_name
      FROM posts p JOIN users u ON u.id=p.author_id
      WHERE p.community_id=? AND p.deleted_at IS NULL AND p.visibility='public' AND p.moderation_status='clear'
      ORDER BY p.created_at DESC LIMIT 50`
   ).bind(community.id).all();
-  return c.json({ community: apiCommunity(community), role: 'guest', posts: posts.results });
+  return c.json({ community: apiCommunity(community), role, posts: posts.results });
 });
-app.post('/api/communities/:slug/join', unsupported('Community membership is not enabled on the Cloudflare Worker React API yet.', 501));
-app.post('/api/communities/:slug/posts', unsupported('Community posting is not enabled on the Cloudflare Worker React API yet.', 501));
-app.post('/api/communities/:slug/posts/:post_id/hide', unsupported('Community moderation is not enabled on the Cloudflare Worker React API yet.', 501));
+app.post('/api/communities/:slug/join', async (c) => {
+  const user = await getSession(c);
+  if (!user) return c.json({ detail: 'Log in first.' }, 401);
+  const community = await db.getCommunity(c.env, c.req.param('slug'));
+  if (!community) return c.json({ detail: 'Community not found.' }, 404);
+  const existing = await c.env.DB.prepare(`SELECT role, banned FROM community_memberships WHERE community_id=? AND user_id=?`)
+    .bind(community.id, user.id).first<any>();
+  if (existing?.banned) return c.json({ detail: 'You cannot join this community.' }, 403);
+  if (!existing) {
+    await c.env.DB.batch([
+      c.env.DB.prepare(`INSERT INTO community_memberships (community_id, user_id, role) VALUES (?, ?, 'member')`).bind(community.id, user.id),
+      c.env.DB.prepare(`UPDATE communities SET member_count=member_count+1 WHERE id=?`).bind(community.id),
+    ]);
+  }
+  return c.json({ ok: true, role: existing?.role || 'member' });
+});
+app.post('/api/communities/:slug/posts', async (c) => {
+  const user = await getSession(c);
+  if (!user) return c.json({ detail: 'Log in first.' }, 401);
+  const community = await db.getCommunity(c.env, c.req.param('slug'));
+  if (!community) return c.json({ detail: 'Community not found.' }, 404);
+  const member = await c.env.DB.prepare(`SELECT role, muted, banned FROM community_memberships WHERE community_id=? AND user_id=?`)
+    .bind(community.id, user.id).first<any>();
+  if (!member || member.banned) return c.json({ detail: 'Join before posting.' }, 403);
+  if (member.muted) return c.json({ detail: 'You are muted in this community.' }, 403);
+  const b = await c.req.parseBody();
+  const body = cleanText(b.body, 2000);
+  if (body.length < 1) return c.json({ detail: 'Post body is required.' }, 400);
+  const id = 'post_' + safeId();
+  await c.env.DB.prepare(
+    `INSERT INTO posts (id, author_id, community_id, type, body, visibility, moderation_status)
+     VALUES (?, ?, ?, 'post', ?, 'public', 'clear')`
+  ).bind(id, user.id, community.id, body).run();
+  return c.json({ ok: true, id });
+});
+app.post('/api/communities/:slug/posts/:post_id/hide', async (c) => {
+  const mod = await requireCommunityMod(c, c.req.param('slug'));
+  if ('error' in mod) return mod.error;
+  await c.env.DB.prepare(`UPDATE posts SET deleted_at=datetime('now'), moderation_status='hidden' WHERE id=? AND community_id=?`)
+    .bind(c.req.param('post_id'), mod.community.id).run();
+  return c.json({ ok: true });
+});
 app.get('/api/communities/:slug/members', async (c) => {
   const community = await db.getCommunity(c.env, c.req.param('slug'));
   if (!community) return c.json({ detail: 'Community not found' }, 404);
+  const user = await getSession(c);
+  const viewerRole = await communityRole(c, community.id, user?.id);
   const members = await c.env.DB.prepare(
-    `SELECT m.user_id, m.role, 0 muted, 0 banned, u.username, u.display_name, p.avatar
+    `SELECT m.user_id, m.role, m.muted, m.banned, u.username, u.display_name, p.avatar
      FROM community_memberships m JOIN users u ON u.id=m.user_id LEFT JOIN profiles p ON p.user_id=u.id
      WHERE m.community_id=? ORDER BY CASE m.role WHEN 'owner' THEN 0 WHEN 'moderator' THEN 1 ELSE 2 END, u.username`
   ).bind(community.id).all();
-  return c.json({ community: apiCommunity(community), viewer_role: 'guest', members: members.results });
+  return c.json({ community: apiCommunity(community), viewer_role: viewerRole, members: members.results });
 });
-app.get('/api/communities/:slug/reports', (c) => c.json({ reports: [] }));
-app.post('/api/communities/:slug/members/:user_id/role', unsupported('Community moderation is not enabled on the Cloudflare Worker React API yet.', 501));
-app.post('/api/communities/:slug/members/:user_id/mute', unsupported('Community moderation is not enabled on the Cloudflare Worker React API yet.', 501));
-app.post('/api/communities/:slug/members/:user_id/unmute', unsupported('Community moderation is not enabled on the Cloudflare Worker React API yet.', 501));
-app.post('/api/communities/:slug/members/:user_id/ban', unsupported('Community moderation is not enabled on the Cloudflare Worker React API yet.', 501));
-app.post('/api/communities/:slug/members/:user_id/unban', unsupported('Community moderation is not enabled on the Cloudflare Worker React API yet.', 501));
-app.post('/api/communities/:slug/members/:user_id/remove', unsupported('Community moderation is not enabled on the Cloudflare Worker React API yet.', 501));
-app.post('/api/reports', unsupported('Reports are not enabled on the Cloudflare Worker React API yet.', 501));
-app.post('/api/reports/:report_id/resolve', unsupported('Reports are not enabled on the Cloudflare Worker React API yet.', 501));
-app.patch('/api/me/profile', unsupported('Profile editing is not enabled on the Cloudflare Worker React API yet.', 501));
-app.post('/api/me/avatar', unsupported('Profile media upload is not enabled on the Cloudflare Worker React API yet.', 501));
-app.post('/api/me/banner', unsupported('Profile media upload is not enabled on the Cloudflare Worker React API yet.', 501));
+app.get('/api/communities/:slug/reports', async (c) => {
+  const mod = await requireCommunityMod(c, c.req.param('slug'));
+  if ('error' in mod) return mod.error;
+  const reports = await c.env.DB.prepare(`SELECT * FROM reports WHERE community_id=? AND status='open' ORDER BY created_at DESC LIMIT 100`)
+    .bind(mod.community.id).all();
+  return c.json({ reports: reports.results });
+});
+app.post('/api/communities/:slug/members/:user_id/role', async (c) => {
+  const mod = await requireCommunityMod(c, c.req.param('slug'));
+  if ('error' in mod) return mod.error;
+  if (mod.role !== 'owner') return c.json({ detail: 'Owner access required.' }, 403);
+  const body = await c.req.parseBody();
+  const role = cleanText(body.role, 20);
+  if (role !== 'member' && role !== 'moderator') return c.json({ detail: 'Invalid role.' }, 400);
+  await c.env.DB.prepare(`UPDATE community_memberships SET role=? WHERE community_id=? AND user_id=? AND role!='owner'`)
+    .bind(role, mod.community.id, c.req.param('user_id')).run();
+  return c.json({ ok: true });
+});
+for (const action of ['mute', 'unmute', 'ban', 'unban'] as const) {
+  app.post(`/api/communities/:slug/members/:user_id/${action}`, async (c) => {
+    const mod = await requireCommunityMod(c, c.req.param('slug'));
+    if ('error' in mod) return mod.error;
+    const col = action.includes('mute') ? 'muted' : 'banned';
+    const value = action.startsWith('un') ? 0 : 1;
+    await c.env.DB.prepare(`UPDATE community_memberships SET ${col}=? WHERE community_id=? AND user_id=? AND role!='owner'`)
+      .bind(value, mod.community.id, c.req.param('user_id')).run();
+    return c.json({ ok: true });
+  });
+}
+app.post('/api/communities/:slug/members/:user_id/remove', async (c) => {
+  const mod = await requireCommunityMod(c, c.req.param('slug'));
+  if ('error' in mod) return mod.error;
+  const r = await c.env.DB.prepare(`DELETE FROM community_memberships WHERE community_id=? AND user_id=? AND role!='owner'`)
+    .bind(mod.community.id, c.req.param('user_id')).run();
+  if ((r.meta as any)?.changes) await c.env.DB.prepare(`UPDATE communities SET member_count=MAX(0, member_count-1) WHERE id=?`).bind(mod.community.id).run();
+  return c.json({ ok: true });
+});
+app.post('/api/reports', async (c) => {
+  const user = await getSession(c);
+  if (!user) return c.json({ detail: 'Log in first.' }, 401);
+  const b = await c.req.parseBody();
+  const targetType = cleanText(b.target_type, 64);
+  const targetId = cleanText(b.target_id, 128);
+  const reason = cleanText(b.reason, 1000);
+  const communitySlug = cleanText(b.community_slug, 80);
+  if (!targetType || !targetId || !reason) return c.json({ detail: 'Target and reason are required.' }, 400);
+  const community = communitySlug ? await db.getCommunity(c.env, communitySlug) : null;
+  const id = 'rep_' + safeId();
+  await c.env.DB.prepare(
+    `INSERT INTO reports (id, reporter_id, target_type, target_id, community_id, reason, status)
+     VALUES (?, ?, ?, ?, ?, ?, 'open')`
+  ).bind(id, user.id, targetType, targetId, community?.id || null, reason).run();
+  return c.json({ ok: true, id });
+});
+app.post('/api/reports/:report_id/resolve', async (c) => {
+  const user = await getSession(c);
+  if (!user) return c.json({ detail: 'Log in first.' }, 401);
+  const b = await c.req.parseBody();
+  const resolution = cleanText(b.resolution, 80) || 'resolved';
+  await c.env.DB.prepare(`UPDATE reports SET status='resolved', resolution=?, resolved_by=?, resolved_at=datetime('now') WHERE id=?`)
+    .bind(resolution, user.id, c.req.param('report_id')).run();
+  return c.json({ ok: true });
+});
+app.patch('/api/me/profile', async (c) => {
+  const user = await getSession(c);
+  if (!user) return c.json({ detail: 'Log in first.' }, 401);
+  const body = await c.req.json().catch(() => ({}));
+  const displayName = cleanText(body.display_name, 60) || user.username;
+  const bio = cleanText(body.bio, 600);
+  await c.env.DB.batch([
+    c.env.DB.prepare(`UPDATE users SET display_name=? WHERE id=?`).bind(displayName, user.id),
+    c.env.DB.prepare(`UPDATE profiles SET display_name=?, bio=? WHERE user_id=?`).bind(displayName, bio, user.id),
+  ]);
+  return c.json({ ok: true });
+});
+app.post('/api/me/avatar', async (c) => {
+  const user = await getSession(c);
+  if (!user) return c.json({ detail: 'Log in first.' }, 401);
+  const b = await c.req.parseBody();
+  const file = b.file || b.avatar;
+  if (!(file instanceof File) || file.size <= 0) return c.json({ detail: 'Image file is required.' }, 400);
+  if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) return c.json({ detail: 'Use PNG, JPEG, or WebP.' }, 400);
+  if (file.size > 5 * 1024 * 1024) return c.json({ detail: 'Image must be under 5 MB.' }, 400);
+  const ext = mediaExt(file, 'png');
+  const path = `/api/profile-media/${user.id}/avatar.${ext}`;
+  await c.env.UGC.put(`media/profiles/${user.id}/avatar.${ext}`, await file.arrayBuffer(), { httpMetadata: { contentType: file.type, cacheControl: 'public, max-age=86400' } });
+  await c.env.DB.prepare(`UPDATE profiles SET avatar=? WHERE user_id=?`).bind(path, user.id).run();
+  return c.json({ ok: true, avatar_url: path });
+});
+app.post('/api/me/banner', async (c) => {
+  const user = await getSession(c);
+  if (!user) return c.json({ detail: 'Log in first.' }, 401);
+  const b = await c.req.parseBody();
+  const file = b.file || b.banner;
+  if (!(file instanceof File) || file.size <= 0) return c.json({ detail: 'Image file is required.' }, 400);
+  if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) return c.json({ detail: 'Use PNG, JPEG, or WebP.' }, 400);
+  if (file.size > 8 * 1024 * 1024) return c.json({ detail: 'Image must be under 8 MB.' }, 400);
+  const ext = mediaExt(file, 'png');
+  const path = `/api/profile-media/${user.id}/banner.${ext}`;
+  await c.env.UGC.put(`media/profiles/${user.id}/banner.${ext}`, await file.arrayBuffer(), { httpMetadata: { contentType: file.type, cacheControl: 'public, max-age=86400' } });
+  await c.env.DB.prepare(`UPDATE profiles SET banner=? WHERE user_id=?`).bind(path, user.id).run();
+  return c.json({ ok: true, banner_url: path });
+});
+app.get('/api/profile-media/:uid/:file', async (c) => {
+  const file = c.req.param('file');
+  if (!/^(avatar|banner)\.(png|jpg|webp)$/.test(file)) return c.notFound();
+  const obj = await c.env.UGC.get(`media/profiles/${c.req.param('uid')}/${file}`);
+  if (!obj) return c.notFound();
+  return new Response(obj.body, { headers: mediaHeaders(obj) });
+});
 app.get('/api/sitemap.xml', (c) => c.redirect('/sitemap.xml', 302));
 
 // ---------- assets ----------
@@ -527,9 +835,8 @@ app.post('/create', async (c) => {
   const fail = (msg: string) => page(c, <CreatePage env={c.env} error={msg} values={values} />);
   if (title.length < 2 || pitch.length < 4) return fail('Add a title (at least 2 characters) and a short pitch.');
 
-  // Publishing requires a connected wallet — that identity owns the game.
   const sessUser = await getSession(c);
-  if (!sessUser) return fail('Connect a wallet first — that becomes your creator identity and is required to publish.');
+  if (!sessUser) return fail('Log in first — that account becomes the creator identity for this game.');
 
   const id = 'gmu_' + Math.random().toString(36).slice(2, 10);
   const slug = (title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'game') + '-' + Math.random().toString(36).slice(2, 6);

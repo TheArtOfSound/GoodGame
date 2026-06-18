@@ -1,8 +1,9 @@
 import type { Env, Game, Clip, EventRow, Community, Article, Review, Creator } from './lib';
 
-const GAME_COLS = `g.*, u.display_name owner_name, u.username owner_username`;
+const GAME_COLS = `g.*, u.display_name owner_name, u.username owner_username,
+  (SELECT ma.source_path FROM media_assets ma WHERE ma.game_id = g.id AND ma.type = 'capsule' AND ma.moderation_status = 'clear' ORDER BY ma.sort ASC LIMIT 1) cover_image`;
 const GAME_FROM = `FROM games g JOIN users u ON u.id = g.owner_id`;
-const GAME_PUB = `g.status = 'published' AND g.deleted_at IS NULL`;
+const GAME_PUB = `g.status = 'published' AND g.deleted_at IS NULL AND u.deleted_at IS NULL AND u.status = 'active'`;
 
 export async function listGames(
   env: Env,
@@ -60,7 +61,7 @@ export async function gameReviews(env: Env, gameId: string): Promise<Review[]> {
 const CLIP_SELECT = `SELECT c.*, u.display_name author_name, u.username author_username,
   g.title game_title, g.slug game_slug, g.accent game_accent
   FROM clips c JOIN users u ON u.id = c.author_id LEFT JOIN games g ON g.id = c.game_id
-  WHERE c.deleted_at IS NULL AND c.moderation_status = 'clear'`;
+  WHERE c.deleted_at IS NULL AND c.moderation_status = 'clear' AND (c.game_id IS NULL OR g.deleted_at IS NULL)`;
 
 export async function listClips(env: Env, opts: { gameId?: string; authorId?: string; limit?: number } = {}): Promise<Clip[]> {
   let sql = CLIP_SELECT;
@@ -88,18 +89,18 @@ const CREATOR_SELECT = `SELECT u.id, u.username, u.display_name, u.role,
 
 export async function listCreators(env: Env, limit = 24): Promise<Creator[]> {
   const r = await env.DB.prepare(
-    `${CREATOR_SELECT} ORDER BY ca.official DESC, p.follower_count DESC LIMIT ${limit}`
+    `${CREATOR_SELECT} WHERE u.deleted_at IS NULL AND u.status = 'active' ORDER BY ca.official DESC, p.follower_count DESC LIMIT ${limit}`
   ).all<Creator>();
   return r.results;
 }
 
 export async function getCreator(env: Env, username: string): Promise<Creator | null> {
-  return env.DB.prepare(`${CREATOR_SELECT} WHERE u.username = ?`).bind(username).first<Creator>();
+  return env.DB.prepare(`${CREATOR_SELECT} WHERE u.username = ? AND u.deleted_at IS NULL AND u.status = 'active'`).bind(username).first<Creator>();
 }
 
 const COMMUNITY_SELECT = `SELECT c.*, g.title game_title, g.slug game_slug, u.display_name owner_name
   FROM communities c LEFT JOIN games g ON g.id = c.game_id JOIN users u ON u.id = c.owner_id
-  WHERE c.deleted_at IS NULL AND c.visibility = 'public'`;
+  WHERE c.deleted_at IS NULL AND c.visibility = 'public' AND u.deleted_at IS NULL AND u.status = 'active'`;
 
 export async function listCommunities(env: Env, limit = 24): Promise<Community[]> {
   const r = await env.DB.prepare(`${COMMUNITY_SELECT} ORDER BY c.official DESC, c.member_count DESC LIMIT ${limit}`).all<Community>();
@@ -110,23 +111,24 @@ export async function getCommunity(env: Env, slug: string): Promise<Community | 
 }
 
 const EVENT_SELECT = `SELECT e.*, g.title game_title, g.slug game_slug, u.display_name organizer_name
-  FROM events e LEFT JOIN games g ON g.id = e.game_id JOIN users u ON u.id = e.organizer_id`;
+  FROM events e LEFT JOIN games g ON g.id = e.game_id JOIN users u ON u.id = e.organizer_id
+  WHERE u.deleted_at IS NULL AND u.status = 'active' AND (e.game_id IS NULL OR g.deleted_at IS NULL)`;
 
 export async function listEvents(env: Env, opts: { status?: string; limit?: number } = {}): Promise<EventRow[]> {
   let sql = EVENT_SELECT;
   const binds: unknown[] = [];
-  if (opts.status) { sql += ' WHERE e.status = ?'; binds.push(opts.status); }
+  if (opts.status) { sql += ' AND e.status = ?'; binds.push(opts.status); }
   sql += ` ORDER BY CASE e.status WHEN 'live' THEN 0 WHEN 'upcoming' THEN 1 ELSE 2 END, e.start_at ASC LIMIT ${opts.limit ?? 24}`;
   const r = await env.DB.prepare(sql).bind(...binds).all<EventRow>();
   return r.results;
 }
 export async function getEvent(env: Env, slug: string): Promise<EventRow | null> {
-  return env.DB.prepare(`${EVENT_SELECT} WHERE e.slug = ?`).bind(slug).first<EventRow>();
+  return env.DB.prepare(`${EVENT_SELECT} AND e.slug = ?`).bind(slug).first<EventRow>();
 }
 
 const NEWS_SELECT = `SELECT a.*, u.display_name author_name, g.title related_game_title, g.slug related_game_slug
   FROM news_articles a JOIN users u ON u.id = a.author_id LEFT JOIN games g ON g.id = a.related_game_id
-  WHERE a.status = 'published'`;
+  WHERE a.status = 'published' AND u.deleted_at IS NULL AND u.status = 'active' AND (a.related_game_id IS NULL OR g.deleted_at IS NULL)`;
 
 export async function listNews(env: Env, opts: { category?: string; limit?: number } = {}): Promise<Article[]> {
   let sql = NEWS_SELECT;
@@ -170,12 +172,12 @@ export async function search(env: Env, q: string) {
 // For sitemap generation
 export async function sitemapRows(env: Env) {
   const [games, creators, communities, events, news, clips] = await Promise.all([
-    env.DB.prepare(`SELECT slug, updated_at FROM games WHERE ${GAME_PUB.replace(/g\./g, '')}`).all<{ slug: string; updated_at: string }>(),
-    env.DB.prepare(`SELECT u.username slug FROM users u JOIN creator_accounts ca ON ca.user_id = u.id`).all<{ slug: string }>(),
+    env.DB.prepare(`SELECT g.slug, g.updated_at FROM games g JOIN users u ON u.id = g.owner_id WHERE ${GAME_PUB}`).all<{ slug: string; updated_at: string }>(),
+    env.DB.prepare(`SELECT u.username slug FROM users u JOIN creator_accounts ca ON ca.user_id = u.id WHERE u.deleted_at IS NULL AND u.status = 'active'`).all<{ slug: string }>(),
     env.DB.prepare(`SELECT slug FROM communities WHERE deleted_at IS NULL AND visibility='public'`).all<{ slug: string }>(),
-    env.DB.prepare(`SELECT slug FROM events`).all<{ slug: string }>(),
-    env.DB.prepare(`SELECT slug, published_at FROM news_articles WHERE status='published'`).all<{ slug: string; published_at: string }>(),
-    env.DB.prepare(`SELECT id, slug FROM clips WHERE deleted_at IS NULL AND moderation_status='clear'`).all<{ id: string; slug: string }>(),
+    env.DB.prepare(`SELECT e.slug FROM events e LEFT JOIN games g ON g.id=e.game_id JOIN users u ON u.id=e.organizer_id WHERE u.deleted_at IS NULL AND u.status='active' AND (e.game_id IS NULL OR g.deleted_at IS NULL)`).all<{ slug: string }>(),
+    env.DB.prepare(`SELECT a.slug, a.published_at FROM news_articles a JOIN users u ON u.id=a.author_id LEFT JOIN games g ON g.id=a.related_game_id WHERE a.status='published' AND u.deleted_at IS NULL AND u.status='active' AND (a.related_game_id IS NULL OR g.deleted_at IS NULL)`).all<{ slug: string; published_at: string }>(),
+    env.DB.prepare(`SELECT c.id, c.slug FROM clips c LEFT JOIN games g ON g.id=c.game_id WHERE c.deleted_at IS NULL AND c.moderation_status='clear' AND (c.game_id IS NULL OR g.deleted_at IS NULL)`).all<{ id: string; slug: string }>(),
   ]);
   return {
     games: games.results, creators: creators.results, communities: communities.results,

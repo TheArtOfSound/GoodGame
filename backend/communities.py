@@ -85,11 +85,17 @@ async def _audit(actor_id: str, action: str, target_id: str, meta: Optional[dict
 @router.get("/communities")
 async def list_communities(limit: int = 50):
     items = await db.communities.find({"deleted_at": None}, {"_id": 0}).sort("created_at", -1).limit(min(limit, 100)).to_list(limit)
-    out = []
-    for c in items:
-        count = await db.community_members.count_documents({"community_id": c["id"], "banned": {"$ne": True}})
-        out.append(community_view(c, count))
-    return {"communities": out}
+    if not items:
+        return {"communities": []}
+    ids = [c["id"] for c in items]
+    # Single aggregation instead of N count_documents calls
+    pipeline = [
+        {"$match": {"community_id": {"$in": ids}, "banned": {"$ne": True}}},
+        {"$group": {"_id": "$community_id", "count": {"$sum": 1}}},
+    ]
+    rows = await db.community_members.aggregate(pipeline).to_list(len(ids))
+    counts_by_id = {r["_id"]: r["count"] for r in rows}
+    return {"communities": [community_view(c, counts_by_id.get(c["id"], 0)) for c in items]}
 
 
 class CommunityIn(BaseModel):
@@ -145,7 +151,10 @@ async def get_community(slug: str, viewer=Depends(maybe_user)):
     author_ids = list({p["author_id"] for p in posts})
     authors: dict = {}
     if author_ids:
-        for u in await db.users.find({"id": {"$in": author_ids}}, {"_id": 0}).to_list(len(author_ids)):
+        for u in await db.users.find(
+            {"id": {"$in": author_ids}},
+            {"_id": 0, "id": 1, "username": 1, "display_name": 1, "avatar_url": 1},
+        ).to_list(len(author_ids)):
             authors[u["id"]] = u
     return {
         "community": community_view(c, member_count),

@@ -57,13 +57,19 @@ async def hydrate_clips(clips: list[dict]) -> list[dict]:
         return []
     author_ids = list({c["author_id"] for c in clips if c.get("author_id")})
     game_ids = list({c["game_id"] for c in clips if c.get("game_id")})
-    authors = {}
-    games = {}
+    authors: dict = {}
+    games: dict = {}
     if author_ids:
-        for u in await db.users.find({"id": {"$in": author_ids}}, {"_id": 0}).to_list(len(author_ids)):
+        for u in await db.users.find(
+            {"id": {"$in": author_ids}},
+            {"_id": 0, "id": 1, "username": 1, "display_name": 1, "avatar_url": 1},
+        ).to_list(len(author_ids)):
             authors[u["id"]] = u
     if game_ids:
-        for g in await db.games.find({"id": {"$in": game_ids}}, {"_id": 0}).to_list(len(game_ids)):
+        for g in await db.games.find(
+            {"id": {"$in": game_ids}},
+            {"_id": 0, "id": 1, "slug": 1, "title": 1},
+        ).to_list(len(game_ids)):
             games[g["id"]] = g
     return [clip_view(c, authors.get(c.get("author_id")), games.get(c.get("game_id"))) for c in clips]
 

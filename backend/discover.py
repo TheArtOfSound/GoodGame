@@ -14,11 +14,17 @@ async def _filter_real_owner_games(games: list[dict]) -> list[dict]:
     owner_ids = list({g["owner_id"] for g in games})
     if not owner_ids:
         return []
-    owners = await db.users.find({"id": {"$in": owner_ids}}, {"_id": 0}).to_list(len(owner_ids))
     valid = {
-        o["id"]
-        for o in owners
-        if not o.get("is_system") and o.get("password_hash") and o.get("is_active", True)
+        u["id"]
+        for u in await db.users.find(
+            {
+                "id": {"$in": owner_ids},
+                "is_active": True,
+                "is_system": {"$ne": True},
+                "password_hash": {"$exists": True, "$ne": None},
+            },
+            {"_id": 0, "id": 1},
+        ).to_list(len(owner_ids))
     }
     return [g for g in games if g["owner_id"] in valid]
 

@@ -96,7 +96,10 @@ async def attach_owner(games: list[dict]) -> list[dict]:
     if not games:
         return []
     owner_ids = list({g["owner_id"] for g in games})
-    owners = await db.users.find({"id": {"$in": owner_ids}}, {"_id": 0}).to_list(len(owner_ids))
+    owners = await db.users.find(
+        {"id": {"$in": owner_ids}},
+        {"_id": 0, "id": 1, "username": 1, "display_name": 1, "avatar_url": 1},
+    ).to_list(len(owner_ids))
     by_id = {o["id"]: o for o in owners}
     return [game_view(g, by_id.get(g["owner_id"])) for g in games]
 
@@ -107,14 +110,21 @@ async def list_games(limit: int = 60, tag: Optional[str] = None):
     if tag:
         q["tags"] = tag
     games = await db.games.find(q, {"_id": 0}).sort("updated_at", -1).limit(min(limit, 200)).to_list(limit)
-    # Filter to real owners only
-    real_owner_ids = set()
     owner_ids = list({g["owner_id"] for g in games})
-    if owner_ids:
-        owners = await db.users.find({"id": {"$in": owner_ids}}, {"_id": 0}).to_list(len(owner_ids))
-        for o in owners:
-            if not o.get("is_system") and o.get("password_hash") and o.get("is_active", True):
-                real_owner_ids.add(o["id"])
+    if not owner_ids:
+        return {"games": []}
+    real_owner_ids = {
+        u["id"]
+        for u in await db.users.find(
+            {
+                "id": {"$in": owner_ids},
+                "is_active": True,
+                "is_system": {"$ne": True},
+                "password_hash": {"$exists": True, "$ne": None},
+            },
+            {"_id": 0, "id": 1},
+        ).to_list(len(owner_ids))
+    }
     games = [g for g in games if g["owner_id"] in real_owner_ids]
     return {"games": await attach_owner(games)}
 

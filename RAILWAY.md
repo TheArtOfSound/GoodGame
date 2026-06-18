@@ -1,12 +1,11 @@
 # Railway deployment
 
-This repo is configured to run on Railway as a Node service.
+This repo is configured to run on Railway as a Python FastAPI service.
 
 ## Railway settings
 
-- Builder: Dockerfile
-- Dockerfile path: `Dockerfile`
-- Start command: `npm start`
+- Builder: Railpack
+- Start command: `cd backend && uvicorn railway_app:app --host 0.0.0.0 --port $PORT`
 - Healthcheck path: `/healthz`
 - Version endpoint: `/__version`
 
@@ -31,14 +30,17 @@ www.goodgame.center
 
 Then add the DNS records Railway gives you at the DNS provider.
 
-## Content behavior
+## Current live contract
 
-The server serves static files if present, then falls back to rendering `README.md`:
+The Railway entrypoint is `backend/railway_app.py`.
 
-1. `public/index.html`
-2. `dist/index.html`
-3. `build/index.html`
-4. root `index.html`
-5. `README.md`
+Required live responses:
 
-This keeps the repo deployable even when it only has README content.
+```text
+/healthz     -> 200 JSON
+/__version   -> 200 JSON
+/            -> 200 JSON
+/api/        -> 200 JSON
+```
+
+If `/healthz` returns 404, the domain is not serving the latest Railway deployment.

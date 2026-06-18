@@ -1,0 +1,11 @@
+# Nixpacks build config (Python backend).
+# Railway uses this to install runtime + deps before running the start command.
+
+[phases.setup]
+nixPkgs = ["python311", "gcc"]
+
+[phases.install]
+cmds = ["pip install --no-cache-dir -r backend/requirements.txt"]
+
+[start]
+cmd = "cd backend && uvicorn server:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips=*"

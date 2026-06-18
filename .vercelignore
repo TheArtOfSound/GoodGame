@@ -1,0 +1,9 @@
+# Files Vercel should ignore when building the frontend.
+backend/
+tests/
+test_reports/
+memory/
+.emergent/
+*.md
+design_guidelines.json
+test_result.md

@@ -26,13 +26,27 @@ logger = logging.getLogger("goodgame")
 
 app = FastAPI(title="GoodGame.center API")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_credentials=True,
-    allow_origin_regex=".*",
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# CORS: allow_origins from env (comma-separated). Falls back to a regex that
+# reflects any HTTPS origin so credentialed requests still get the actual
+# origin echoed back (never `*`).
+_cors_env = (os.environ.get("CORS_ORIGINS") or "").strip()
+if _cors_env and _cors_env != "*":
+    _allow_origins = [o.strip() for o in _cors_env.split(",") if o.strip()]
+    app.add_middleware(
+        CORSMiddleware,
+        allow_credentials=True,
+        allow_origins=_allow_origins,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+else:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_credentials=True,
+        allow_origin_regex=r"https?://.*",
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 
 @app.on_event("startup")

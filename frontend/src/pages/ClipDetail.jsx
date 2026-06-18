@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { getJSON } from "../lib/api";
-
-const BACKEND = process.env.REACT_APP_BACKEND_URL;
+import { BACKEND_URL } from "../lib/config";
 
 export default function ClipDetail() {
   const { idslug } = useParams();
@@ -29,7 +28,7 @@ export default function ClipDetail() {
         controls
         playsInline
         preload="metadata"
-        src={`${BACKEND}${clip.video_path}`}
+        src={`${BACKEND_URL}${clip.video_path}`}
         className="w-full aspect-video bg-black border border-[#1A1A1A]"
         data-testid="clip-video"
       />

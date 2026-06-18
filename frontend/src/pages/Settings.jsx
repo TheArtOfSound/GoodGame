@@ -3,8 +3,7 @@ import { Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { postForm, api } from "../lib/api";
 import SEO from "../components/SEO";
-
-const BACKEND = process.env.REACT_APP_BACKEND_URL;
+import { BACKEND_URL } from "../lib/config";
 
 export default function Settings() {
   const { user, loading, refresh } = useAuth();
@@ -119,7 +118,7 @@ export default function Settings() {
         <div className="flex items-start gap-6 flex-wrap">
           <div className="w-24 h-24 bg-[#0A0A0A] border border-[#1A1A1A] overflow-hidden">
             {me?.avatar ? (
-              <img src={`${BACKEND}${me.avatar}`} alt="" className="w-full h-full object-cover" />
+              <img src={`${BACKEND_URL}${me.avatar}`} alt="" className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-[#D4AF37] font-black text-3xl uppercase">
                 {user.username[0]}
@@ -150,7 +149,7 @@ export default function Settings() {
         <div className="space-y-4">
           <div className="w-full h-32 bg-[#0A0A0A] border border-[#1A1A1A] overflow-hidden">
             {me?.banner ? (
-              <img src={`${BACKEND}${me.banner}`} alt="" className="w-full h-full object-cover" />
+              <img src={`${BACKEND_URL}${me.banner}`} alt="" className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-[#52525B] font-mono text-xs">
                 No banner

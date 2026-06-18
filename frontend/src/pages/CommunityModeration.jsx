@@ -3,8 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import { getJSON, postForm } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import SEO from "../components/SEO";
-
-const BACKEND = process.env.REACT_APP_BACKEND_URL;
+import { BACKEND_URL } from "../lib/config";
 
 export default function CommunityModeration() {
   const { slug } = useParams();
@@ -154,7 +153,7 @@ function MemberRow({ member, isOwner, onRole, onMute, onUnmute, onBan, onUnban, 
     >
       <div className="w-10 h-10 bg-[#0A0A0A] border border-[#1A1A1A] overflow-hidden">
         {member.avatar ? (
-          <img src={`${BACKEND}${member.avatar}`} alt="" className="w-full h-full object-cover" />
+          <img src={`${BACKEND_URL}${member.avatar}`} alt="" className="w-full h-full object-cover" />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-[#D4AF37] font-bold uppercase">
             {member.username?.[0]}

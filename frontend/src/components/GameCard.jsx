@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { BACKEND_URL } from "../lib/config";
 
 const FALLBACKS = [
   "https://images.unsplash.com/photo-1759171053096-e7dbe7c36eb6?crop=entropy&cs=srgb&fm=jpg&w=600&q=70",
@@ -13,9 +14,8 @@ function fallbackArt(id) {
 }
 
 export default function GameCard({ game }) {
-  const BACKEND = process.env.REACT_APP_BACKEND_URL;
   const cover = game.cover_image
-    ? `${BACKEND}${game.cover_image}?v=${game.updated_at || ""}`
+    ? `${BACKEND_URL}${game.cover_image}?v=${game.updated_at || ""}`
     : fallbackArt(game.id || game.slug);
   return (
     <Link

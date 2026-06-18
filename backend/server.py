@@ -6,9 +6,13 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.middleware.cors import CORSMiddleware
 
 ROOT_DIR = Path(__file__).parent
+PROJECT_ROOT = ROOT_DIR.parent
+FRONTEND_BUILD_DIR = PROJECT_ROOT / "frontend" / "build"
 load_dotenv(ROOT_DIR / ".env")
 
 from auth import router as auth_router  # noqa: E402
@@ -44,16 +48,44 @@ async def startup():
         logger.error(f"Storage init failed: {e}")
 
 
-@app.get("/api/__version")
-async def version():
+def version_payload():
+    build_sha = (
+        os.environ.get("RAILWAY_GIT_COMMIT_SHA")
+        or os.environ.get("BUILD_SHA")
+        or os.environ.get("GIT_COMMIT_SHA")
+        or "dev"
+    )
+    build_ref = (
+        os.environ.get("RAILWAY_GIT_BRANCH")
+        or os.environ.get("BUILD_REF")
+        or os.environ.get("GIT_BRANCH")
+        or "main"
+    )
     return {
         "ok": True,
         "service": "goodgame-web",
-        "build_sha": os.environ.get("BUILD_SHA", "dev"),
-        "build_ref": os.environ.get("BUILD_REF", "main"),
+        "provider": os.environ.get("RAILWAY_SERVICE_NAME", "railway"),
+        "build_sha": build_sha,
+        "build_ref": build_ref,
+        "deployment_id": os.environ.get("RAILWAY_DEPLOYMENT_ID"),
         "build_time": os.environ.get("BUILD_TIME", datetime.now(timezone.utc).isoformat()),
         "url": "/",
     }
+
+
+@app.get("/healthz")
+async def healthz():
+    return {"ok": True, "service": "goodgame-web"}
+
+
+@app.get("/__version")
+async def public_version():
+    return version_payload()
+
+
+@app.get("/api/__version")
+async def version():
+    return version_payload()
 
 
 @app.get("/api/")
@@ -69,3 +101,21 @@ app.include_router(communities_router)
 app.include_router(creators_router)
 app.include_router(profile_router)
 app.include_router(user_media_router)
+
+if FRONTEND_BUILD_DIR.exists():
+    app.mount("/static", StaticFiles(directory=FRONTEND_BUILD_DIR / "static"), name="static")
+
+
+    @app.get("/")
+    @app.head("/")
+    async def frontend_index():
+        return FileResponse(FRONTEND_BUILD_DIR / "index.html")
+
+
+    @app.get("/{path:path}", include_in_schema=False)
+    @app.head("/{path:path}", include_in_schema=False)
+    async def frontend_fallback(path: str):
+        requested = FRONTEND_BUILD_DIR / path
+        if requested.is_file():
+            return FileResponse(requested)
+        return FileResponse(FRONTEND_BUILD_DIR / "index.html")

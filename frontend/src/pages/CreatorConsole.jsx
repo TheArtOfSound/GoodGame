@@ -3,8 +3,7 @@ import { Link, useParams, Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { getJSON, postForm } from "../lib/api";
 import GameCard from "../components/GameCard";
-
-const BACKEND = process.env.REACT_APP_BACKEND_URL;
+import { BACKEND_URL } from "../lib/config";
 
 export default function CreatorConsole() {
   const { slug } = useParams();
@@ -137,7 +136,7 @@ function GameConsole({ slug, user }) {
     }
   };
 
-  const cover = game.cover_image ? `${BACKEND}${game.cover_image}?v=${game.updated_at}` : null;
+  const cover = game.cover_image ? `${BACKEND_URL}${game.cover_image}?v=${game.updated_at}` : null;
 
   return (
     <div className="max-w-5xl mx-auto px-4 md:px-8 py-10 space-y-10" data-testid="game-console">

@@ -1,0 +1,42 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "goodgame-web",
+  "main": "src/index.tsx",
+  "compatibility_date": "2025-06-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "routes": [
+    { "pattern": "goodgame.center/*", "zone_name": "goodgame.center" },
+    { "pattern": "www.goodgame.center/*", "zone_name": "goodgame.center" }
+  ],
+  "observability": {
+    "enabled": true
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "goodgame",
+      "database_id": "a134d368-75b6-4138-8540-8b62a37d87ee",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "UGC",
+      "bucket_name": "goodgame-ugc"
+    }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "KV",
+      "id": "fd7efd08dae3427898cc67e5228b12ef"
+    }
+  ],
+  "vars": {
+    "SITE_URL": "https://goodgame.center",
+    "SITE_NAME": "GoodGame.center",
+    "BUILD_SHA": "dev",
+    "BUILD_REF": "main",
+    "BUILD_TIME": "dev"
+  }
+}

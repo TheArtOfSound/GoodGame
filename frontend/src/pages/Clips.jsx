@@ -4,8 +4,7 @@ import { getJSON, postForm } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import GamePicker from "../components/GamePicker";
 import SEO from "../components/SEO";
-
-const BACKEND = process.env.REACT_APP_BACKEND_URL;
+import { BACKEND_URL } from "../lib/config";
 
 export default function Clips() {
   const { user } = useAuth();
@@ -70,7 +69,7 @@ export default function Clips() {
               className="border border-[#1A1A1A] hover:border-[#D4AF37]/60 p-3 block"
             >
               <video
-                src={`${BACKEND}${c.video_path}`}
+                src={`${BACKEND_URL}${c.video_path}`}
                 preload="metadata"
                 muted
                 className="w-full aspect-video bg-black"

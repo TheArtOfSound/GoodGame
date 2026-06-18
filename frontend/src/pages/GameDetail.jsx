@@ -4,8 +4,7 @@ import { getJSON, postJSON } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { Play, Settings } from "lucide-react";
 import SEO from "../components/SEO";
-
-const BACKEND = process.env.REACT_APP_BACKEND_URL;
+import { BACKEND_URL } from "../lib/config";
 
 export default function GameDetail() {
   const { slug } = useParams();
@@ -38,8 +37,8 @@ export default function GameDetail() {
 
   const { game, releases } = data;
   const isOwner = user && user.id === game.owner_id;
-  const iframeSrc = `${BACKEND}/api/ugc/${game.id}/${game.upload_entry}`;
-  const cover = game.cover_image ? `${BACKEND}${game.cover_image}?v=${game.updated_at}` : null;
+  const iframeSrc = `${BACKEND_URL}/api/ugc/${game.id}/${game.upload_entry}`;
+  const cover = game.cover_image ? `${BACKEND_URL}${game.cover_image}?v=${game.updated_at}` : null;
 
   const onPlay = async () => {
     setPlaying(true);

@@ -4,8 +4,7 @@ import { getJSON } from "../lib/api";
 import GameCard from "../components/GameCard";
 import FollowButton from "../components/FollowButton";
 import SEO from "../components/SEO";
-
-const BACKEND = process.env.REACT_APP_BACKEND_URL;
+import { BACKEND_URL } from "../lib/config";
 const BANNER_FALLBACK =
   "https://images.unsplash.com/photo-1718844054440-22acf5d5c8f0?crop=entropy&cs=srgb&fm=jpg&w=1600&q=70";
 
@@ -38,13 +37,13 @@ export default function CreatorProfile() {
       <SEO
         title={`${creator.display_name} (@${creator.username})`}
         description={creator.bio || `Browser games by @${creator.username} on GoodGame.center.`}
-        image={creator.banner ? `${BACKEND}${creator.banner}` : null}
+        image={creator.banner ? `${BACKEND_URL}${creator.banner}` : null}
         type="profile"
         path={`/creators/${creator.username}`}
       />
       <div className="relative h-44 md:h-56 border-b border-[#1A1A1A] overflow-hidden">
         <img
-          src={creator.banner || BANNER_FALLBACK}
+          src={creator.banner ? `${BACKEND_URL}${creator.banner}` : BANNER_FALLBACK}
           alt=""
           className="w-full h-full object-cover opacity-50"
         />
@@ -54,7 +53,7 @@ export default function CreatorProfile() {
         <div className="flex items-end gap-5 flex-wrap">
           <div className="w-28 h-28 bg-[#0A0A0A] border-2 border-[#D4AF37]">
             {creator.avatar ? (
-              <img src={`${BACKEND}${creator.avatar}`} alt="" className="w-full h-full object-cover" />
+              <img src={`${BACKEND_URL}${creator.avatar}`} alt="" className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-[#D4AF37] font-black text-3xl uppercase">
                 {creator.username[0]}
@@ -142,7 +141,7 @@ export default function CreatorProfile() {
                 className="border border-[#1A1A1A] hover:border-[#D4AF37]/60 p-3"
               >
                 <video
-                  src={`${BACKEND}${c.video_path}`}
+                  src={`${BACKEND_URL}${c.video_path}`}
                   className="w-full aspect-video bg-black"
                   preload="metadata"
                   muted

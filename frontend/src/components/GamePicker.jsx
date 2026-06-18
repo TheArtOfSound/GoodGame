@@ -1,7 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { getJSON } from "../lib/api";
-
-const BACKEND = process.env.REACT_APP_BACKEND_URL;
+import { BACKEND_URL } from "../lib/config";
 
 /**
  * Autocomplete picker for selecting a game by title or tag.
@@ -78,7 +77,7 @@ export default function GamePicker({ value, onChange, placeholder = "Search a ga
             >
               {g.cover_image ? (
                 <img
-                  src={`${BACKEND}${g.cover_image}`}
+                  src={`${BACKEND_URL}${g.cover_image}`}
                   alt=""
                   className="w-12 h-7 object-cover bg-black"
                 />

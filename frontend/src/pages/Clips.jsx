@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { getJSON, postForm } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
+import GamePicker from "../components/GamePicker";
+import SEO from "../components/SEO";
 
 const BACKEND = process.env.REACT_APP_BACKEND_URL;
 
@@ -22,6 +24,7 @@ export default function Clips() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-8 py-10" data-testid="clips-page">
+      <SEO title="Clips" description="Short gameplay clips from GoodGame.center creators." path="/clips" />
       <div className="flex items-end justify-between flex-wrap gap-4">
         <div>
           <div className="text-[#52525B] font-mono text-xs uppercase tracking-[0.2em]">
@@ -87,7 +90,7 @@ export default function Clips() {
 function UploadForm({ onDone }) {
   const [caption, setCaption] = useState("");
   const [tags, setTags] = useState("");
-  const [gameSlug, setGameSlug] = useState("");
+  const [game, setGame] = useState(null);
   const [file, setFile] = useState(null);
   const [err, setErr] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -100,13 +103,13 @@ function UploadForm({ onDone }) {
     const fd = new FormData();
     fd.append("caption", caption);
     fd.append("tags", tags);
-    fd.append("game_slug", gameSlug);
+    fd.append("game_slug", game?.slug || "");
     fd.append("video", file);
     try {
       await postForm("/clips", fd);
       setCaption("");
       setTags("");
-      setGameSlug("");
+      setGame(null);
       setFile(null);
       onDone?.();
     } catch (e) {
@@ -137,19 +140,23 @@ function UploadForm({ onDone }) {
         onChange={(e) => setTags(e.target.value)}
         className="input"
       />
-      <input
-        data-testid="clip-game"
-        placeholder="Game slug (optional)"
-        value={gameSlug}
-        onChange={(e) => setGameSlug(e.target.value)}
-        className="input"
-      />
+      <div className="md:col-span-2">
+        <div className="text-[#52525B] font-mono text-xs uppercase tracking-[0.2em] mb-2">
+          Associated game (optional)
+        </div>
+        <GamePicker value={game} onChange={setGame} placeholder="Search a game by title or tag..." />
+        {game && (
+          <div className="text-[#D4AF37] font-mono text-[10px] uppercase tracking-[0.2em] mt-1">
+            Attached: {game.title}
+          </div>
+        )}
+      </div>
       <input
         data-testid="clip-file"
         type="file"
         accept="video/mp4,video/webm,video/quicktime"
         onChange={(e) => setFile(e.target.files?.[0] || null)}
-        className="text-white font-mono text-sm"
+        className="text-white font-mono text-sm md:col-span-2"
         required
       />
       {err && (

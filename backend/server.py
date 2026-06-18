@@ -15,8 +15,11 @@ from auth import router as auth_router  # noqa: E402
 from clips import router as clips_router  # noqa: E402
 from communities import router as communities_router  # noqa: E402
 from creators import router as creators_router  # noqa: E402
+from discover import router as discover_router  # noqa: E402
 from games import router as games_router  # noqa: E402
+from profile import router as profile_router  # noqa: E402
 from storage import init_storage  # noqa: E402
+from user_media import router as user_media_router  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s | %(message)s")
 logger = logging.getLogger("goodgame")
@@ -60,6 +63,9 @@ async def root():
 
 app.include_router(auth_router)
 app.include_router(games_router)
+app.include_router(discover_router)
 app.include_router(clips_router)
 app.include_router(communities_router)
 app.include_router(creators_router)
+app.include_router(profile_router)
+app.include_router(user_media_router)

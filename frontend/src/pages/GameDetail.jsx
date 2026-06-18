@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { getJSON, postJSON } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { Play, Settings } from "lucide-react";
+import SEO from "../components/SEO";
 
 const BACKEND = process.env.REACT_APP_BACKEND_URL;
 
@@ -51,6 +52,13 @@ export default function GameDetail() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-8 py-8" data-testid="game-detail-page">
+      <SEO
+        title={game.title}
+        description={game.pitch || game.description?.slice(0, 200) || "Play this browser game on GoodGame.center"}
+        image={cover}
+        type="game"
+        path={`/games/${game.slug}`}
+      />
       <div className="grid lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
           <div className="bg-black border border-[#1A1A1A]" data-testid="play-iframe-container">

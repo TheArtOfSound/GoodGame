@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { getJSON } from "../lib/api";
 import GameCard from "../components/GameCard";
+import FollowButton from "../components/FollowButton";
+import SEO from "../components/SEO";
 
 const BACKEND = process.env.REACT_APP_BACKEND_URL;
 const BANNER_FALLBACK =
@@ -29,7 +31,7 @@ export default function CreatorProfile() {
     );
   if (!data) return <div className="px-8 py-10 text-[#52525B]">Loading...</div>;
 
-  const { creator, games, clips, is_self } = data;
+  const { creator, games, clips, is_self, is_following } = data;
 
   return (
     <div data-testid="creator-profile">
@@ -59,15 +61,32 @@ export default function CreatorProfile() {
             <div className="text-[#A1A1AA] font-mono text-xs uppercase tracking-[0.2em]">
               @{creator.username}
             </div>
+            <div className="text-[#52525B] font-mono text-[10px] uppercase tracking-[0.2em] mt-1">
+              {creator.follower_count} followers · {creator.following_count} following
+            </div>
           </div>
-          {is_self && (
-            <Link
-              to="/console"
-              data-testid="own-profile-console-link"
-              className="border border-[#1A1A1A] hover:border-white text-white px-4 h-10 flex items-center text-sm uppercase font-bold tracking-wider"
-            >
-              Creator console
-            </Link>
+          {is_self ? (
+            <div className="flex gap-2">
+              <Link
+                to="/settings"
+                data-testid="own-profile-settings-link"
+                className="border border-[#1A1A1A] hover:border-white text-white px-4 h-10 flex items-center text-sm uppercase font-bold tracking-wider"
+              >
+                Edit profile
+              </Link>
+              <Link
+                to="/console"
+                data-testid="own-profile-console-link"
+                className="border border-[#1A1A1A] hover:border-white text-white px-4 h-10 flex items-center text-sm uppercase font-bold tracking-wider"
+              >
+                Creator console
+              </Link>
+            </div>
+          ) : (
+            <FollowButton
+              username={creator.username}
+              initialFollowing={is_following}
+            />
           )}
         </div>
         {creator.bio && (

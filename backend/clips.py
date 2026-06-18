@@ -6,7 +6,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Cookie, Depends, File, Form, HTTPException, Response, UploadFile
 
-from auth import get_session_user
+from auth import get_session_user, rate_limit
 from db import db
 from storage import APP_NAME, get_object, put_object
 
@@ -84,6 +84,8 @@ async def upload_clip(
     video: UploadFile = File(...),
     user=Depends(current_user),
 ):
+    if not rate_limit(f"clipupload:{user['id']}", limit=15, window_seconds=3600):
+        raise HTTPException(status_code=429, detail="Too many uploads in the last hour")
     ct = (video.content_type or "").lower()
     if ct not in CLIP_TYPES:
         raise HTTPException(status_code=400, detail="Unsupported video type (mp4, webm, mov)")

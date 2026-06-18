@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { getJSON } from "../lib/api";
 import GameCard from "../components/GameCard";
 import { Play, Upload, Users } from "lucide-react";
+import SEO from "../components/SEO";
 
 const HERO_BG = "https://images.unsplash.com/photo-1517241034903-9a4c3ab12f00?crop=entropy&cs=srgb&fm=jpg&w=1600&q=70";
 
@@ -18,6 +19,7 @@ export default function Home() {
 
   return (
     <div data-testid="home-page">
+      <SEO path="/" />
       <section className="relative overflow-hidden border-b border-[#1A1A1A]">
         <div
           className="absolute inset-0 opacity-20 bg-cover bg-center pointer-events-none"

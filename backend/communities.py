@@ -1,4 +1,4 @@
-"""Communities: create/join, posts, moderation."""
+"""Communities: create/join, posts, moderation (members, roles, mute, ban, reports)."""
 import re
 import uuid
 from datetime import datetime, timezone
@@ -7,7 +7,7 @@ from typing import Optional
 from fastapi import APIRouter, Cookie, Depends, Form, HTTPException
 from pydantic import BaseModel
 
-from auth import get_session_user
+from auth import get_session_user, rate_limit
 from db import db
 
 router = APIRouter(prefix="/api", tags=["communities"])
@@ -56,6 +56,31 @@ def community_view(c: dict, member_count: int = 0) -> dict:
     }
 
 
+async def _community(slug: str) -> dict:
+    c = await db.communities.find_one({"slug": slug, "deleted_at": None}, {"_id": 0})
+    if not c:
+        raise HTTPException(status_code=404, detail="Community not found")
+    return c
+
+
+async def _require_mod(c: dict, user: dict) -> str:
+    role = await role_in(c["id"], user["id"])
+    if role not in ("owner", "moderator"):
+        raise HTTPException(status_code=403, detail="Moderators only")
+    return role
+
+
+async def _audit(actor_id: str, action: str, target_id: str, meta: Optional[dict] = None):
+    await db.audit_log.insert_one({
+        "id": f"aud_{uuid.uuid4().hex[:12]}",
+        "actor_id": actor_id,
+        "action": action,
+        "target_id": target_id,
+        "meta": meta or {},
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+
+
 @router.get("/communities")
 async def list_communities(limit: int = 50):
     items = await db.communities.find({"deleted_at": None}, {"_id": 0}).sort("created_at", -1).limit(min(limit, 100)).to_list(limit)
@@ -73,6 +98,8 @@ class CommunityIn(BaseModel):
 
 @router.post("/communities")
 async def create_community(payload: CommunityIn, user=Depends(current_user)):
+    if not rate_limit(f"comcreate:{user['id']}", limit=10, window_seconds=3600):
+        raise HTTPException(status_code=429, detail="Too many communities created, try later")
     name = payload.name.strip()
     if len(name) < 3 or len(name) > 48:
         raise HTTPException(status_code=400, detail="Name must be 3-48 chars")
@@ -107,9 +134,7 @@ async def create_community(payload: CommunityIn, user=Depends(current_user)):
 
 @router.get("/communities/{slug}")
 async def get_community(slug: str, viewer=Depends(maybe_user)):
-    c = await db.communities.find_one({"slug": slug, "deleted_at": None}, {"_id": 0})
-    if not c:
-        raise HTTPException(status_code=404, detail="Community not found")
+    c = await _community(slug)
     member_count = await db.community_members.count_documents({"community_id": c["id"], "banned": {"$ne": True}})
     role = await role_in(c["id"], viewer["id"] if viewer else "")
     posts = await db.community_posts.find(
@@ -117,7 +142,7 @@ async def get_community(slug: str, viewer=Depends(maybe_user)):
         {"_id": 0},
     ).sort("created_at", -1).limit(50).to_list(50)
     author_ids = list({p["author_id"] for p in posts})
-    authors = {}
+    authors: dict = {}
     if author_ids:
         for u in await db.users.find({"id": {"$in": author_ids}}, {"_id": 0}).to_list(len(author_ids)):
             authors[u["id"]] = u
@@ -128,7 +153,7 @@ async def get_community(slug: str, viewer=Depends(maybe_user)):
             {
                 **p,
                 "author_username": authors.get(p["author_id"], {}).get("username"),
-                "author_display_name": (authors.get(p["author_id"], {}).get("display_name") or authors.get(p["author_id"], {}).get("username")),
+                "author_display_name": authors.get(p["author_id"], {}).get("display_name") or authors.get(p["author_id"], {}).get("username"),
                 "author_avatar": authors.get(p["author_id"], {}).get("avatar_url"),
             }
             for p in posts
@@ -138,9 +163,7 @@ async def get_community(slug: str, viewer=Depends(maybe_user)):
 
 @router.post("/communities/{slug}/join")
 async def join_community(slug: str, user=Depends(current_user)):
-    c = await db.communities.find_one({"slug": slug, "deleted_at": None}, {"_id": 0, "id": 1})
-    if not c:
-        raise HTTPException(status_code=404, detail="Community not found")
+    c = await _community(slug)
     existing = await db.community_members.find_one({"community_id": c["id"], "user_id": user["id"]}, {"_id": 0})
     if existing:
         if existing.get("banned"):
@@ -160,14 +183,14 @@ async def join_community(slug: str, user=Depends(current_user)):
 
 @router.post("/communities/{slug}/posts")
 async def post_message(slug: str, body: str = Form(...), user=Depends(current_user)):
-    c = await db.communities.find_one({"slug": slug, "deleted_at": None}, {"_id": 0})
-    if not c:
-        raise HTTPException(status_code=404, detail="Community not found")
+    c = await _community(slug)
     role = await role_in(c["id"], user["id"])
     if role == "guest":
         raise HTTPException(status_code=403, detail="Join the community first")
     if role in ("banned", "muted"):
         raise HTTPException(status_code=403, detail="You cannot post here")
+    if not rate_limit(f"compost:{user['id']}:{c['id']}", limit=20, window_seconds=300):
+        raise HTTPException(status_code=429, detail="Slow down — too many posts")
     body = body.strip()
     if not body:
         raise HTTPException(status_code=400, detail="Empty post")
@@ -187,42 +210,208 @@ async def post_message(slug: str, body: str = Form(...), user=Depends(current_us
 
 @router.post("/communities/{slug}/posts/{post_id}/hide")
 async def hide_post(slug: str, post_id: str, user=Depends(current_user)):
-    c = await db.communities.find_one({"slug": slug, "deleted_at": None}, {"_id": 0})
-    if not c:
-        raise HTTPException(status_code=404, detail="Community not found")
-    role = await role_in(c["id"], user["id"])
-    if role not in ("owner", "moderator"):
-        raise HTTPException(status_code=403, detail="Moderators only")
+    c = await _community(slug)
+    await _require_mod(c, user)
     res = await db.community_posts.update_one({"id": post_id, "community_id": c["id"]}, {"$set": {"hidden": True}})
     if res.matched_count == 0:
         raise HTTPException(status_code=404, detail="Post not found")
-    await db.audit_log.insert_one({
-        "id": f"aud_{uuid.uuid4().hex[:12]}",
-        "actor_id": user["id"],
-        "action": "community.post.hide",
-        "target_id": post_id,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-    })
+    await _audit(user["id"], "community.post.hide", post_id, {"community": c["slug"]})
     return {"ok": True}
 
+
+# ---------- Membership / moderation ----------
+
+@router.get("/communities/{slug}/members")
+async def list_members(slug: str, viewer=Depends(maybe_user)):
+    c = await _community(slug)
+    role = await role_in(c["id"], viewer["id"] if viewer else "")
+    members = await db.community_members.find(
+        {"community_id": c["id"]}, {"_id": 0}
+    ).sort("joined_at", 1).to_list(500)
+    user_ids = [m["user_id"] for m in members]
+    users: dict = {}
+    if user_ids:
+        for u in await db.users.find(
+            {"id": {"$in": user_ids}},
+            {"_id": 0, "id": 1, "username": 1, "display_name": 1, "avatar_url": 1},
+        ).to_list(len(user_ids)):
+            users[u["id"]] = u
+    # Non-mods can see role+display but not muted/banned details
+    is_mod = role in ("owner", "moderator")
+    out = []
+    for m in members:
+        u = users.get(m["user_id"], {})
+        item = {
+            "user_id": m["user_id"],
+            "username": u.get("username"),
+            "display_name": u.get("display_name") or u.get("username"),
+            "avatar": u.get("avatar_url"),
+            "role": m.get("role", "member"),
+            "joined_at": m.get("joined_at"),
+        }
+        if is_mod:
+            item["muted"] = bool(m.get("muted"))
+            item["banned"] = bool(m.get("banned"))
+        elif m.get("banned"):
+            continue
+        out.append(item)
+    return {"members": out, "viewer_role": role}
+
+
+async def _find_member(community_id: str, user_id: str) -> dict:
+    m = await db.community_members.find_one({"community_id": community_id, "user_id": user_id}, {"_id": 0})
+    if not m:
+        raise HTTPException(status_code=404, detail="Member not found")
+    return m
+
+
+@router.post("/communities/{slug}/members/{user_id}/role")
+async def change_role(slug: str, user_id: str, role: str = Form(...), user=Depends(current_user)):
+    c = await _community(slug)
+    viewer_role = await role_in(c["id"], user["id"])
+    if viewer_role != "owner":
+        raise HTTPException(status_code=403, detail="Owner only")
+    if role not in ("member", "moderator"):
+        raise HTTPException(status_code=400, detail="Role must be member or moderator")
+    if user_id == c["owner_id"]:
+        raise HTTPException(status_code=400, detail="Cannot change owner role")
+    m = await _find_member(c["id"], user_id)
+    await db.community_members.update_one(
+        {"community_id": c["id"], "user_id": user_id},
+        {"$set": {"role": role}},
+    )
+    await _audit(user["id"], f"community.role.{role}", user_id, {"community": c["slug"], "prev": m.get("role")})
+    return {"ok": True}
+
+
+@router.post("/communities/{slug}/members/{user_id}/mute")
+async def mute_member(slug: str, user_id: str, user=Depends(current_user)):
+    c = await _community(slug)
+    await _require_mod(c, user)
+    if user_id == c["owner_id"]:
+        raise HTTPException(status_code=400, detail="Cannot mute the owner")
+    await _find_member(c["id"], user_id)
+    await db.community_members.update_one(
+        {"community_id": c["id"], "user_id": user_id},
+        {"$set": {"muted": True}},
+    )
+    await _audit(user["id"], "community.mute", user_id, {"community": c["slug"]})
+    return {"ok": True}
+
+
+@router.post("/communities/{slug}/members/{user_id}/unmute")
+async def unmute_member(slug: str, user_id: str, user=Depends(current_user)):
+    c = await _community(slug)
+    await _require_mod(c, user)
+    await _find_member(c["id"], user_id)
+    await db.community_members.update_one(
+        {"community_id": c["id"], "user_id": user_id},
+        {"$set": {"muted": False}},
+    )
+    await _audit(user["id"], "community.unmute", user_id, {"community": c["slug"]})
+    return {"ok": True}
+
+
+@router.post("/communities/{slug}/members/{user_id}/ban")
+async def ban_member(slug: str, user_id: str, user=Depends(current_user)):
+    c = await _community(slug)
+    await _require_mod(c, user)
+    if user_id == c["owner_id"]:
+        raise HTTPException(status_code=400, detail="Cannot ban the owner")
+    await _find_member(c["id"], user_id)
+    await db.community_members.update_one(
+        {"community_id": c["id"], "user_id": user_id},
+        {"$set": {"banned": True, "muted": False}},
+    )
+    await _audit(user["id"], "community.ban", user_id, {"community": c["slug"]})
+    return {"ok": True}
+
+
+@router.post("/communities/{slug}/members/{user_id}/unban")
+async def unban_member(slug: str, user_id: str, user=Depends(current_user)):
+    c = await _community(slug)
+    await _require_mod(c, user)
+    await _find_member(c["id"], user_id)
+    await db.community_members.update_one(
+        {"community_id": c["id"], "user_id": user_id},
+        {"$set": {"banned": False}},
+    )
+    await _audit(user["id"], "community.unban", user_id, {"community": c["slug"]})
+    return {"ok": True}
+
+
+@router.post("/communities/{slug}/members/{user_id}/remove")
+async def remove_member(slug: str, user_id: str, user=Depends(current_user)):
+    c = await _community(slug)
+    await _require_mod(c, user)
+    if user_id == c["owner_id"]:
+        raise HTTPException(status_code=400, detail="Cannot remove the owner")
+    await db.community_members.delete_one({"community_id": c["id"], "user_id": user_id})
+    await _audit(user["id"], "community.remove", user_id, {"community": c["slug"]})
+    return {"ok": True}
+
+
+# ---------- Reports ----------
 
 @router.post("/reports")
 async def report(
     target_type: str = Form(...),
     target_id: str = Form(...),
     reason: str = Form(...),
+    community_slug: str = Form(""),
     user=Depends(current_user),
 ):
     if target_type not in {"game", "clip", "community_post", "user"}:
         raise HTTPException(status_code=400, detail="Invalid target type")
+    if not rate_limit(f"report:{user['id']}", limit=20, window_seconds=600):
+        raise HTTPException(status_code=429, detail="Too many reports, try later")
+    community_id = None
+    if community_slug.strip():
+        c = await db.communities.find_one({"slug": community_slug.strip().lower(), "deleted_at": None}, {"_id": 0, "id": 1})
+        if c:
+            community_id = c["id"]
     rid = f"rep_{uuid.uuid4().hex[:12]}"
     await db.reports.insert_one({
         "id": rid,
         "reporter_id": user["id"],
         "target_type": target_type,
         "target_id": target_id,
+        "community_id": community_id,
         "reason": reason.strip()[:500],
         "status": "open",
+        "resolution": None,
         "created_at": datetime.now(timezone.utc).isoformat(),
     })
     return {"ok": True, "report_id": rid}
+
+
+@router.get("/communities/{slug}/reports")
+async def community_reports(slug: str, user=Depends(current_user)):
+    c = await _community(slug)
+    await _require_mod(c, user)
+    reports = await db.reports.find(
+        {"community_id": c["id"], "status": "open"}, {"_id": 0}
+    ).sort("created_at", -1).limit(100).to_list(100)
+    return {"reports": reports}
+
+
+@router.post("/reports/{report_id}/resolve")
+async def resolve_report(report_id: str, resolution: str = Form("dismissed"), user=Depends(current_user)):
+    r = await db.reports.find_one({"id": report_id}, {"_id": 0})
+    if not r:
+        raise HTTPException(status_code=404, detail="Report not found")
+    # If community-scoped, require mod role; otherwise any logged-in user can only resolve their own.
+    if r.get("community_id"):
+        c = await db.communities.find_one({"id": r["community_id"]}, {"_id": 0})
+        if not c:
+            raise HTTPException(status_code=404, detail="Community gone")
+        await _require_mod(c, user)
+    else:
+        if r["reporter_id"] != user["id"]:
+            raise HTTPException(status_code=403, detail="Not allowed")
+    await db.reports.update_one(
+        {"id": report_id},
+        {"$set": {"status": "resolved", "resolution": resolution.strip()[:200], "resolved_by": user["id"], "resolved_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    await _audit(user["id"], "report.resolve", report_id, {"resolution": resolution})
+    return {"ok": True}

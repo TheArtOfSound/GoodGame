@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { getJSON } from "../lib/api";
 import GameCard from "../components/GameCard";
+import SEO from "../components/SEO";
 
 export default function Browse() {
   const [games, setGames] = useState([]);
@@ -23,6 +24,7 @@ export default function Browse() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-8 py-10" data-testid="browse-page">
+      <SEO title="Browse all games" path="/games" />
       <div className="text-[#52525B] font-mono text-xs uppercase tracking-[0.2em]">
         Browse
       </div>

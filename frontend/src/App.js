@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { HelmetProvider } from "react-helmet-async";
 import { AuthProvider } from "@/context/AuthContext";
 import Layout from "@/components/Layout";
 import Home from "@/pages/Home";
@@ -13,6 +14,9 @@ import Clips from "@/pages/Clips";
 import ClipDetail from "@/pages/ClipDetail";
 import Communities from "@/pages/Communities";
 import CommunityDetail from "@/pages/CommunityDetail";
+import CommunityModeration from "@/pages/CommunityModeration";
+import Settings from "@/pages/Settings";
+import TagPage from "@/pages/TagPage";
 import Legal from "@/pages/Legal";
 import { Toaster } from "sonner";
 import "@/App.css";
@@ -31,31 +35,36 @@ function NotFound() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <Layout>
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/games" element={<Browse />} />
-            <Route path="/games/browser" element={<Browse />} />
-            <Route path="/games/:slug" element={<GameDetail />} />
-            <Route path="/games/:slug/play" element={<GameDetail />} />
-            <Route path="/creators/:username" element={<CreatorProfile />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/onboarding" element={<Onboarding />} />
-            <Route path="/create" element={<CreateGame />} />
-            <Route path="/console" element={<CreatorConsole />} />
-            <Route path="/console/:slug" element={<CreatorConsole />} />
-            <Route path="/clips" element={<Clips />} />
-            <Route path="/clips/:idslug" element={<ClipDetail />} />
-            <Route path="/communities" element={<Communities />} />
-            <Route path="/communities/:slug" element={<CommunityDetail />} />
-            <Route path="/legal/:topic" element={<Legal />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </Layout>
-        <Toaster theme="dark" />
-      </BrowserRouter>
-    </AuthProvider>
+    <HelmetProvider>
+      <AuthProvider>
+        <BrowserRouter>
+          <Layout>
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/games" element={<Browse />} />
+              <Route path="/games/browser" element={<Browse />} />
+              <Route path="/games/:slug" element={<GameDetail />} />
+              <Route path="/games/:slug/play" element={<GameDetail />} />
+              <Route path="/tags/:tag" element={<TagPage />} />
+              <Route path="/creators/:username" element={<CreatorProfile />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/onboarding" element={<Onboarding />} />
+              <Route path="/create" element={<CreateGame />} />
+              <Route path="/console" element={<CreatorConsole />} />
+              <Route path="/console/:slug" element={<CreatorConsole />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="/clips" element={<Clips />} />
+              <Route path="/clips/:idslug" element={<ClipDetail />} />
+              <Route path="/communities" element={<Communities />} />
+              <Route path="/communities/:slug" element={<CommunityDetail />} />
+              <Route path="/communities/:slug/moderate" element={<CommunityModeration />} />
+              <Route path="/legal/:topic" element={<Legal />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </Layout>
+          <Toaster theme="dark" />
+        </BrowserRouter>
+      </AuthProvider>
+    </HelmetProvider>
   );
 }

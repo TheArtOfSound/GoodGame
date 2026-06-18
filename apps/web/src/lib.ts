@@ -57,7 +57,7 @@ export type Review = {
 };
 export type Creator = {
   id: string; username: string; display_name: string; role: string; bio?: string;
-  avatar?: string; follower_count?: number; verification_state?: string;
+  avatar?: string; banner?: string; follower_count?: number; verification_state?: string;
   trust_tier?: string; official?: number; links?: string;
 };
 

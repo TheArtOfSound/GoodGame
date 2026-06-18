@@ -34,6 +34,17 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm install --legacy-peer-deps --no-audit --no-fund
+
+      - name: Build React frontend
+        working-directory: frontend
+        env:
+          CI: false
+          REACT_APP_BACKEND_URL: ""
+        run: npm run build
+
       - name: Typecheck web worker
         run: pnpm --filter web exec tsc --noEmit
 

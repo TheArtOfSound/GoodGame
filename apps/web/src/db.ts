@@ -28,6 +28,11 @@ export async function getGame(env: Env, slug: string): Promise<Game | null> {
     .bind(slug).first<Game>();
 }
 
+export async function getGameById(env: Env, id: string): Promise<Game | null> {
+  return env.DB.prepare(`SELECT ${GAME_COLS} ${GAME_FROM} WHERE g.id = ? AND g.deleted_at IS NULL`)
+    .bind(id).first<Game>();
+}
+
 export async function relatedGames(env: Env, g: Game): Promise<Game[]> {
   const sql = `SELECT ${GAME_COLS} ${GAME_FROM}
     WHERE ${GAME_PUB} AND g.id != ?
@@ -71,8 +76,12 @@ export async function getClipById(env: Env, id: string): Promise<Clip | null> {
   return env.DB.prepare(CLIP_SELECT + ' AND c.id = ?').bind(id).first<Clip>();
 }
 
+export async function getClipBySlug(env: Env, slug: string): Promise<Clip | null> {
+  return env.DB.prepare(CLIP_SELECT + ' AND c.slug = ?').bind(slug).first<Clip>();
+}
+
 const CREATOR_SELECT = `SELECT u.id, u.username, u.display_name, u.role,
-  p.bio, p.avatar, p.follower_count, p.links,
+  p.bio, p.avatar, p.banner, p.follower_count, p.links,
   ca.verification_state, ca.trust_tier, ca.official
   FROM users u JOIN creator_accounts ca ON ca.user_id = u.id
   LEFT JOIN profiles p ON p.user_id = u.id`;

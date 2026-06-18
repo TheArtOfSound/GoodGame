@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import type { Env } from './lib';
+import type { Env, Game, Creator, Clip, Community } from './lib';
 import { fmtCount, initials, csv } from './lib';
 import { CSS } from './styles';
 import { page } from './components';
@@ -39,6 +39,249 @@ app.get('/healthz', (c) => c.json({ ok: true, service: 'goodgame-web' }));
 app.get('/api/', (c) => c.json({ ok: true, service: 'goodgame-web' }));
 app.get('/__version', (c) => c.json(versionPayload(c.env)));
 app.get('/api/__version', (c) => c.json(versionPayload(c.env)));
+
+// ---------- React/FastAPI compatibility API ----------
+const nowIso = () => new Date().toISOString();
+const cleanSlug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 44) || 'game';
+const cleanTags = (s: unknown) => String(s ?? '').split(',').map((t) => t.trim().toLowerCase().replace(/[^a-z0-9 -]/g, '')).filter(Boolean).slice(0, 8);
+
+const apiGame = (g: Game) => ({
+  ...g,
+  pitch: g.pitch || '',
+  description: g.description || g.pitch || '',
+  tags: csv(g.tags),
+  platforms: csv(g.platforms || 'web'),
+  cover_image: g.cover_image || null,
+  upload_entry: g.upload_entry || (g.play_template ? '__template.html' : null),
+  upload_bytes: g.upload_bytes || 0,
+  updated_at: g.updated_at || nowIso(),
+});
+const apiCreator = (c: Creator) => ({
+  ...c,
+  bio: c.bio || '',
+  avatar: c.avatar || null,
+  banner: c.banner || null,
+  follower_count: c.follower_count || 0,
+  following_count: 0,
+});
+const apiClip = (clip: Clip) => ({
+  ...clip,
+  caption: clip.caption || '',
+  tags: csv(clip.tags),
+  video_path: (clip as any).video_path || '',
+  thumbnail_path: (clip as any).thumbnail_path || null,
+  created_at: clip.created_at || nowIso(),
+});
+const apiCommunity = (community: Community) => ({
+  ...community,
+  description: community.description || '',
+  member_count: community.member_count || 0,
+});
+const apiRelease = (r: any) => ({
+  ...r,
+  notes: r.release_notes || r.changelog || '',
+  created_at: r.release_date || r.created_at || nowIso(),
+});
+const unsupported = (detail: string, status = 501) => (c: any) => c.json({ detail }, status);
+
+app.get('/api/session', async (c) => {
+  const user = await getSession(c);
+  return c.json(user ? { ...user, logged_in: true } : { logged_in: false });
+});
+app.post('/api/logout', async (c) => {
+  await logout(c);
+  return c.json({ ok: true });
+});
+app.post('/api/login', unsupported('Password login is not enabled on the Cloudflare Worker deployment yet. Use the public catalog while auth is being ported.', 501));
+app.post('/api/onboarding', unsupported('Password account creation is not enabled on the Cloudflare Worker deployment yet.', 501));
+
+app.get('/api/games', async (c) => {
+  const limit = Math.min(Number(c.req.query('limit') || 60) || 60, 120);
+  const games = await db.listGames(c.env, { sort: c.req.query('sort') || undefined, limit });
+  return c.json({ games: games.map(apiGame) });
+});
+app.post('/api/games', async (c) => {
+  const user = await getSession(c);
+  if (!user) return c.json({ detail: 'Connect a wallet before publishing a game.' }, 401);
+  const b = await c.req.parseBody();
+  const title = String(b.title ?? '').trim().slice(0, 80);
+  const pitch = String(b.pitch ?? '').trim().slice(0, 180);
+  const description = String(b.description ?? '').trim().slice(0, 2000);
+  const tags = cleanTags(b.tags).join(',');
+  if (title.length < 2) return c.json({ detail: 'Title is required.' }, 400);
+
+  const id = 'gmu_' + crypto.randomUUID().replace(/-/g, '').slice(0, 10);
+  const slug = `${cleanSlug(title)}-${Math.random().toString(36).slice(2, 6)}`;
+  let uploadEntry: string | null = null;
+  let uploadBytes: number | null = null;
+  let engine = 'web';
+  const build = b.build;
+  if (build instanceof File && build.size > 0) {
+    if (build.size > 95 * 1024 * 1024) return c.json({ detail: 'That build is over 90 MB.' }, 400);
+    const res = ingestZip(new Uint8Array(await build.arrayBuffer()));
+    if (!res.ok) return c.json({ detail: res.error }, 400);
+    await Promise.all(res.files.map((f) =>
+      c.env.UGC.put(`ugc/${id}/${f.path}`, f.bytes, { httpMetadata: { contentType: f.ct, contentEncoding: f.enc, cacheControl: 'public, max-age=3600' } })));
+    uploadEntry = res.entry;
+    uploadBytes = res.total;
+    const paths = res.files.map((f) => f.path.toLowerCase()).join('\n');
+    engine = paths.includes('.pck') ? 'godot' : (paths.includes('.data') || paths.includes('.unityweb') || paths.includes('.framework.js')) ? 'unity' : 'web';
+  } else {
+    return c.json({ detail: 'Build zip is required.' }, 400);
+  }
+
+  await c.env.DB.prepare(
+    `INSERT INTO games (id, owner_id, slug, title, pitch, description, engine, tags, platforms, build_class, status, maturity, content_rating, official, verified, accent, upload_entry, upload_bytes, play_count, follow_count, rating_avg, rating_count)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'web', 'browser', 'published', 'everyone', 'Everyone', 0, 0, '#d4af37', ?, ?, 0, 0, 0, 0)`
+  ).bind(id, user.id, slug, title, pitch, description || pitch, engine, tags, uploadEntry, uploadBytes).run();
+  await c.env.DB.prepare(
+    `INSERT INTO releases (id, game_id, version, changelog, channel, status, is_current, release_date) VALUES (?, ?, '1.0.0', 'Initial build uploaded to GoodGame.', 'public', 'published', 1, datetime('now'))`
+  ).bind('rel_' + id, id).run();
+  const game = await db.getGame(c.env, slug);
+  return c.json({ game: game ? apiGame(game) : { id, slug, title } });
+});
+app.get('/api/games/:slug', async (c) => {
+  const g = await db.getGame(c.env, c.req.param('slug'));
+  if (!g) return c.json({ detail: 'Game not found' }, 404);
+  const releases = await db.gameReleases(c.env, g.id);
+  return c.json({ game: apiGame(g), releases: releases.map(apiRelease) });
+});
+app.post('/api/games/:slug/play', async (c) => {
+  const g = await db.getGame(c.env, c.req.param('slug'));
+  if (g) await c.env.DB.prepare(`UPDATE games SET play_count=play_count+1 WHERE id=?`).bind(g.id).run();
+  return c.json({ ok: true });
+});
+app.post('/api/games/:slug/build', unsupported('Build replacement is not enabled on the Cloudflare Worker React API yet.', 501));
+app.post('/api/games/:slug/thumbnail', unsupported('Thumbnail upload is not enabled on the Cloudflare Worker React API yet.', 501));
+app.post('/api/games/:slug/patch', unsupported('Patch notes are not enabled on the Cloudflare Worker React API yet.', 501));
+app.get('/api/creator/games', async (c) => {
+  const user = await getSession(c);
+  if (!user) return c.json({ games: [] });
+  const games = (await db.listGames(c.env, { sort: 'new', limit: 120 })).filter((g) => g.owner_id === user.id);
+  return c.json({ games: games.map(apiGame) });
+});
+app.get('/api/ugc/:gid/*', async (c) => {
+  const gid = c.req.param('gid');
+  const prefix = `/api/ugc/${gid}/`;
+  const i = c.req.path.indexOf(prefix);
+  let rest = i >= 0 ? c.req.path.slice(i + prefix.length) : '';
+  try { rest = decodeURIComponent(rest); } catch { /* keep raw */ }
+  if (!rest || rest.includes('..')) return c.notFound();
+  const g = await db.getGameById(c.env, gid);
+  if (g?.play_template && (rest === '__template.html' || rest === '__template')) {
+    return new Response(playDoc({ slug: g.slug, title: g.title, accent: g.accent, template: g.play_template }), {
+      headers: {
+        'content-type': 'text/html; charset=utf-8',
+        'cache-control': 'public, max-age=300',
+        'content-security-policy': "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'",
+      },
+    });
+  }
+  const obj = await c.env.UGC.get(`ugc/${gid}/${rest}`);
+  if (!obj) return c.notFound();
+  const h = new Headers();
+  h.set('content-type', obj.httpMetadata?.contentType || 'application/octet-stream');
+  if (obj.httpMetadata?.contentEncoding) h.set('content-encoding', obj.httpMetadata.contentEncoding);
+  h.set('cache-control', 'public, max-age=3600');
+  h.set('cross-origin-resource-policy', 'cross-origin');
+  h.set('x-content-type-options', 'nosniff');
+  return new Response(obj.body, { headers: h });
+});
+
+app.get('/api/tags', async (c) => {
+  const games = await db.listGames(c.env, { limit: 120 });
+  const counts = new Map<string, number>();
+  games.flatMap((g) => csv(g.tags)).forEach((tag) => counts.set(tag, (counts.get(tag) || 0) + 1));
+  return c.json({ tags: [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([tag, count]) => ({ tag, count })) });
+});
+app.get('/api/tags/:tag', async (c) => {
+  const tag = c.req.param('tag').toLowerCase();
+  const games = (await db.listGames(c.env, { limit: 120 })).filter((g) => csv(g.tags).includes(tag));
+  return c.json({ games: games.map(apiGame) });
+});
+app.get('/api/search', async (c) => {
+  const q = (c.req.query('q') || '').trim().slice(0, 80);
+  const r = q ? await db.search(c.env, q) : { games: [], creators: [], communities: [], events: [], news: [] };
+  return c.json({
+    results: r.games.map(apiGame),
+    games: r.games.map(apiGame),
+    creators: r.creators.map(apiCreator),
+    communities: r.communities.map(apiCommunity),
+    events: r.events,
+    news: r.news,
+  });
+});
+
+app.get('/api/creators/:username', async (c) => {
+  const cr = await db.getCreator(c.env, c.req.param('username'));
+  if (!cr) return c.json({ detail: 'Creator not found' }, 404);
+  const [games, clips] = await Promise.all([
+    db.listGames(c.env, { limit: 120 }).then((gs) => gs.filter((g) => g.owner_id === cr.id)),
+    db.listClips(c.env, { authorId: cr.id, limit: 24 }),
+  ]);
+  return c.json({ creator: apiCreator(cr), games: games.map(apiGame), clips: clips.map(apiClip), is_self: false, is_following: false });
+});
+app.get('/api/creators/:username/followers', (c) => c.json({ followers: [] }));
+app.get('/api/creators/:username/following', (c) => c.json({ following: [] }));
+
+app.get('/api/clips', async (c) => {
+  const gameSlug = c.req.query('game_slug') || c.req.query('game');
+  let gameId: string | undefined;
+  if (gameSlug) gameId = (await db.getGame(c.env, gameSlug))?.id;
+  const clips = await db.listClips(c.env, { gameId, limit: Math.min(Number(c.req.query('limit') || 48) || 48, 96) });
+  return c.json({ clips: clips.map(apiClip) });
+});
+app.post('/api/clips', unsupported('Clip upload is not enabled on the Cloudflare Worker React API yet.', 501));
+app.get('/api/clips/:idslug', async (c) => {
+  const idslug = c.req.param('idslug');
+  const id = idslug.match(/^(clip_[a-z0-9]+)/i)?.[1];
+  const clip = id ? await db.getClipById(c.env, id) : await db.getClipBySlug(c.env, idslug);
+  if (!clip) return c.json({ detail: 'Clip not found' }, 404);
+  return c.json({ clip: apiClip(clip) });
+});
+
+app.get('/api/communities', async (c) => {
+  const communities = await db.listCommunities(c.env, 48);
+  return c.json({ communities: communities.map(apiCommunity) });
+});
+app.post('/api/communities', unsupported('Community creation is not enabled on the Cloudflare Worker React API yet.', 501));
+app.get('/api/communities/:slug', async (c) => {
+  const community = await db.getCommunity(c.env, c.req.param('slug'));
+  if (!community) return c.json({ detail: 'Community not found' }, 404);
+  const posts = await c.env.DB.prepare(
+    `SELECT p.*, u.username author_username, u.display_name author_name
+     FROM posts p JOIN users u ON u.id=p.author_id
+     WHERE p.community_id=? AND p.deleted_at IS NULL AND p.visibility='public' AND p.moderation_status='clear'
+     ORDER BY p.created_at DESC LIMIT 50`
+  ).bind(community.id).all();
+  return c.json({ community: apiCommunity(community), role: 'guest', posts: posts.results });
+});
+app.post('/api/communities/:slug/join', unsupported('Community membership is not enabled on the Cloudflare Worker React API yet.', 501));
+app.post('/api/communities/:slug/posts', unsupported('Community posting is not enabled on the Cloudflare Worker React API yet.', 501));
+app.post('/api/communities/:slug/posts/:post_id/hide', unsupported('Community moderation is not enabled on the Cloudflare Worker React API yet.', 501));
+app.get('/api/communities/:slug/members', async (c) => {
+  const community = await db.getCommunity(c.env, c.req.param('slug'));
+  if (!community) return c.json({ detail: 'Community not found' }, 404);
+  const members = await c.env.DB.prepare(
+    `SELECT m.user_id, m.role, 0 muted, 0 banned, u.username, u.display_name, p.avatar
+     FROM community_memberships m JOIN users u ON u.id=m.user_id LEFT JOIN profiles p ON p.user_id=u.id
+     WHERE m.community_id=? ORDER BY CASE m.role WHEN 'owner' THEN 0 WHEN 'moderator' THEN 1 ELSE 2 END, u.username`
+  ).bind(community.id).all();
+  return c.json({ community: apiCommunity(community), viewer_role: 'guest', members: members.results });
+});
+app.get('/api/communities/:slug/reports', (c) => c.json({ reports: [] }));
+app.post('/api/communities/:slug/members/:user_id/role', unsupported('Community moderation is not enabled on the Cloudflare Worker React API yet.', 501));
+app.post('/api/communities/:slug/members/:user_id/mute', unsupported('Community moderation is not enabled on the Cloudflare Worker React API yet.', 501));
+app.post('/api/communities/:slug/members/:user_id/unmute', unsupported('Community moderation is not enabled on the Cloudflare Worker React API yet.', 501));
+app.post('/api/communities/:slug/members/:user_id/ban', unsupported('Community moderation is not enabled on the Cloudflare Worker React API yet.', 501));
+app.post('/api/communities/:slug/members/:user_id/unban', unsupported('Community moderation is not enabled on the Cloudflare Worker React API yet.', 501));
+app.post('/api/communities/:slug/members/:user_id/remove', unsupported('Community moderation is not enabled on the Cloudflare Worker React API yet.', 501));
+app.post('/api/reports', unsupported('Reports are not enabled on the Cloudflare Worker React API yet.', 501));
+app.post('/api/reports/:report_id/resolve', unsupported('Reports are not enabled on the Cloudflare Worker React API yet.', 501));
+app.patch('/api/me/profile', unsupported('Profile editing is not enabled on the Cloudflare Worker React API yet.', 501));
+app.post('/api/me/avatar', unsupported('Profile media upload is not enabled on the Cloudflare Worker React API yet.', 501));
+app.post('/api/me/banner', unsupported('Profile media upload is not enabled on the Cloudflare Worker React API yet.', 501));
+app.get('/api/sitemap.xml', (c) => c.redirect('/sitemap.xml', 302));
 
 // ---------- assets ----------
 app.get('/styles.css', () =>

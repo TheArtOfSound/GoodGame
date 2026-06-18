@@ -98,13 +98,17 @@ async def get_session_user(sid: Optional[str]):
 
 
 def set_session_cookie(resp: Response, sid: str, secure: bool = True):
+    # If we're on HTTPS, allow cross-origin cookies so a Vercel frontend can
+    # authenticate against a Railway-hosted API on a different host. This
+    # requires SameSite=None + Secure per browser policy.
+    samesite = "none" if secure else "lax"
     resp.set_cookie(
         key=SESSION_COOKIE,
         value=sid,
         max_age=int(SESSION_TTL.total_seconds()),
         httponly=True,
         secure=secure,
-        samesite="lax",
+        samesite=samesite,
         path="/",
     )
 

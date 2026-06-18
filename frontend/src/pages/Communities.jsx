@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { getJSON, postJSON } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 
 export default function Communities() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState("");
@@ -24,9 +25,13 @@ export default function Communities() {
     e.preventDefault();
     setErr(null);
     try {
-      await postJSON("/communities", { name, description: desc });
+      const res = await postJSON("/communities", { name, description: desc });
       setName("");
       setDesc("");
+      if (res?.community?.slug) {
+        navigate(`/communities/${res.community.slug}`);
+        return;
+      }
       refresh();
     } catch (e) {
       setErr(e.response?.data?.detail || "Failed");

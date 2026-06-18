@@ -6,8 +6,9 @@ from typing import Optional
 from fastapi import APIRouter, Cookie, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
-from auth import get_session_user, rate_limit
+from auth import get_session_user
 from db import db
+from ratelimit import rate_limit_check
 from storage import APP_NAME, put_object
 
 router = APIRouter(prefix="/api", tags=["profile"])
@@ -92,7 +93,7 @@ async def _resolve_target(username: str):
 
 @router.post("/follow/{username}")
 async def follow(username: str, user=Depends(current_user)):
-    if not rate_limit(f"follow:{user['id']}", limit=120, window_seconds=300):
+    if not await rate_limit_check(f"follow:{user['id']}", limit=120, window_seconds=300):
         raise HTTPException(status_code=429, detail="Slow down")
     target = await _resolve_target(username)
     if target["id"] == user["id"]:

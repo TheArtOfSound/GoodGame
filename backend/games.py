@@ -9,8 +9,9 @@ from fastapi import (
 )
 from fastapi.responses import RedirectResponse
 
-from auth import get_session_user, rate_limit
+from auth import get_session_user
 from db import db
+from ratelimit import rate_limit_check
 from storage import (
     APP_NAME, content_type_for, get_object, ingest_game_zip, put_object,
 )
@@ -141,7 +142,7 @@ async def create_game(
     build: UploadFile = File(...),
     user=Depends(current_user),
 ):
-    if not rate_limit(f"gamecreate:{user['id']}", limit=10, window_seconds=3600):
+    if not await rate_limit_check(f"gamecreate:{user['id']}", limit=10, window_seconds=3600):
         raise HTTPException(status_code=429, detail="Too many uploads in the last hour")
     if not title.strip():
         raise HTTPException(status_code=400, detail="Title required")
@@ -276,7 +277,7 @@ async def upload_thumbnail(
         raise HTTPException(status_code=404, detail="Game not found")
     if g["owner_id"] != user["id"]:
         raise HTTPException(status_code=403, detail="Not the owner")
-    if not rate_limit(f"gameupdate:{user['id']}:{g['id']}", limit=20, window_seconds=3600):
+    if not await rate_limit_check(f"gameupdate:{user['id']}:{g['id']}", limit=20, window_seconds=3600):
         raise HTTPException(status_code=429, detail="Too many updates, slow down")
     ct = (file.content_type or "").lower()
     if ct not in THUMB_TYPES:

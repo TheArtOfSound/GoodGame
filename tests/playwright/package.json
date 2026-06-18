@@ -1,0 +1,14 @@
+{
+  "name": "goodgame-e2e",
+  "version": "0.0.1",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "playwright test --config playwright.config.mjs"
+  },
+  "dependencies": {
+    "@playwright/test": "^1.46.0",
+    "adm-zip": "^0.5.10",
+    "pngjs": "^7.0.0"
+  }
+}

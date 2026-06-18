@@ -13,6 +13,7 @@ from fastapi import APIRouter, Cookie, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
 
 from db import db
+from ratelimit import rate_limit_check
 
 router = APIRouter(prefix="/api", tags=["auth"])
 
@@ -26,19 +27,10 @@ RESERVED_USERNAMES = {
     "staff", "official", "owner",
 }
 
-# Simple in-memory rate limiter: {key: [timestamps]}
-_rate_buckets: dict[str, list[float]] = {}
-
-
-def rate_limit(key: str, limit: int, window_seconds: int) -> bool:
-    now = time.time()
-    bucket = _rate_buckets.setdefault(key, [])
-    cutoff = now - window_seconds
-    bucket[:] = [t for t in bucket if t > cutoff]
-    if len(bucket) >= limit:
-        return False
-    bucket.append(now)
-    return True
+# Legacy in-memory bucket kept ONLY as a fallback alias so any caller still
+# importing `rate_limit` from auth gets the durable Mongo-backed checker.
+async def rate_limit(key: str, limit: int, window_seconds: int) -> bool:
+    return await rate_limit_check(key, limit, window_seconds)
 
 
 # ---------- Hashing ----------
@@ -143,7 +135,7 @@ def require_secure(request: Request) -> bool:
 @router.post("/onboarding")
 async def onboarding(payload: OnboardingIn, request: Request, response: Response):
     ip = request.client.host if request.client else "anon"
-    if not rate_limit(f"onboarding:{ip}", limit=20, window_seconds=600):
+    if not await rate_limit_check(f"onboarding:{ip}", limit=20, window_seconds=600):
         raise HTTPException(status_code=429, detail="Too many attempts, try again later")
 
     username = payload.username.strip().lower()
@@ -192,9 +184,9 @@ async def onboarding(payload: OnboardingIn, request: Request, response: Response
 @router.post("/login")
 async def login(payload: LoginIn, request: Request, response: Response):
     ip = request.client.host if request.client else "anon"
-    if not rate_limit(f"login:{ip}", limit=10, window_seconds=300):
+    if not await rate_limit_check(f"login:{ip}", limit=10, window_seconds=300):
         raise HTTPException(status_code=429, detail="Too many attempts, try again later")
-    if not rate_limit(f"login_user:{payload.username.lower()}", limit=10, window_seconds=300):
+    if not await rate_limit_check(f"login_user:{payload.username.lower()}", limit=10, window_seconds=300):
         raise HTTPException(status_code=429, detail="Too many attempts, try again later")
 
     user = await db.users.find_one({"username": payload.username.strip().lower()})

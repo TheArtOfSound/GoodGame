@@ -7,8 +7,9 @@ from typing import Optional
 from fastapi import APIRouter, Cookie, Depends, Form, HTTPException
 from pydantic import BaseModel
 
-from auth import get_session_user, rate_limit
+from auth import get_session_user
 from db import db
+from ratelimit import rate_limit_check
 
 router = APIRouter(prefix="/api", tags=["communities"])
 
@@ -98,7 +99,7 @@ class CommunityIn(BaseModel):
 
 @router.post("/communities")
 async def create_community(payload: CommunityIn, user=Depends(current_user)):
-    if not rate_limit(f"comcreate:{user['id']}", limit=10, window_seconds=3600):
+    if not await rate_limit_check(f"comcreate:{user['id']}", limit=10, window_seconds=3600):
         raise HTTPException(status_code=429, detail="Too many communities created, try later")
     name = payload.name.strip()
     if len(name) < 3 or len(name) > 48:
@@ -189,7 +190,7 @@ async def post_message(slug: str, body: str = Form(...), user=Depends(current_us
         raise HTTPException(status_code=403, detail="Join the community first")
     if role in ("banned", "muted"):
         raise HTTPException(status_code=403, detail="You cannot post here")
-    if not rate_limit(f"compost:{user['id']}:{c['id']}", limit=20, window_seconds=300):
+    if not await rate_limit_check(f"compost:{user['id']}:{c['id']}", limit=20, window_seconds=300):
         raise HTTPException(status_code=429, detail="Slow down — too many posts")
     body = body.strip()
     if not body:
@@ -363,7 +364,7 @@ async def report(
 ):
     if target_type not in {"game", "clip", "community_post", "user"}:
         raise HTTPException(status_code=400, detail="Invalid target type")
-    if not rate_limit(f"report:{user['id']}", limit=20, window_seconds=600):
+    if not await rate_limit_check(f"report:{user['id']}", limit=20, window_seconds=600):
         raise HTTPException(status_code=429, detail="Too many reports, try later")
     community_id = None
     if community_slug.strip():

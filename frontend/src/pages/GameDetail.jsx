@@ -125,12 +125,14 @@ export default function GameDetail() {
             {game.tags && game.tags.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-4">
                 {game.tags.map((t) => (
-                  <span
+                  <Link
                     key={t}
-                    className="border border-[#1A1A1A] text-[#A1A1AA] font-mono text-[10px] uppercase tracking-[0.2em] px-2 py-1"
+                    to={`/tags/${t}`}
+                    data-testid={`game-tag-${t}`}
+                    className="border border-[#1A1A1A] hover:border-[#D4AF37] text-[#A1A1AA] hover:text-[#D4AF37] font-mono text-[10px] uppercase tracking-[0.2em] px-2 py-1 transition-colors"
                   >
-                    {t}
-                  </span>
+                    #{t}
+                  </Link>
                 ))}
               </div>
             )}

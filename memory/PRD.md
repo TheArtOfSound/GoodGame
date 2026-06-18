@@ -1,39 +1,46 @@
 # GoodGame.center — PRD
 
 ## Original problem statement
-Rebuild GoodGame.center as a browser-first game platform: account creation, real game upload (zip), thumbnails, patch notes, browsing, creator profiles, clips, communities, moderation, sandboxed play, legal pages. No fake catalog, no wallets, no crypto, no tokens.
-
-Original repo (TheArtOfSound/GoodGame) is Cloudflare Workers + Hono + D1 + R2 + KV. This Emergent environment runs the equivalent on **React + FastAPI + MongoDB + Emergent Object Storage**.
+Rebuild GoodGame.center as a browser-first game platform on the Emergent stack (React + FastAPI + MongoDB + Emergent object storage). Replaces the user's Cloudflare Workers + Hono + D1 + R2 + KV repo only at the application layer — the security/auth/zip-ingest patterns can be ported back if the user keeps Cloudflare.
 
 ## Architecture
-- Frontend: React 19 + React Router 7 + Tailwind, served by CRA dev server on port 3000.
+- Frontend: React 19 + React Router 7 + Tailwind + react-helmet-async on port 3000 (CRA dev server).
 - Backend: FastAPI on 0.0.0.0:8001, all routes prefixed `/api`.
 - DB: MongoDB via `motor`.
-- File storage: Emergent managed object storage (zip game builds, thumbnails, video clips).
-- Auth: PBKDF2-HMAC-SHA256 (600k iters) password & PIN hashes, random-UUID session ids in HttpOnly Secure SameSite=Lax cookie. Legacy SHA-256 hashes auto-rehash on first login.
-- UGC safety: sandboxed iframe (no `allow-same-origin`); `Sec-Fetch-Dest: document` on `/api/ugc/...` redirects to `/games/:slug/play`; zip ingest blocks traversal, absolute paths, dangerous extensions, oversized files, zip-bomb compression ratios.
-- HTML entry pages of UGC are served with an injected `<base href>` so the game's relative assets resolve correctly under its UGC prefix.
+- File storage: Emergent managed object storage (zip game builds, thumbnails, video clips, avatars, banners).
+- Auth: PBKDF2-HMAC-SHA256 (600k iters) password & PIN, random-UUID session ids in HttpOnly Secure SameSite=Lax cookie. Legacy SHA-256 auto-rehash on login.
+- UGC safety: sandboxed iframe (no `allow-same-origin`), `Sec-Fetch-Dest: document` redirect, `<base href>` injection, zip-ingest path/extension/size/zip-bomb checks.
 
 ## User personas
-- Visitor: browses the public catalog and plays games without an account.
-- Creator: signs up (username/password/PIN), uploads zip builds, thumbnails, patch notes, clips, joins communities.
-- Community owner/moderator: creates communities, manages posts (hide), promotes/demotes members.
+- Visitor: browses public catalog and plays games without an account.
+- Creator: signs up, uploads zip builds, thumbnails, patch notes, clips, follows other creators.
+- Community owner/moderator: creates communities, moderates posts (hide/promote/demote/mute/ban/remove/resolve reports).
 
-## What's implemented (2026-02)
-- Auth: onboarding, login, logout, session, PBKDF2, rate limiting.
-- Games: list, detail, upload (zip with security validation), build replacement, patch notes, thumbnail, play counter, sandboxed UGC serving with base-href injection and Sec-Fetch-Dest gate.
-- Clips: list, detail with `<video controls playsInline preload="metadata">`, upload (mp4/webm/mov ≤80MB), per-clip object storage path.
-- Communities: list, create, join, view, post, hide-post (owner/mod), report endpoint.
-- Creators: public profile (`/creators/:username`) with games tab + clips tab; owner sees drafts.
-- Legal pages: Terms, Privacy, DMCA, Content Policy as long-form readable text (placeholder baseline; still flagged for counsel review).
-- Brand & UI: black/gold cinematic theme; Outfit/IBM Plex Sans/JetBrains Mono fonts; sharp edges; logged-in vs logged-out nav.
+## Implemented (2026-02)
+**MVP (iteration 1):**
+- Onboarding/login/logout/session with PBKDF2 + random session id + legacy rehash + per-IP rate limits.
+- Games: upload (zip with security validation), thumbnails, build replacement, patch notes, sandboxed iframe play, public catalog of real owners.
+- Clips: upload, list, detail with `<video controls playsInline preload="metadata">`.
+- Communities: create, join, post, hide-post, reports endpoint.
+- Creator profiles, legal pages (Terms / Privacy / DMCA / Content Policy).
+
+**P1 + P2 (iteration 2):**
+- Avatar / banner / bio / display-name editing at `/settings`, stored under `/api/user-media/<random-id>/...` (never exposes user id in path).
+- Follow / unfollow + follower/following counts on creator profile.
+- Search (`/api/search?q=`) used by clip-upload `GamePicker` autocomplete component.
+- Tag pages (`/tags/:tag`) + popular tags endpoint (`/api/tags`) + clickable tag chips on game detail.
+- Sitemap (`/api/sitemap.xml`) + `/robots.txt` pointing to it.
+- Community moderation panel (`/communities/:slug/moderate`) with member list, promote/demote (owner), mute/unmute, ban/unban, remove (moderator+), reports queue with resolve action.
+- Reports include `community_slug` for proper scoping.
+- Per-route rate limits: game create, game update, clip upload, community post, community create, follow, report.
+- SEO via `react-helmet-async` on home, browse, game-detail, creator, tag, clips pages.
 
 ## Backlog
-P0: tests + screenshots / smoke after first deploy.
-P1: avatar/banner upload UI; follow/unfollow; clip→game picker; per-route rate limits beyond auth.
-P2: report moderation queue UI; community member list / promote / mute / ban UI; sitemap.xml; SEO meta; tag pages.
+P0: none blocking.
+P1 (later): in-app following feed; clip→game picker → reverse "clips on this game" rail on game detail page.
+P2 (later): moderator promotion notifications; site-wide search bar; community discovery (trending); creator analytics; storage GC for deleted assets.
 
 ## Next tasks
-- Run testing_agent_v3 for end-to-end QA.
-- Implement avatar/banner upload + follow.
-- Implement community moderation queue UI + member management.
+- Decide deploy path: switch goodgame.center to Emergent hosting, OR port these patterns into the Cloudflare repo manually.
+- Add Playwright browser tests for: signup → upload game zip → upload thumbnail → upload clip → follow another creator → moderate community.
+- Persist rate-limit buckets in MongoDB (currently in-memory; lost on restart, not multi-worker safe).

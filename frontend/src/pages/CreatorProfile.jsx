@@ -35,6 +35,13 @@ export default function CreatorProfile() {
 
   return (
     <div data-testid="creator-profile">
+      <SEO
+        title={`${creator.display_name} (@${creator.username})`}
+        description={creator.bio || `Browser games by @${creator.username} on GoodGame.center.`}
+        image={creator.banner ? `${BACKEND}${creator.banner}` : null}
+        type="profile"
+        path={`/creators/${creator.username}`}
+      />
       <div className="relative h-44 md:h-56 border-b border-[#1A1A1A] overflow-hidden">
         <img
           src={creator.banner || BANNER_FALLBACK}

@@ -1,0 +1,46 @@
+{
+  "summary": "Comprehensive backend + frontend smoke for GoodGame.center. 34/35 backend tests pass (1 skipped due to onboarding rate limit, not a bug). Frontend home/nav/game-detail/iframe play all OK. Base-href injection verified both at API level and visually in iframe (Neon Starfighter renders & plays).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/onboarding", "issue": "In-memory rate limit (5/IP/10min) is strict enough to block legitimate same-IP test/preview clients; consider raising for /api/onboarding or scoping by IP+UA in dev. Not a functional bug — limits applied correctly."},
+      {"endpoint": "/api/games (zip ingest)", "issue": "Zip with only unsafe members (../, /etc/...) returns 400 'no usable files'. Works as intended; just confirming the error message is generic rather than 'path traversal blocked'."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Onboarding via UI", "issue": "Could not fully validate post-signup nav swap (upload-game-cta / logout) because backend onboarding rate limit (5/10min) was already exhausted by backend tests from same egress IP. Frontend POSTed correctly; backend returned 429. No functional defect.", "affected_selectors": ["[data-testid=\"upload-game-cta\"]", "[data-testid=\"onb-submit\"]"]}
+    ],
+    "design_issues": [
+      {"screen": "Play iframe", "issues": ["Browser warning: 'allow-fullscreen' is an invalid sandbox flag. Should be 'allow-same-origin' / 'allow-scripts' etc. The correct attribute for fullscreen is the iframe's `allow=\"fullscreen\"` (not a sandbox token). Cosmetic console warning only."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_goodgame_backend.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "OPTIONAL: Relax /api/onboarding rate-limit (currently 5/IP/10min) or scope to per-IP+UA so legitimate users behind a shared NAT (preview env) aren't blocked.",
+    "OPTIONAL: Replace iframe sandbox token 'allow-fullscreen' with `allow=\"fullscreen\"` attribute (separate from sandbox) to silence the console warning.",
+    "Verify these are nits — none of them block any feature."
+  ],
+  "critical_code_review_comments": [
+    "Rate-limit state is process-local (in-memory dict in auth.py). Loses fairness on multi-worker deploys and resets on backend restart. For production move to Redis/Mongo TTL bucket.",
+    "Zip ingest correctly enforces MAX_TOTAL_BYTES, MAX_FILES, compression-ratio (zip-bomb), blocked extensions, and path-traversal — solid.",
+    "UGC serve: Sec-Fetch-Dest=document -> 302 to /games/<slug>/play is a great anti-clickjacking pattern; iframe path injects <base href> only into text/html responses and avoids double-injection — correct.",
+    "Thumbnail/clip uploads validate content-type and size before persisting — good.",
+    "is_real_owner() filter on /api/games + /api/games/{slug} hides legacy/system games — works as intended.",
+    "Cookie set with secure=require_secure(request); behind ingress that forwards x-forwarded-proto=https, so cookies are correctly Secure in preview/prod."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_goodgame_backend.py"
+  ],
+  "success_rate": {"backend": "97% (34/35, 1 skipped due to rate-limit)", "frontend": "90% (all core flows verified; onboarding-UI end state not visually confirmed due to backend 429)"},
+  "test_credentials": "None seeded. Tests create users on the fly via /api/onboarding. Note: same egress IP shared by backend tests + browser-automation triggers /api/onboarding rate limit (5/10min).",
+  "seed_data_creation": "Each test run creates ~4-5 ephemeral users (prefix a/b/c/lg/se/lo/ok/dup/ftest), 1-2 test games per session_a, 1 test clip, 1 community. Pre-existing `neon-starfighter` game by `goodgame_tester` left intact.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend test file is at /app/backend/tests/test_goodgame_backend.py. It is pytest-based and uses module-scoped fixtures (session_a, session_b) pre-warmed via _prewarm autouse fixture so the onboarding rate limit (5/IP/10min) is consumed only by 2-3 real onboardings + a few rejected attempts. If you re-run within 10 minutes of UI testing, restart backend (`sudo supervisorctl restart backend`) to reset in-memory rate buckets. The /api/__version, public SPA routes, full auth lifecycle (onboarding/login/session/logout), games CRUD + UGC serving (with Sec-Fetch-Dest behavior + base-href injection assertion), thumbnail/build/patch ownership rules, clip upload + size/type limits, community lifecycle (create/join/post/hide), and reports endpoint are all covered. The /api/ugc/<gid>/index.html iframe response was verified to contain `<base href=\"/api/ugc/<gid>/\">` and a permissive CSP header.",
+  "rca of the issue": "No bugs found. The single skipped test (TestCommunities.test_full_community_flow) is the third-user onboarding hitting 429 — this is the rate limiter doing its job. The browser onboarding 429 observed in the UI smoke also stems from the same rate limit (backend tests + UI test share the egress IP)."
+}

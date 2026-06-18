@@ -1,56 +1,61 @@
-import { useEffect } from "react";
-import "@/App.css";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import axios from "axios";
-import { HOME } from "@/constants/testIds";
+import { AuthProvider } from "@/context/AuthContext";
+import Layout from "@/components/Layout";
+import Home from "@/pages/Home";
+import Browse from "@/pages/Browse";
+import GameDetail from "@/pages/GameDetail";
+import CreatorProfile from "@/pages/CreatorProfile";
+import Login from "@/pages/Login";
+import Onboarding from "@/pages/Onboarding";
+import CreateGame from "@/pages/CreateGame";
+import CreatorConsole from "@/pages/CreatorConsole";
+import Clips from "@/pages/Clips";
+import ClipDetail from "@/pages/ClipDetail";
+import Communities from "@/pages/Communities";
+import CommunityDetail from "@/pages/CommunityDetail";
+import Legal from "@/pages/Legal";
+import { Toaster } from "sonner";
+import "@/App.css";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
-
-const Home = () => {
-  const helloWorldApi = async () => {
-    try {
-      const response = await axios.get(`${API}/`);
-      console.log(response.data.message);
-    } catch (e) {
-      console.error(e, `errored out requesting / api`);
-    }
-  };
-
-  useEffect(() => {
-    helloWorldApi();
-  }, []);
-
+function NotFound() {
   return (
-    <div>
-      <header className="App-header">
-        <a
-          data-testid={HOME.emergentLink}
-          className="App-link"
-          href="https://emergent.sh"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <img src="https://avatars.githubusercontent.com/in/1201222?s=120&u=2686cf91179bbafbc7a71bfbc43004cf9ae1acea&v=4" />
-        </a>
-        <p className="mt-5">Building something incredible ~!</p>
-      </header>
-    </div>
-  );
-};
-
-function App() {
-  return (
-    <div className="App">
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Home />}>
-            <Route index element={<Home />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
+    <div className="max-w-3xl mx-auto px-4 py-20 text-center" data-testid="not-found">
+      <div className="text-[#D4AF37] font-mono text-xs uppercase tracking-[0.3em]">404</div>
+      <h1 className="text-4xl font-bold uppercase text-white mt-2 tracking-tight">
+        Off the grid
+      </h1>
+      <p className="text-[#A1A1AA] mt-4">That page doesn&apos;t exist.</p>
     </div>
   );
 }
 
-export default App;
+export default function App() {
+  return (
+    <AuthProvider>
+      <BrowserRouter>
+        <Layout>
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/games" element={<Browse />} />
+            <Route path="/games/browser" element={<Browse />} />
+            <Route path="/games/:slug" element={<GameDetail />} />
+            <Route path="/games/:slug/play" element={<GameDetail />} />
+            <Route path="/creators/:username" element={<CreatorProfile />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/onboarding" element={<Onboarding />} />
+            <Route path="/create" element={<CreateGame />} />
+            <Route path="/console" element={<CreatorConsole />} />
+            <Route path="/console/:slug" element={<CreatorConsole />} />
+            <Route path="/clips" element={<Clips />} />
+            <Route path="/clips/:idslug" element={<ClipDetail />} />
+            <Route path="/communities" element={<Communities />} />
+            <Route path="/communities/:slug" element={<CommunityDetail />} />
+            <Route path="/legal/:topic" element={<Legal />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </Layout>
+        <Toaster theme="dark" />
+      </BrowserRouter>
+    </AuthProvider>
+  );
+}

@@ -1,4 +1,6 @@
 -- Password-backed accounts for the React onboarding/login flow.
+-- Cloudflare Workers currently rejects PBKDF2 iteration counts above 100000,
+-- so the application uses pbkdf2$100000$... hashes.
 ALTER TABLE users ADD COLUMN password_hash TEXT;
 ALTER TABLE users ADD COLUMN pin_hash TEXT;
 

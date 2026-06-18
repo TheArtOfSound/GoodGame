@@ -10,7 +10,7 @@ import type { Env, SessionUser } from './lib';
 const SESSION_COOKIE = 'gg_session';
 const SESSION_TTL = 60 * 60 * 24 * 30; // 30 days
 const NONCE_TTL = 600;
-const PBKDF2_ITERATIONS = 310_000;
+const PBKDF2_ITERATIONS = 100_000;
 const USERNAME_RE = /^[a-zA-Z0-9_]{3,24}$/;
 const RESERVED_USERNAMES = new Set([
   'admin', 'system', 'support', 'goodgame', 'root', 'moderator', 'mod',

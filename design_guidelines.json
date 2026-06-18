@@ -1,0 +1,86 @@
+{
+  "theme": "dark",
+  "archetype": "Archetype 5: Luxury & High Contrast (Premium Arcade Variant)",
+  "visual_direction": "Black and gold cinematic gaming aesthetic, sharp digital arcade, premium platform. No rounded bubbly SaaS elements. No fake casino. No crypto/wallet language.",
+  "colors": {
+    "background_base": "#000000",
+    "background_surface": "#080808",
+    "background_card": "#0A0A0A",
+    "border_subtle": "#1A1A1A",
+    "border_focus": "#D4AF37",
+    "primary_gold": "#D4AF37",
+    "primary_gold_hover": "#E5C158",
+    "text_primary": "#FFFFFF",
+    "text_secondary": "#A1A1AA",
+    "text_muted": "#52525B",
+    "error_red": "#FF3B30",
+    "success_green": "#34C759"
+  },
+  "typography": {
+    "instructions": "Do NOT use Inter or Roboto. Use the recommended Google Fonts below. Apply strong typographic hierarchy.",
+    "heading_font": "'Outfit', sans-serif",
+    "body_font": "'IBM Plex Sans', sans-serif",
+    "mono_font": "'JetBrains Mono', monospace",
+    "hierarchy": {
+      "h1": "text-5xl md:text-6xl font-black tracking-tighter text-white uppercase",
+      "h2": "text-3xl md:text-4xl font-bold tracking-tight text-white uppercase",
+      "h3": "text-xl md:text-2xl font-bold text-white",
+      "body": "text-base text-[#A1A1AA] leading-relaxed",
+      "metadata": "text-xs font-mono text-[#52525B] uppercase tracking-[0.2em]"
+    }
+  },
+  "layout_spacing": {
+    "grid_system": "Bento-style dense grids for game cards. No visual gaps unless structural.",
+    "game_grid": "grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 md:gap-4",
+    "card_radius": "rounded-none",
+    "button_radius": "rounded-none",
+    "container_padding": "px-4 md:px-8",
+    "mobile_constraints": "overflow-x-hidden, w-full, responsive flex/grid stacking"
+  },
+  "component_instructions": {
+    "navigation": "Sticky header (`sticky top-0 z-50`), `bg-black/90 backdrop-blur-xl border-b border-[#1A1A1A]`. Show standard Join/Login CTA for logged-out users. Show distinct 'Upload Game' CTA with user avatar dropdown for logged-in. Stack properly on mobile with hamburger.",
+    "game_cards": "Dense cards. `bg-[#0A0A0A] border border-[#1A1A1A] rounded-none`. Image on top (aspect-video), title below. Hover state: `hover:border-[#D4AF37]/50` and slight gold tint on image overlay. Include `data-testid='game-card-{id}'`.",
+    "buttons": "Primary: `bg-[#D4AF37] text-black font-bold uppercase tracking-wider hover:bg-[#E5C158] border-none`. Secondary: `bg-transparent border border-[#1A1A1A] text-white hover:border-white`.",
+    "forms": "Account creation, login, and upload forms use sharp inputs (`rounded-none`), dark backgrounds (`bg-[#0A0A0A]`), and gold focus rings (`focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37]`). Phone usability: use large tap targets (`h-12`).",
+    "game_detail_iframe": "Sandboxed iframe container must be central focus. Wrap in a black container with a 1px subtle border. Patch notes and creator info stack below or in a 3-column split (2 col game, 1 col metadata).",
+    "creator_profile": "Banner image across top, overlapping square avatar with 2px gold border. Split view into Tabs: Games, Clips, Communities.",
+    "legal_pages": "Use narrow text containers (`max-w-3xl mx-auto`), distinct typography scale, and minimal distraction. Clean readability."
+  },
+  "image_urls": {
+    "hero_background": {
+      "url": "https://images.unsplash.com/photo-1517241034903-9a4c3ab12f00?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NzV8MHwxfHNlYXJjaHwxfHxhYnN0cmFjdCUyMGRpZ2l0YWwlMjBnZW9tZXRyeSUyMGRhcmt8ZW58MHx8fHwxNzgxNzcxMDk1fDA&ixlib=rb-4.1.0&q=85",
+      "description": "Abstract dark wavy digital geometry for landing page hero background (set to opacity-20)"
+    },
+    "featured_game_1": {
+      "url": "https://images.unsplash.com/photo-1759171053096-e7dbe7c36eb6?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NTZ8MHwxfHNlYXJjaHwzfHxhcmNhZGUlMjBjYWJpbmV0JTIwZGFya3xlbnwwfHx8fDE3ODE3NzEwOTZ8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Neon glowing retro arcade cabinet, useful for featured game thumbnails"
+    },
+    "featured_game_2": {
+      "url": "https://images.unsplash.com/photo-1631896928983-2c94ea6f97e8?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NjV8MHwxfHNlYXJjaHwyfHxnYW1lJTIwY29udHJvbGxlciUyMGJsYWNrfGVufDB8fHx8MTc4MTc3MTA5NXww&ixlib=rb-4.1.0&q=85",
+      "description": "Black controller with red and blue ambient glow, good for action game thumbnails"
+    },
+    "featured_game_3": {
+      "url": "https://images.unsplash.com/photo-1773053965532-7ca7adcd6b49?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NTZ8MHwxfHNlYXJjaHwyfHxhcmNhZGUlMjBjYWJpbmV0JTIwZGFya3xlbnwwfHx8fDE3ODE3NzEwOTZ8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Vintage arcade machine interface, placeholder for classic/retro indie game uploads"
+    },
+    "community_cover": {
+      "url": "https://images.unsplash.com/photo-1718844054440-22acf5d5c8f0?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NzV8MHwxfHNlYXJjaHwyfHxhYnN0cmFjdCUyMGRpZ2l0YWwlMjBnZW9tZXRyeSUyMGRhcmt8ZW58MHx8fHwxNzgxNzcxMDk1fDA&ixlib=rb-4.1.0&q=85",
+      "description": "Abstract spherical shape in dark tones, perfect for community group cover images or user profile banners"
+    }
+  },
+  "testing_attributes": {
+    "rules": "All interactive and key informational elements MUST include a data-testid attribute.",
+    "convention": "kebab-case, role-based",
+    "examples": [
+      "data-testid='login-submit-button'",
+      "data-testid='upload-game-button'",
+      "data-testid='game-card-link'",
+      "data-testid='play-iframe-container'"
+    ]
+  },
+  "accessibility_and_motion": {
+    "focus_states": "High contrast gold outlines for keyboard navigation.",
+    "hover_states": "Use fast, sharp transitions (`transition-all duration-150 ease-out`).",
+    "contrast": "Text must meet WCAG-AA 4.5:1 contrast against dark background. Use text-shadow if layered over images."
+  }
+}

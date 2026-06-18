@@ -40,6 +40,53 @@ app.get('/api/', (c) => c.json({ ok: true, service: 'goodgame-web' }));
 app.get('/__version', (c) => c.json(versionPayload(c.env)));
 app.get('/api/__version', (c) => c.json(versionPayload(c.env)));
 
+// ---------- donations ----------
+app.get('/api/donations/config', (c) => c.json({
+  ok: true,
+  publishable_key: c.env.STRIPE_PUBLISHABLE_KEY || null,
+  currency: 'usd',
+  min_amount: 1,
+  max_amount: 10000,
+}));
+
+app.post('/api/donations/checkout', async (c) => {
+  if (!c.env.STRIPE_SECRET_KEY) return c.json({ detail: 'Donation checkout is not configured yet.' }, 503);
+  const body = await c.req.json().catch(() => ({}));
+  const amountCents = centsFromDonationAmount(body.amount);
+  if (amountCents < 100) return c.json({ detail: 'Minimum donation is $1.' }, 400);
+  if (amountCents > 1_000_000) return c.json({ detail: 'Maximum donation is $10,000.' }, 400);
+  const user = await getSession(c);
+  const origin = c.env.SITE_URL || new URL(c.req.url).origin;
+  const params = new URLSearchParams();
+  params.set('mode', 'payment');
+  params.set('submit_type', 'donate');
+  params.set('success_url', `${origin}/?donation=thanks&session_id={CHECKOUT_SESSION_ID}`);
+  params.set('cancel_url', `${origin}/?donation=cancelled`);
+  params.set('line_items[0][quantity]', '1');
+  params.set('line_items[0][price_data][currency]', 'usd');
+  params.set('line_items[0][price_data][unit_amount]', String(amountCents));
+  params.set('line_items[0][price_data][product_data][name]', 'Donation to GoodGame.center');
+  params.set('line_items[0][price_data][product_data][description]', 'Support free browser-game hosting, creator tools, and community features.');
+  params.set('metadata[source]', 'site_donation');
+  if (user?.id) params.set('client_reference_id', user.id);
+  if (user?.username) params.set('metadata[username]', user.username);
+
+  const res = await fetch('https://api.stripe.com/v1/checkout/sessions', {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${c.env.STRIPE_SECRET_KEY}`,
+      'content-type': 'application/x-www-form-urlencoded',
+    },
+    body: params,
+  });
+  const stripe: any = await res.json().catch(() => ({}));
+  if (!res.ok || !stripe?.url) {
+    const message = stripe?.error?.message || 'Stripe could not create the checkout session.';
+    return c.json({ detail: message }, 502);
+  }
+  return c.json({ ok: true, url: stripe.url });
+});
+
 // ---------- React/FastAPI compatibility API ----------
 const nowIso = () => new Date().toISOString();
 const cleanSlug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 44) || 'game';
@@ -67,6 +114,11 @@ const mediaHeaders = (obj: R2ObjectBody) => {
 };
 const authJson = (r: Awaited<ReturnType<typeof loginPassword>> | Awaited<ReturnType<typeof onboardPassword>>, c: any) =>
   r.ok ? c.json({ ok: true, user: r.user }) : c.json({ detail: r.error }, r.status || 400);
+const centsFromDonationAmount = (amount: unknown): number => {
+  const numeric = Number(String(amount ?? '').replace(/[$,\s]/g, ''));
+  if (!Number.isFinite(numeric)) return 0;
+  return Math.round(numeric * 100);
+};
 
 async function requireGameOwner(c: any, slug: string) {
   const user = await getSession(c);

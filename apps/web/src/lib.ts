@@ -10,6 +10,8 @@ export type Env = {
   BUILD_REF?: string;
   BUILD_TIME?: string;
   CAPTURE_KEY?: string;
+  STRIPE_SECRET_KEY?: string;
+  STRIPE_PUBLISHABLE_KEY?: string;
 };
 
 export type SessionUser = {

@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import DonateButton from "./DonateButton";
 
 export default function Footer() {
   return (
@@ -14,6 +15,9 @@ export default function Footer() {
           <p className="text-[#52525B] text-sm mt-3 leading-relaxed">
             A free, browser-first platform for indie game creators and players.
           </p>
+          <div className="mt-5">
+            <DonateButton variant="footer" />
+          </div>
         </div>
         <FooterCol
           title="Platform"

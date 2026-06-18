@@ -1,15 +1,18 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { getJSON } from "../lib/api";
 import GameCard from "../components/GameCard";
 import { Play, Upload, Users } from "lucide-react";
 import SEO from "../components/SEO";
+import DonateButton from "../components/DonateButton";
 
 const HERO_BG = "https://images.unsplash.com/photo-1517241034903-9a4c3ab12f00?crop=entropy&cs=srgb&fm=jpg&w=1600&q=70";
 
 export default function Home() {
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(true);
+  const location = useLocation();
+  const donationState = new URLSearchParams(location.search).get("donation");
 
   useEffect(() => {
     getJSON("/games?limit=18")
@@ -20,6 +23,16 @@ export default function Home() {
   return (
     <div data-testid="home-page">
       <SEO path="/" />
+      {donationState === "thanks" && (
+        <div className="border-b border-[#1A1A1A] bg-[#D4AF37] text-black text-center py-3 px-4 font-bold uppercase tracking-wider text-xs" data-testid="donation-thanks">
+          Thank you for supporting GoodGame.center.
+        </div>
+      )}
+      {donationState === "cancelled" && (
+        <div className="border-b border-[#1A1A1A] bg-[#080808] text-[#A1A1AA] text-center py-3 px-4 font-mono text-xs uppercase tracking-[0.2em]" data-testid="donation-cancelled">
+          Donation checkout cancelled.
+        </div>
+      )}
       <section className="relative overflow-hidden border-b border-[#1A1A1A]">
         <div
           className="absolute inset-0 opacity-20 bg-cover bg-center pointer-events-none"
@@ -61,6 +74,7 @@ export default function Home() {
             >
               <Users className="w-4 h-4" /> Communities
             </Link>
+            <DonateButton variant="hero" />
           </div>
         </div>
       </section>

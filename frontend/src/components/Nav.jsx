@@ -1,7 +1,8 @@
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { Gamepad2, Upload, LogOut, User, Menu } from "lucide-react";
+import { Gamepad2, Upload, LogOut, Menu } from "lucide-react";
 import { useState } from "react";
+import DonateButton from "./DonateButton";
 
 const navItems = [
   { to: "/games", label: "Games" },
@@ -54,6 +55,7 @@ export default function Nav() {
         </nav>
 
         <div className="hidden md:flex items-center gap-3">
+          <DonateButton />
           {user ? (
             <>
               <Link
@@ -134,6 +136,7 @@ export default function Nav() {
             </Link>
           ))}
           <div className="border-t border-[#1A1A1A] pt-3 space-y-2">
+            <DonateButton variant="footer" className="w-full justify-center" />
             {user ? (
               <>
                 <Link

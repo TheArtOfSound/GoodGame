@@ -1,0 +1,67 @@
+name: Deploy GoodGame Worker
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+concurrency:
+  group: goodgame-worker-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Typecheck, deploy, and verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Stamp build SHA
+        run: |
+          cat > apps/web/src/build-info.ts <<EOF
+          export const BUILD_SHA = '${{ github.sha }}';
+          export const BUILD_REF = '${{ github.ref_name }}';
+          export const BUILD_TIME = '$(date -u +%Y-%m-%dT%H:%M:%SZ)';
+          EOF
+
+      - name: Deploy Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: '4'
+          packageManager: pnpm
+          workingDirectory: apps/web
+          command: deploy
+
+      - name: Verify live deployment marker
+        run: |
+          sleep 8
+          curl -fsS "https://goodgame.center/__version?expected=${{ github.sha }}" | tee version.json
+          grep -q "${{ github.sha }}" version.json
+
+      - name: Smoke updated live site
+        run: pnpm smoke https://goodgame.center

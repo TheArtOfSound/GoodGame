@@ -58,7 +58,8 @@ export default function GameDetail() {
               <iframe
                 title={game.title}
                 src={iframeSrc}
-                sandbox="allow-scripts allow-pointer-lock allow-fullscreen allow-forms"
+                sandbox="allow-scripts allow-pointer-lock allow-forms"
+                allow="fullscreen; autoplay; gamepad"
                 className="w-full aspect-video bg-black"
                 data-testid="play-iframe"
               />

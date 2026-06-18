@@ -143,7 +143,7 @@ def require_secure(request: Request) -> bool:
 @router.post("/onboarding")
 async def onboarding(payload: OnboardingIn, request: Request, response: Response):
     ip = request.client.host if request.client else "anon"
-    if not rate_limit(f"onboarding:{ip}", limit=5, window_seconds=600):
+    if not rate_limit(f"onboarding:{ip}", limit=20, window_seconds=600):
         raise HTTPException(status_code=429, detail="Too many attempts, try again later")
 
     username = payload.username.strip().lower()

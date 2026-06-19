@@ -73,6 +73,10 @@ const sitemapIndex = (env: Env) => {
 const sitemapUrlset = (urls: string[]) =>
   `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.join('')}</urlset>`;
 const indexNowKey = (env: Env) => env.INDEXNOW_KEY || INDEXNOW_FALLBACK_KEY;
+const DEFAULT_FRONTEND_ASSETS = {
+  js: '/static/js/main.991025fe.js',
+  css: '/static/css/main.08aef32b.css',
+};
 
 type ShellMeta = {
   title: string;
@@ -174,11 +178,31 @@ const injectShellMeta = (html: string, env: Env, meta: ShellMeta) => {
     .replace(/<meta\s+name=["']description["'][^>]*>/i, '')
     .replace(/<head>/i, `<head>${head}`);
 };
+async function frontendAssets(requestUrl: string) {
+  try {
+    const manifestUrl = new URL('/asset-manifest.json', requestUrl);
+    const res = await fetch(manifestUrl.toString(), { headers: { accept: 'application/json' } });
+    const manifest: any = await res.json();
+    return {
+      js: manifest?.files?.['main.js'] || DEFAULT_FRONTEND_ASSETS.js,
+      css: manifest?.files?.['main.css'] || DEFAULT_FRONTEND_ASSETS.css,
+    };
+  } catch {
+    return DEFAULT_FRONTEND_ASSETS;
+  }
+}
+async function reactShellDocument(c: any, meta: ShellMeta) {
+  const assets = await frontendAssets(c.req.url);
+  return injectShellMeta(
+    `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#000000"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@600&display=swap" rel="stylesheet"><link href="${escapeXml(assets.css)}" rel="stylesheet"><script defer src="${escapeXml(assets.js)}"></script></head><body><noscript>You need to enable JavaScript to run this app.</noscript><div id="root"></div></body></html>`,
+    c.env,
+    meta,
+  );
+}
 async function reactShell(c: any, path: string) {
   const { meta, status } = await publicShellMeta(c.env, path);
-  const assetRes = await c.env.ASSETS.fetch(new Request(new URL('/index.html', c.req.url), c.req.raw));
-  const html = injectShellMeta(await assetRes.text(), c.env, meta);
-  const headers = new Headers(assetRes.headers);
+  const html = await reactShellDocument(c, meta);
+  const headers = new Headers();
   headers.set('content-type', 'text/html; charset=utf-8');
   headers.set('cache-control', status === 404 ? 'public, max-age=60' : 'public, max-age=0, must-revalidate');
   return new Response(html, { status: status || 200, headers });

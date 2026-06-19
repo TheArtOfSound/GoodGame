@@ -162,7 +162,7 @@ export const gameLd = (env: Env, g: Game) => ({
   ...(g.rating_count > 0 ? {
     aggregateRating: { '@type': 'AggregateRating', ratingValue: g.rating_avg, ratingCount: g.rating_count, bestRating: 5 },
   } : {}),
-  offers: { '@type': 'Offer', price: (g.price_cents / 100).toFixed(2), priceCurrency: 'USD' },
+  offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD', availability: 'https://schema.org/InStock' },
 });
 
 export const articleLd = (env: Env, a: Article) => ({

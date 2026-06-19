@@ -8,6 +8,7 @@ import { ogCard, favicon } from './og';
 import { playDoc, TEMPLATE_IDS } from './play';
 import { ingestZip } from './ingest';
 import { analyzeAndPrepare, type CompatReport } from './compat';
+import { submitScore, getLeaderboard, putSave, getSave } from './sdk';
 import { getSession, logout, loginPassword, onboardPassword, rateLimit } from './auth';
 import { hasEntitlement } from './pay';
 import * as db from './db';
@@ -675,6 +676,43 @@ app.get('/api/creator/games', async (c) => {
   if (!user) return c.json({ games: [] });
   const games = (await db.listGames(c.env, { sort: 'new', limit: 120 })).filter((g) => g.owner_id === user.id);
   return c.json({ games: games.map(apiGame) });
+});
+
+// ---------- Save/Score SDK (KV-backed; the parent app relays for the sandboxed game) ----------
+app.post('/api/sdk/score', async (c) => {
+  const user = await getSession(c);
+  if (!user) return c.json({ detail: 'Log in to save scores.' }, 401);
+  const body = await c.req.json().catch(() => ({}));
+  const g = await db.getGame(c.env, String(body.game_slug || ''));
+  if (!g) return c.json({ detail: 'Game not found.' }, 404);
+  const r = await submitScore(c.env, g.id, user, body.board, body.score);
+  return c.json(r, r.ok ? 200 : 400);
+});
+app.get('/api/sdk/leaderboard', async (c) => {
+  const g = await db.getGame(c.env, c.req.query('game') || '');
+  if (!g) return c.json({ entries: [] });
+  const board = c.req.query('board') || 'default';
+  const limit = Math.min(Number(c.req.query('limit') || 20) || 20, 100);
+  return c.json({ board, entries: await getLeaderboard(c.env, g.id, board, limit) });
+});
+app.post('/api/sdk/save', async (c) => {
+  const user = await getSession(c);
+  if (!user) return c.json({ detail: 'Log in to save progress.' }, 401);
+  const body = await c.req.json().catch(() => ({}));
+  const g = await db.getGame(c.env, String(body.game_slug || ''));
+  if (!g) return c.json({ detail: 'Game not found.' }, 404);
+  const r = await putSave(c.env, g.id, user.id, body.data);
+  return c.json(r, r.ok ? 200 : 400);
+});
+app.get('/api/sdk/save', async (c) => {
+  const user = await getSession(c);
+  if (!user) return c.json({ data: null });
+  const g = await db.getGame(c.env, c.req.query('game') || '');
+  if (!g) return c.json({ data: null });
+  const raw = await getSave(c.env, g.id, user.id);
+  let data: unknown = null;
+  if (raw != null) { try { data = JSON.parse(raw); } catch { data = raw; } }
+  return c.json({ data });
 });
 app.get('/api/ugc/:gid/*', async (c) => {
   const gid = c.req.param('gid');

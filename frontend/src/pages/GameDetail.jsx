@@ -16,7 +16,9 @@ export default function GameDetail() {
   const [immersive, setImmersive] = useState(false);
   const [forceInline, setForceInline] = useState(false);
   const [counted, setCounted] = useState(false);
+  const [leaderboard, setLeaderboard] = useState([]);
   const playerRef = useRef(null);
+  const frameRef = useRef(null);
   const isPlayRoute = location.pathname.endsWith("/play");
 
   useEffect(() => {
@@ -48,6 +50,51 @@ export default function GameDetail() {
     document.addEventListener("fullscreenchange", sync);
     return () => document.removeEventListener("fullscreenchange", sync);
   }, []);
+
+  const loadLeaderboard = () => {
+    getJSON(`/sdk/leaderboard?game=${encodeURIComponent(slug)}&board=default`)
+      .then((r) => setLeaderboard(r.entries || []))
+      .catch(() => {});
+  };
+
+  useEffect(() => {
+    if (data) loadLeaderboard();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, slug]);
+
+  // Bridge the sandboxed game (opaque origin, no session cookie) to the API.
+  useEffect(() => {
+    const onMsg = async (e) => {
+      const frame = frameRef.current;
+      if (!frame || e.source !== frame.contentWindow) return;
+      const m = e.data;
+      if (!m || m.source !== "goodgame") return;
+      const reply = (payload) => {
+        try {
+          e.source.postMessage({ source: "goodgame-host", reqId: m.reqId, data: payload }, "*");
+        } catch (_) {}
+      };
+      try {
+        if (m.type === "GG_SCORE") {
+          await postJSON("/sdk/score", { game_slug: slug, board: m.board || "default", score: m.score });
+          loadLeaderboard();
+        } else if (m.type === "GG_SAVE") {
+          await postJSON("/sdk/save", { game_slug: slug, data: m.data });
+        } else if (m.type === "GG_LOAD") {
+          const r = await getJSON(`/sdk/save?game=${encodeURIComponent(slug)}`).catch(() => ({ data: null }));
+          reply(r.data ?? null);
+        } else if (m.type === "GG_LEADERBOARD") {
+          const r = await getJSON(
+            `/sdk/leaderboard?game=${encodeURIComponent(slug)}&board=${encodeURIComponent(m.board || "default")}`
+          ).catch(() => ({ entries: [] }));
+          reply(r.entries || []);
+        }
+      } catch (_) {}
+    };
+    window.addEventListener("message", onMsg);
+    return () => window.removeEventListener("message", onMsg);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug]);
 
   if (error)
     return (
@@ -129,6 +176,7 @@ export default function GameDetail() {
                   </button>
                 </div>
                 <iframe
+                  ref={frameRef}
                   title={game.title}
                   src={iframeSrc}
                   sandbox="allow-scripts allow-pointer-lock allow-forms"
@@ -228,6 +276,25 @@ export default function GameDetail() {
               {(game.upload_bytes / 1024 / 1024).toFixed(2)} MB
             </div>
           </div>
+
+          {leaderboard.length > 0 && (
+            <div className="border border-[#1A1A1A] p-4" data-testid="leaderboard">
+              <div className="text-[#52525B] font-mono text-xs uppercase tracking-[0.2em] mb-3">
+                Leaderboard
+              </div>
+              <ol className="space-y-2">
+                {leaderboard.slice(0, 10).map((e) => (
+                  <li key={e.rank} className="flex items-center justify-between text-sm">
+                    <span className="text-[#A1A1AA] truncate">
+                      <span className="text-[#52525B] font-mono mr-2">{e.rank}</span>
+                      {e.display_name}
+                    </span>
+                    <span className="text-[#D4AF37] font-mono ml-3">{Number(e.score).toLocaleString()}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
 
           <div>
             <div className="text-[#52525B] font-mono text-xs uppercase tracking-[0.2em] mb-2">

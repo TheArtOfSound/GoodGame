@@ -31,8 +31,8 @@ export function Document(props: {
         <meta name="description" content={meta.description} />
         <link rel="canonical" href={url} />
         {meta.noindex
-          ? <meta name="robots" content="noindex,nofollow" />
-          : <meta name="robots" content="index,follow,max-image-preview:large" />}
+          ? <meta name="robots" content="noindex,follow" />
+          : <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1" />}
         <meta property="og:type" content={meta.type || 'website'} />
         <meta property="og:site_name" content={env.SITE_NAME} />
         <meta property="og:title" content={meta.title} />

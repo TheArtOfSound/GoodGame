@@ -21,11 +21,44 @@ import { CreatePage } from './views/create';
 const app = new Hono<{ Bindings: Env }>();
 const ADMIN_COOKIE = 'gg_admin';
 const ADMIN_TTL = 60 * 60 * 12;
+const INDEXNOW_FALLBACK_KEY = 'a8df7c0d6f3b4ad2a6f9487c8f0b1d25';
+const SITEMAP_NAMES = ['static', 'games', 'creators', 'clips', 'communities', 'tags'] as const;
+
+app.use('*', async (c, next) => {
+  await next();
+  if (shouldNoindexHeader(new URL(c.req.url).pathname)) c.res.headers.set('X-Robots-Tag', 'noindex');
+});
 
 const svg = (body: string) =>
   new Response(body, { headers: { 'content-type': 'image/svg+xml; charset=utf-8', 'cache-control': 'public, max-age=3600' } });
 const text = (body: string, ct = 'text/plain') =>
   new Response(body, { headers: { 'content-type': `${ct}; charset=utf-8`, 'cache-control': 'public, max-age=900' } });
+const xml = (body: string) =>
+  new Response(body, { headers: { 'content-type': 'application/xml; charset=utf-8', 'cache-control': 'public, max-age=300' } });
+
+const shouldNoindexHeader = (path: string) => {
+  if (path === '/healthz' || path === '/__version' || path === '/api/__version') return true;
+  if (path.startsWith('/ugc/') || path.startsWith('/api/ugc/') || path.startsWith('/play/')) return true;
+  if (path.startsWith('/api/game-media/') || path.startsWith('/api/profile-media/') || path.startsWith('/api/clip-media/')) return false;
+  return path === '/api' || path.startsWith('/api/');
+};
+const escapeXml = (s: string) => s.replace(/[<>&'"]/g, (ch) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[ch]!));
+const isoLastmod = (value?: string | null) => {
+  const source = value && /[-:T ]/.test(value) ? value.replace(' ', 'T') : '';
+  const d = source ? new Date(source.endsWith('Z') ? source : `${source}Z`) : new Date();
+  return Number.isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
+};
+const sitemapUrl = (base: string, path: string, lastmod?: string | null) =>
+  `<url><loc>${escapeXml(base + path)}</loc><lastmod>${isoLastmod(lastmod)}</lastmod></url>`;
+const sitemapIndex = (env: Env) => {
+  const lastmod = isoLastmod(env.BUILD_TIME);
+  const rows = SITEMAP_NAMES.map((name) =>
+    `<sitemap><loc>${escapeXml(`${env.SITE_URL}/sitemaps/${name}.xml`)}</loc><lastmod>${lastmod}</lastmod></sitemap>`).join('');
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${rows}</sitemapindex>`;
+};
+const sitemapUrlset = (urls: string[]) =>
+  `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.join('')}</urlset>`;
+const indexNowKey = (env: Env) => env.INDEXNOW_KEY || INDEXNOW_FALLBACK_KEY;
 
 const versionPayload = (env: Env) => ({
   ok: true,
@@ -1094,14 +1127,26 @@ app.get('/robots.txt', (c) => text(
 `# GoodGame.center
 User-agent: *
 Allow: /
-Disallow: /dashboard
+Allow: /api/game-media/
+Allow: /api/profile-media/
+Allow: /api/clip-media/
+Disallow: /api/
+Disallow: /api/ugc/
+Disallow: /auth/
+Disallow: /admin/
+Disallow: /dashboard/
+Disallow: /settings/
+Disallow: /profile/edit
 Disallow: /create
 Disallow: /studio
-Disallow: /admin
 Disallow: /login
 Disallow: /signup
+Disallow: /healthz
+Disallow: /__version
+Disallow: /internal/
 Disallow: /search
-Disallow: /api/
+Disallow: /ugc/
+Disallow: /uploads/raw/
 Disallow: /*/play
 
 User-agent: GPTBot
@@ -1111,26 +1156,45 @@ User-agent: Google-Extended
 Allow: /
 
 Sitemap: ${c.env.SITE_URL}/sitemap.xml
+Sitemap: ${c.env.SITE_URL}/sitemap-index.xml
 `));
 
-app.get('/sitemap.xml', async (c) => {
+const staticSitemapPaths = [
+  '/', '/games', '/games/browser', '/clips', '/community', '/creators',
+  '/arena', '/news', '/docs', '/docs/upload-browser-game',
+  '/safety', '/safety/terms', '/safety/privacy', '/safety/dmca',
+  '/safety/ratings',
+];
+
+app.get('/sitemap.xml', (c) => xml(sitemapIndex(c.env)));
+app.get('/sitemap-index.xml', (c) => xml(sitemapIndex(c.env)));
+app.get('/sitemaps/static.xml', (c) => {
   const base = c.env.SITE_URL;
-  const r = await db.sitemapRows(c.env);
-  const u = (loc: string, pri = '0.6', lastmod?: string) =>
-    `<url><loc>${base}${loc}</loc>${lastmod ? `<lastmod>${(lastmod || '').slice(0, 10)}</lastmod>` : ''}<priority>${pri}</priority></url>`;
-  const urls = [
-    u('/', '1.0'), u('/games', '0.9'), u('/arena', '0.8'), u('/clips', '0.7'),
-    u('/community', '0.7'), u('/creators', '0.7'), u('/news', '0.8'), u('/docs', '0.5'),
-    ...r.games.map((g) => u(`/games/${g.slug}`, '0.8', g.updated_at)),
-    ...r.creators.map((x) => u(`/creators/${x.slug}`, '0.6')),
-    ...r.communities.map((x) => u(`/community/${x.slug}`, '0.6')),
-    ...r.events.map((x) => u(`/arena/events/${x.slug}`, '0.6')),
-    ...r.news.map((x) => u(`/news/${x.slug}`, '0.6', x.published_at)),
-    ...r.clips.map((x) => u(`/clips/${x.id}-${x.slug}`, '0.5')),
-  ].join('');
-  return new Response(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>`,
-    { headers: { 'content-type': 'application/xml; charset=utf-8', 'cache-control': 'public, max-age=3600' } });
+  return xml(sitemapUrlset(staticSitemapPaths.map((path) => sitemapUrl(base, path, c.env.BUILD_TIME))));
 });
+app.get('/sitemaps/games.xml', async (c) => {
+  const rows = await db.sitemapRows(c.env);
+  return xml(sitemapUrlset(rows.games.map((g) => sitemapUrl(c.env.SITE_URL, `/games/${encodeURIComponent(g.slug)}`, g.updated_at))));
+});
+app.get('/sitemaps/creators.xml', async (c) => {
+  const rows = await db.sitemapRows(c.env);
+  return xml(sitemapUrlset(rows.creators.map((x) => sitemapUrl(c.env.SITE_URL, `/creators/${encodeURIComponent(x.slug)}`))));
+});
+app.get('/sitemaps/clips.xml', async (c) => {
+  const rows = await db.sitemapRows(c.env);
+  return xml(sitemapUrlset(rows.clips.map((x) => sitemapUrl(c.env.SITE_URL, `/clips/${encodeURIComponent(`${x.id}-${x.slug}`)}`))));
+});
+app.get('/sitemaps/communities.xml', async (c) => {
+  const rows = await db.sitemapRows(c.env);
+  return xml(sitemapUrlset(rows.communities.map((x) => sitemapUrl(c.env.SITE_URL, `/community/${encodeURIComponent(x.slug)}`))));
+});
+app.get('/sitemaps/tags.xml', async (c) => {
+  const rows = await db.sitemapRows(c.env);
+  return xml(sitemapUrlset(rows.tags.map((x) => sitemapUrl(c.env.SITE_URL, `/tags/${encodeURIComponent(x.slug)}`))));
+});
+
+app.get('/indexnow-key.txt', (c) => text(indexNowKey(c.env), 'text/plain'));
+app.get(`/${INDEXNOW_FALLBACK_KEY}.txt`, (c) => text(indexNowKey(c.env), 'text/plain'));
 
 app.get('/llms.txt', (c) => text(
 `# GoodGame.center
@@ -1158,6 +1222,12 @@ Public entity pages are server-rendered with canonical URLs and schema.org struc
 ## Not available to crawlers
 User dashboards, the creator console, admin tools, auth flows, search result pages, internal APIs, and isolated game-play runtimes.
 `, 'text/plain'));
+
+app.get('/:key.txt', (c) => {
+  const key = c.req.param('key');
+  if (key !== indexNowKey(c.env)) return c.notFound();
+  return text(key, 'text/plain');
+});
 
 app.get('/feed.xml', async (c) => {
   const base = c.env.SITE_URL;

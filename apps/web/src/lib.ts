@@ -13,6 +13,7 @@ export type Env = {
   STRIPE_SECRET_KEY?: string;
   STRIPE_PUBLISHABLE_KEY?: string;
   ADMIN_PASSWORD?: string;
+  INDEXNOW_KEY?: string;
 };
 
 export type SessionUser = {

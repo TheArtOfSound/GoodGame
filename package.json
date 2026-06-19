@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "pnpm --filter web run dev",
     "deploy": "pnpm --filter web run deploy",
+    "seo:crawl": "python3 scripts/seo_crawl.py --base https://goodgame.center --output reports/seo-crawl.json",
     "db:migrate:local": "pnpm --filter web run db:migrate:local",
     "db:migrate:remote": "pnpm --filter web run db:migrate:remote",
     "db:seed:local": "pnpm --filter web run db:seed:local",

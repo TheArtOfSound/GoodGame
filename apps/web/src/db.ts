@@ -172,15 +172,34 @@ export async function search(env: Env, q: string) {
 // For sitemap generation
 export async function sitemapRows(env: Env) {
   const [games, creators, communities, events, news, clips] = await Promise.all([
-    env.DB.prepare(`SELECT g.slug, g.updated_at FROM games g JOIN users u ON u.id = g.owner_id WHERE ${GAME_PUB}`).all<{ slug: string; updated_at: string }>(),
-    env.DB.prepare(`SELECT u.username slug FROM users u JOIN creator_accounts ca ON ca.user_id = u.id WHERE u.deleted_at IS NULL AND u.status = 'active'`).all<{ slug: string }>(),
+    env.DB.prepare(`SELECT g.slug, g.updated_at, g.tags FROM games g JOIN users u ON u.id = g.owner_id WHERE ${GAME_PUB}`).all<{ slug: string; updated_at: string; tags: string | null }>(),
+    env.DB.prepare(
+      `SELECT u.username slug
+       FROM users u JOIN creator_accounts ca ON ca.user_id = u.id
+       WHERE u.deleted_at IS NULL AND u.status = 'active'
+       AND (
+         EXISTS (SELECT 1 FROM games g WHERE g.owner_id = u.id AND g.status = 'published' AND g.deleted_at IS NULL)
+         OR EXISTS (SELECT 1 FROM clips c WHERE c.author_id = u.id AND c.deleted_at IS NULL AND c.moderation_status = 'clear')
+         OR EXISTS (SELECT 1 FROM communities cm WHERE cm.owner_id = u.id AND cm.deleted_at IS NULL AND cm.visibility = 'public')
+       )`
+    ).all<{ slug: string }>(),
     env.DB.prepare(`SELECT slug FROM communities WHERE deleted_at IS NULL AND visibility='public'`).all<{ slug: string }>(),
     env.DB.prepare(`SELECT e.slug FROM events e LEFT JOIN games g ON g.id=e.game_id JOIN users u ON u.id=e.organizer_id WHERE u.deleted_at IS NULL AND u.status='active' AND (e.game_id IS NULL OR g.deleted_at IS NULL)`).all<{ slug: string }>(),
     env.DB.prepare(`SELECT a.slug, a.published_at FROM news_articles a JOIN users u ON u.id=a.author_id LEFT JOIN games g ON g.id=a.related_game_id WHERE a.status='published' AND u.deleted_at IS NULL AND u.status='active' AND (a.related_game_id IS NULL OR g.deleted_at IS NULL)`).all<{ slug: string; published_at: string }>(),
     env.DB.prepare(`SELECT c.id, c.slug FROM clips c LEFT JOIN games g ON g.id=c.game_id WHERE c.deleted_at IS NULL AND c.moderation_status='clear' AND (c.game_id IS NULL OR g.deleted_at IS NULL)`).all<{ id: string; slug: string }>(),
   ]);
+  const tagCounts = new Map<string, number>();
+  for (const g of games.results) {
+    for (const tag of (g.tags || '').split(',')) {
+      const t = tag.trim().toLowerCase();
+      if (t) tagCounts.set(t, (tagCounts.get(t) || 0) + 1);
+    }
+  }
+  const tags = Array.from(tagCounts.entries())
+    .filter(([, count]) => count >= 5)
+    .map(([slug, count]) => ({ slug, count }));
   return {
     games: games.results, creators: creators.results, communities: communities.results,
-    events: events.results, news: news.results, clips: clips.results,
+    events: events.results, news: news.results, clips: clips.results, tags,
   };
 }

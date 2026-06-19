@@ -4,6 +4,7 @@ export type Env = {
   DB: D1Database;
   UGC: R2Bucket;
   KV: KVNamespace;
+  ASSETS?: { fetch: typeof fetch };
   SITE_URL: string;
   SITE_NAME: string;
   BUILD_SHA?: string;

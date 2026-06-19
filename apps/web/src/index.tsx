@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import type { Env, Game, Creator, Clip, Community } from './lib';
-import { fmtCount, initials, csv } from './lib';
+import { fmtCount, initials, csv, ld, siteLd, gameLd, breadcrumbLd } from './lib';
 import { CSS } from './styles';
 import { page } from './components';
 import { ogCard, favicon } from './og';
@@ -25,8 +25,14 @@ const INDEXNOW_FALLBACK_KEY = 'a8df7c0d6f3b4ad2a6f9487c8f0b1d25';
 const SITEMAP_NAMES = ['static', 'games', 'creators', 'clips', 'communities', 'tags'] as const;
 
 app.use('*', async (c, next) => {
+  const path = new URL(c.req.url).pathname;
+  if (shouldServeReactShell(c.req.method, path, c.req.header('accept') || '')) {
+    const shell = await reactShell(c as any, path);
+    if (shouldNoindexHeader(path)) shell.headers.set('X-Robots-Tag', 'noindex');
+    return shell;
+  }
   await next();
-  if (shouldNoindexHeader(new URL(c.req.url).pathname)) c.res.headers.set('X-Robots-Tag', 'noindex');
+  if (shouldNoindexHeader(path)) c.res.headers.set('X-Robots-Tag', 'noindex');
 });
 
 const svg = (body: string) =>
@@ -42,6 +48,14 @@ const shouldNoindexHeader = (path: string) => {
   if (path.startsWith('/api/game-media/') || path.startsWith('/api/profile-media/') || path.startsWith('/api/clip-media/')) return false;
   return path === '/api' || path.startsWith('/api/');
 };
+const FRONTEND_PATHS = [
+  /^\/$/, /^\/games(?:\/.*)?$/, /^\/clips(?:\/.*)?$/, /^\/communities(?:\/.*)?$/,
+  /^\/creators(?:\/.*)?$/, /^\/tags(?:\/.*)?$/, /^\/legal(?:\/.*)?$/,
+  /^\/admin$/, /^\/login$/, /^\/onboarding$/, /^\/settings$/, /^\/create$/,
+  /^\/console(?:\/.*)?$/,
+];
+const shouldServeReactShell = (method: string, path: string, accept: string) =>
+  (method === 'GET' || method === 'HEAD') && (accept.includes('text/html') || accept.includes('*/*')) && FRONTEND_PATHS.some((re) => re.test(path));
 const escapeXml = (s: string) => s.replace(/[<>&'"]/g, (ch) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[ch]!));
 const isoLastmod = (value?: string | null) => {
   const source = value && /[-:T ]/.test(value) ? value.replace(' ', 'T') : '';
@@ -59,6 +73,116 @@ const sitemapIndex = (env: Env) => {
 const sitemapUrlset = (urls: string[]) =>
   `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.join('')}</urlset>`;
 const indexNowKey = (env: Env) => env.INDEXNOW_KEY || INDEXNOW_FALLBACK_KEY;
+
+type ShellMeta = {
+  title: string;
+  description: string;
+  path: string;
+  image?: string;
+  type?: string;
+  noindex?: boolean;
+  jsonld?: unknown[];
+};
+const shellImage = (env: Env, image?: string) => image ? (image.startsWith('http') ? image : env.SITE_URL + image) : `${env.SITE_URL}/og/default.svg`;
+const shellRobots = (meta: ShellMeta) => meta.noindex
+  ? 'noindex,nofollow'
+  : 'index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1';
+const publicShellMeta = async (env: Env, path: string): Promise<{ meta: ShellMeta; status?: number }> => {
+  const base = (title: string, description: string, route = path, noindex = false): ShellMeta => ({ title, description, path: route, noindex });
+  if (path === '/') {
+    return { meta: { ...base('GoodGame.center — Free Browser Games, Creators, Clips, and Communities', 'Play free browser games, discover indie creators, watch game clips, join communities, and publish your own HTML5 game on GoodGame.center.', '/'), jsonld: [siteLd(env)] } };
+  }
+  if (path === '/games') return { meta: base('Free Browser Games — Play Indie Web Games on GoodGame.center', 'Browse free browser games from indie creators. Play arcade, puzzle, shooter, experimental, and HTML5 games instantly on GoodGame.center.', '/games') };
+  if (path === '/games/browser') return { meta: base('Instant Browser Games — Play HTML5 Games on GoodGame.center', 'Play HTML5, WebGL, WASM, Godot Web, Unity WebGL, Phaser, and creator-uploaded builds directly in your browser.', '/games/browser') };
+  if (path === '/clips') return { meta: base('GoodGame Clips — Gameplay Moments from Indie Browser Games', 'Watch short gameplay clips from GoodGame.center creators, including arcade runs, speed tech, scares, builds, and browser-game highlights.', '/clips') };
+  if (path === '/communities') return { meta: base('GoodGame Communities — Indie Game Hubs and Creator Spaces', 'Join public communities around browser games, creators, game jams, genres, clips, and player-made worlds on GoodGame.center.', '/communities') };
+  if (path === '/creators') return { meta: base('GoodGame Creators — Browser Games, Clips, and Communities', 'Discover indie creators publishing browser games, gameplay clips, updates, and communities on GoodGame.center.', '/creators') };
+  if (path === '/admin') return { meta: base('Admin · GoodGame.center', 'Private moderation access for GoodGame.center operators.', '/admin', true) };
+  if (['/login', '/onboarding', '/settings', '/create'].includes(path) || path.startsWith('/console')) {
+    return { meta: base('GoodGame.center', 'Account and creator tools on GoodGame.center.', path, true) };
+  }
+  if (path.startsWith('/legal/')) {
+    const topic = path.split('/').pop() || 'legal';
+    const labels: Record<string, string> = { terms: 'Terms', privacy: 'Privacy', dmca: 'DMCA', content: 'Content Policy' };
+    const label = labels[topic] || 'Legal';
+    return { meta: base(`${label} · GoodGame.center`, `${label} for GoodGame.center players, creators, games, clips, and communities.`, path) };
+  }
+  if (path.startsWith('/tags/')) {
+    const tag = decodeURIComponent(path.slice('/tags/'.length));
+    return { meta: base(`#${tag} Browser Games · GoodGame.center`, `Browse real GoodGame.center games tagged ${tag}. Thin tag pages stay out of the sitemap until they have enough public content.`, path, true) };
+  }
+  const gameMatch = path.match(/^\/games\/([^/]+)(?:\/play)?$/);
+  if (gameMatch && !['browser', 'godot', 'unity', 'unreal', 'windows'].includes(gameMatch[1])) {
+    const g = await db.getGame(env, decodeURIComponent(gameMatch[1]));
+    if (!g || g.status !== 'published') return { status: 404, meta: base('Game not found · GoodGame.center', 'This game is not available on GoodGame.center.', path, true) };
+    const noindex = path.endsWith('/play');
+    return {
+      meta: {
+        title: `${g.title} — Play Free Browser Game on GoodGame.center`,
+        description: `Play ${g.title}${g.owner_name ? `, a browser game by ${g.owner_name}` : ''}. ${g.pitch || g.description || 'Launch instantly on GoodGame.center.'}`,
+        path: `/games/${g.slug}`,
+        type: 'game',
+        image: g.cover_image || `/og/game/${g.slug}.svg`,
+        noindex,
+        jsonld: noindex ? [] : [gameLd(env, g), breadcrumbLd(env, [{ name: 'Games', path: '/games' }, { name: g.title, path: `/games/${g.slug}` }])],
+      },
+    };
+  }
+  const creatorMatch = path.match(/^\/creators\/([^/]+)$/);
+  if (creatorMatch) {
+    const creator = await db.getCreator(env, decodeURIComponent(creatorMatch[1]));
+    if (!creator) return { status: 404, meta: base('Creator not found · GoodGame.center', 'This creator profile is not available on GoodGame.center.', path, true) };
+    return { meta: base(`${creator.display_name} — Browser Games and Clips on GoodGame.center`, `View browser games, clips, updates, and communities from ${creator.display_name} on GoodGame.center.`, `/creators/${creator.username}`) };
+  }
+  const communityMatch = path.match(/^\/communities\/([^/]+)$/);
+  if (communityMatch) {
+    const community = await db.getCommunity(env, decodeURIComponent(communityMatch[1]));
+    if (!community) return { status: 404, meta: base('Community not found · GoodGame.center', 'This community is not available on GoodGame.center.', path, true) };
+    return { meta: base(`${community.name} — GoodGame.center Community`, `Join the ${community.name} community on GoodGame.center for browser games, clips, creator updates, and discussions.`, `/communities/${community.slug}`) };
+  }
+  const clipMatch = path.match(/^\/clips\/([^/]+)$/);
+  if (clipMatch) {
+    const id = decodeURIComponent(clipMatch[1]).split('-')[0];
+    const clip = await db.getClipById(env, id);
+    if (!clip) return { status: 404, meta: base('Clip not found · GoodGame.center', 'This clip is not available on GoodGame.center.', path, true) };
+    return { meta: { ...base(`${clip.caption} — GoodGame.center Clip`, `Watch ${clip.caption}, a game clip${clip.game_title ? ` from ${clip.game_title}` : ''} by ${clip.author_name || 'a GoodGame creator'} on GoodGame.center.`, `/clips/${clip.id}-${clip.slug}`), type: 'video.other', image: `/og/clip/${clip.id}.svg` } };
+  }
+  return { status: 404, meta: base('Page not found · GoodGame.center', 'This page is not available on GoodGame.center.', path, true) };
+};
+const injectShellMeta = (html: string, env: Env, meta: ShellMeta) => {
+  const canonical = env.SITE_URL + meta.path;
+  const img = shellImage(env, meta.image);
+  const head = [
+    `<title>${escapeXml(meta.title)}</title>`,
+    `<meta name="description" content="${escapeXml(meta.description)}">`,
+    `<meta name="robots" content="${shellRobots(meta)}">`,
+    `<link rel="canonical" href="${escapeXml(canonical)}">`,
+    `<meta property="og:type" content="${escapeXml(meta.type || 'website')}">`,
+    `<meta property="og:site_name" content="${escapeXml(env.SITE_NAME)}">`,
+    `<meta property="og:title" content="${escapeXml(meta.title)}">`,
+    `<meta property="og:description" content="${escapeXml(meta.description)}">`,
+    `<meta property="og:url" content="${escapeXml(canonical)}">`,
+    `<meta property="og:image" content="${escapeXml(img)}">`,
+    `<meta name="twitter:card" content="summary_large_image">`,
+    `<meta name="twitter:title" content="${escapeXml(meta.title)}">`,
+    `<meta name="twitter:description" content="${escapeXml(meta.description)}">`,
+    `<meta name="twitter:image" content="${escapeXml(img)}">`,
+    ...(meta.jsonld || []).map((obj) => `<script type="application/ld+json">${ld(obj)}</script>`),
+  ].join('');
+  return html
+    .replace(/<title>[\s\S]*?<\/title>/i, '')
+    .replace(/<meta\s+name=["']description["'][^>]*>/i, '')
+    .replace(/<head>/i, `<head>${head}`);
+};
+async function reactShell(c: any, path: string) {
+  const { meta, status } = await publicShellMeta(c.env, path);
+  const assetRes = await c.env.ASSETS.fetch(new Request(new URL('/index.html', c.req.url), c.req.raw));
+  const html = injectShellMeta(await assetRes.text(), c.env, meta);
+  const headers = new Headers(assetRes.headers);
+  headers.set('content-type', 'text/html; charset=utf-8');
+  headers.set('cache-control', status === 404 ? 'public, max-age=60' : 'public, max-age=0, must-revalidate');
+  return new Response(html, { status: status || 200, headers });
+}
 
 const versionPayload = (env: Env) => ({
   ok: true,
@@ -1160,7 +1284,7 @@ Sitemap: ${c.env.SITE_URL}/sitemap-index.xml
 `));
 
 const staticSitemapPaths = [
-  '/', '/games', '/games/browser', '/clips', '/community', '/creators',
+  '/', '/games', '/games/browser', '/clips', '/communities', '/creators',
   '/arena', '/news', '/docs', '/docs/upload-browser-game',
   '/safety', '/safety/terms', '/safety/privacy', '/safety/dmca',
   '/safety/ratings',
@@ -1186,7 +1310,7 @@ app.get('/sitemaps/clips.xml', async (c) => {
 });
 app.get('/sitemaps/communities.xml', async (c) => {
   const rows = await db.sitemapRows(c.env);
-  return xml(sitemapUrlset(rows.communities.map((x) => sitemapUrl(c.env.SITE_URL, `/community/${encodeURIComponent(x.slug)}`))));
+  return xml(sitemapUrlset(rows.communities.map((x) => sitemapUrl(c.env.SITE_URL, `/communities/${encodeURIComponent(x.slug)}`))));
 });
 app.get('/sitemaps/tags.xml', async (c) => {
   const rows = await db.sitemapRows(c.env);

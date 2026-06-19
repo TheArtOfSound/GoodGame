@@ -1,15 +1,12 @@
-// Multi-wallet auth. EVM via SIWE-style personal_sign (verified with viem),
-// Solana via signMessage (verified with tweetnacl). Sessions live in KV.
+// Password + session auth for the React onboarding/login flow. Passwords are
+// PBKDF2-SHA256 hashed; sessions live in KV. (Wallet sign-in was removed — the
+// product is free and no longer uses crypto identities.)
 import type { Context } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
-import { recoverMessageAddress } from 'viem';
-import nacl from 'tweetnacl';
-import bs58 from 'bs58';
 import type { Env, SessionUser } from './lib';
 
 const SESSION_COOKIE = 'gg_session';
 const SESSION_TTL = 60 * 60 * 24 * 30; // 30 days
-const NONCE_TTL = 600;
 const PBKDF2_ITERATIONS = 100_000;
 const USERNAME_RE = /^[a-zA-Z0-9_]{3,24}$/;
 const RESERVED_USERNAMES = new Set([
@@ -42,7 +39,7 @@ const constantTimeEqual = (a: Uint8Array, b: Uint8Array) => {
 };
 const jsonError = (error: string) => ({ ok: false as const, error });
 
-async function rateLimit(env: Env, key: string, limit: number, windowSeconds: number): Promise<boolean> {
+export async function rateLimit(env: Env, key: string, limit: number, windowSeconds: number): Promise<boolean> {
   const now = Math.floor(Date.now() / 1000);
   const bucket = Math.floor(now / windowSeconds);
   const kvKey = `rl:${key}:${bucket}`;
@@ -156,85 +153,6 @@ export async function loginPassword(
     wallet_chain: row.wallet_chain,
     avatar: row.avatar,
   };
-  await issueSession(c, user);
-  return { ok: true, user };
-}
-
-// The exact message the wallet signs. Server rebuilds it at verify time so the
-// user can only authenticate by signing the precise content we expect.
-export function siweMessage(env: Env, address: string, chain: string, nonce: string): string {
-  const host = (env.SITE_URL || 'https://goodgame.center').replace(/^https?:\/\//, '');
-  return `${host} wants you to sign in with your ${chain === 'sol' ? 'Solana' : 'Ethereum'} account:\n` +
-    `${address}\n\n` +
-    `Sign in to GoodGame.center. This is free and does not move any funds.\n\n` +
-    `Nonce: ${nonce}`;
-}
-
-export async function issueNonce(env: Env, address: string, chain: string): Promise<{ nonce: string; message: string }> {
-  const nonce = rand(12);
-  await env.KV.put(`nonce:${nonce}`, address.toLowerCase(), { expirationTtl: NONCE_TTL });
-  return { nonce, message: siweMessage(env, address, chain, nonce) };
-}
-
-async function verifySignature(chain: string, message: string, address: string, signature: string): Promise<boolean> {
-  try {
-    if (chain === 'sol') {
-      const ok = nacl.sign.detached.verify(
-        new TextEncoder().encode(message),
-        hexToBytes(signature),
-        bs58.decode(address),
-      );
-      return ok;
-    }
-    const recovered = await recoverMessageAddress({ message, signature: signature as `0x${string}` });
-    return recovered.toLowerCase() === address.toLowerCase();
-  } catch {
-    return false;
-  }
-}
-
-async function getOrCreateUser(env: Env, address: string, chain: string): Promise<SessionUser> {
-  const stored = chain === 'sol' ? address : address.toLowerCase();
-  const existing = await env.DB.prepare(
-    `SELECT u.id, u.username, u.display_name, u.wallet_address, u.wallet_chain, p.avatar
-     FROM users u LEFT JOIN profiles p ON p.user_id = u.id WHERE u.wallet_address = ?`
-  ).bind(stored).first<any>();
-  if (existing) {
-    return { id: existing.id, username: existing.username, display_name: existing.display_name,
-      wallet_address: existing.wallet_address, wallet_chain: existing.wallet_chain, avatar: existing.avatar };
-  }
-  const id = 'usr_w' + rand(6);
-  const short = chain === 'sol'
-    ? `${address.slice(0, 4)}…${address.slice(-4)}`
-    : `${address.slice(0, 6)}…${address.slice(-4)}`;
-  const username = (chain === 'sol' ? address.slice(0, 6) : address.slice(2, 10)).toLowerCase() + rand(2);
-  const avatar = colorFor(stored);
-  await env.DB.prepare(
-    `INSERT INTO users (id, username, display_name, role, age_band, wallet_address, wallet_chain)
-     VALUES (?, ?, ?, 'player', 'unknown', ?, ?)`
-  ).bind(id, username, short, stored, chain).run();
-  await env.DB.prepare(
-    `INSERT INTO profiles (user_id, display_name, bio, follower_count, avatar) VALUES (?, ?, '', 0, ?)`
-  ).bind(id, short, avatar).run();
-  await env.DB.prepare(
-    `INSERT INTO creator_accounts (user_id, verification_state, trust_tier, payout_state, official) VALUES (?, 'none', 'starter', 'none', 0)`
-  ).bind(id).run();
-  return { id, username, display_name: short, wallet_address: stored, wallet_chain: chain, avatar };
-}
-
-export async function verifyAndLogin(
-  c: Context<{ Bindings: Env }>,
-  body: { address: string; chain: string; signature: string; nonce: string }
-): Promise<{ ok: true; user: SessionUser } | { ok: false; error: string }> {
-  const { address, chain, signature, nonce } = body;
-  if (!address || !signature || !nonce || (chain !== 'evm' && chain !== 'sol')) return { ok: false, error: 'Missing fields.' };
-  const nonceOwner = await c.env.KV.get(`nonce:${nonce}`);
-  if (!nonceOwner || nonceOwner !== address.toLowerCase()) return { ok: false, error: 'Invalid or expired sign-in request. Try again.' };
-  const message = siweMessage(c.env, address, chain, nonce);
-  if (!(await verifySignature(chain, message, address, signature))) return { ok: false, error: 'Signature did not verify.' };
-  await c.env.KV.delete(`nonce:${nonce}`); // one-time use
-
-  const user = await getOrCreateUser(c.env, address, chain);
   await issueSession(c, user);
   return { ok: true, user };
 }

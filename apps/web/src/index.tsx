@@ -7,8 +7,8 @@ import { page } from './components';
 import { ogCard, favicon } from './og';
 import { playDoc, TEMPLATE_IDS } from './play';
 import { ingestZip } from './ingest';
-import { issueNonce, verifyAndLogin, getSession, logout, loginPassword, onboardPassword } from './auth';
-import { createOrder, confirmOrder, hasEntitlement } from './pay';
+import { getSession, logout, loginPassword, onboardPassword, rateLimit } from './auth';
+import { hasEntitlement } from './pay';
 import * as db from './db';
 
 import { Home } from './views/home';
@@ -24,15 +24,62 @@ const ADMIN_TTL = 60 * 60 * 12;
 const INDEXNOW_FALLBACK_KEY = 'a8df7c0d6f3b4ad2a6f9487c8f0b1d25';
 const SITEMAP_NAMES = ['static', 'games', 'creators', 'clips', 'communities', 'tags'] as const;
 
+// Security headers applied to every Worker-handled response. The CSP allows the
+// React (CRA) app's inline runtime/styles plus Google Fonts; tightening to a
+// nonce/hash-based policy is a future step. Responses that set their own CSP
+// (the sandboxed game documents) are left untouched.
+const SECURITY_CSP = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline'",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' https://fonts.gstatic.com",
+  "img-src 'self' data: blob: https://images.unsplash.com",
+  "media-src 'self' blob:",
+  "connect-src 'self'",
+  "frame-src 'self'",
+  "worker-src 'self' blob:",
+  "frame-ancestors 'self'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "object-src 'none'",
+].join('; ');
+function applySecurityHeaders(headers: Headers) {
+  if (!headers.has('content-security-policy')) headers.set('content-security-policy', SECURITY_CSP);
+  headers.set('x-content-type-options', 'nosniff');
+  headers.set('referrer-policy', 'strict-origin-when-cross-origin');
+  headers.set('x-frame-options', 'SAMEORIGIN');
+  headers.set('cross-origin-opener-policy', 'same-origin');
+  headers.set('permissions-policy', 'camera=(), microphone=(), geolocation=(), browsing-topics=()');
+}
+
+const clientIp = (c: any) => c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for') || 'anon';
+// Returns a 429 Response when the caller is over the limit for `name`, else null.
+async function tooMany(c: any, name: string, limit: number, windowSeconds: number): Promise<Response | null> {
+  const ok = await rateLimit(c.env, `${name}:${clientIp(c)}`, limit, windowSeconds);
+  return ok ? null : c.json({ detail: 'Too many requests. Please slow down and try again shortly.' }, 429);
+}
+
 app.use('*', async (c, next) => {
   const path = new URL(c.req.url).pathname;
   if (shouldServeReactShell(c.req.method, path, c.req.header('accept') || '')) {
     const shell = await reactShell(c as any, path);
     if (shouldNoindexHeader(path)) shell.headers.set('X-Robots-Tag', 'noindex');
+    applySecurityHeaders(shell.headers);
     return shell;
   }
   await next();
   if (shouldNoindexHeader(path)) c.res.headers.set('X-Robots-Tag', 'noindex');
+  applySecurityHeaders(c.res.headers);
+});
+
+// Per-IP rate limit on all mutating API calls (defense-in-depth; tighter limits
+// are applied inline on the expensive upload/checkout/login endpoints below).
+app.use('/api/*', async (c, next) => {
+  if (c.req.method !== 'GET' && c.req.method !== 'HEAD') {
+    const rl = await tooMany(c, `api:${c.req.method}:${new URL(c.req.url).pathname}`, 60, 600);
+    if (rl) return rl;
+  }
+  await next();
 });
 
 const svg = (body: string) =>
@@ -235,6 +282,7 @@ app.get('/api/donations/config', (c) => c.json({
 
 app.post('/api/donations/checkout', async (c) => {
   if (!c.env.STRIPE_SECRET_KEY) return c.json({ detail: 'Donation checkout is not configured yet.' }, 503);
+  const rl = await tooMany(c, 'donate', 15, 3600); if (rl) return rl;
   const body = await c.req.json().catch(() => ({}));
   const amountCents = centsFromDonationAmount(body.amount);
   if (amountCents < 100) return c.json({ detail: 'Minimum donation is $1.' }, 400);
@@ -276,6 +324,7 @@ app.get('/api/admin/session', async (c) => c.json({ logged_in: await isAdmin(c) 
 
 app.post('/api/admin/login', async (c) => {
   if (!c.env.ADMIN_PASSWORD) return c.json({ detail: 'Admin password is not configured.' }, 503);
+  const rl = await tooMany(c, 'admin-login', 10, 600); if (rl) return rl;
   const body = await c.req.json().catch(() => ({}));
   const password = String(body.password || '');
   if (!(await timingSafeTextEqual(password, c.env.ADMIN_PASSWORD))) {
@@ -503,6 +552,7 @@ app.get('/api/games', async (c) => {
 app.post('/api/games', async (c) => {
   const user = await getSession(c);
   if (!user) return c.json({ detail: 'Log in before publishing a game.' }, 401);
+  const rl = await tooMany(c, 'game-create', 12, 3600); if (rl) return rl;
   const b = await c.req.parseBody();
   const title = String(b.title ?? '').trim().slice(0, 80);
   const pitch = String(b.pitch ?? '').trim().slice(0, 180);
@@ -555,6 +605,7 @@ app.post('/api/games/:slug/build', async (c) => {
   const owned = await requireGameOwner(c, c.req.param('slug'));
   if ('error' in owned) return owned.error;
   const { game } = owned;
+  const rl = await tooMany(c, 'game-build', 24, 3600); if (rl) return rl;
   const b = await c.req.parseBody();
   const build = b.build;
   const version = cleanText(b.version, 40) || '1.0.1';
@@ -643,6 +694,9 @@ app.get('/api/ugc/:gid/*', async (c) => {
   h.set('cache-control', 'public, max-age=3600');
   h.set('cross-origin-resource-policy', 'cross-origin');
   h.set('x-content-type-options', 'nosniff');
+  // Uploaded HTML runs only in a sandboxed, opaque-origin context — even on a
+  // direct visit — so it can never touch a first-party GoodGame session.
+  if ((obj.httpMetadata?.contentType || '').includes('text/html')) h.set('content-security-policy', "sandbox allow-scripts allow-pointer-lock allow-forms allow-fullscreen");
   return new Response(obj.body, { headers: h });
 });
 app.get('/api/game-media/:gid/:file', async (c) => {
@@ -1029,6 +1083,9 @@ app.get('/ugc/:gid/*', async (c) => {
   h.set('cache-control', 'public, max-age=3600');
   h.set('cross-origin-resource-policy', 'cross-origin');
   h.set('x-content-type-options', 'nosniff');
+  // Uploaded HTML runs only in a sandboxed, opaque-origin context — even on a
+  // direct visit — so it can never touch a first-party GoodGame session.
+  if ((obj.httpMetadata?.contentType || '').includes('text/html')) h.set('content-security-policy', "sandbox allow-scripts allow-pointer-lock allow-forms allow-fullscreen");
   return new Response(obj.body, { headers: h });
 });
 
@@ -1138,38 +1195,9 @@ app.get('/docs/:slug', async (c) => page(c, <DocsPage env={c.env} slug={c.req.pa
 const placeholder = (active: string | undefined, title: string, desc: string, path: string, body: any, noindex = true) =>
   (c: any) => page(c, <Shell env={c.env} active={active} title={title} desc={desc} path={path} noindex={noindex}>{body}</Shell>);
 
-// ---------- wallet auth ----------
-app.get('/auth/nonce', async (c) => {
-  const address = (c.req.query('address') || '').trim();
-  const chain = c.req.query('chain') === 'sol' ? 'sol' : 'evm';
-  if (!address) return c.json({ error: 'address required' }, 400);
-  return c.json(await issueNonce(c.env, address, chain));
-});
-app.post('/auth/verify', async (c) => {
-  const body = await c.req.json().catch(() => ({}));
-  const r = await verifyAndLogin(c, body);
-  return c.json(r, r.ok ? 200 : 400);
-});
-app.post('/auth/logout', async (c) => { await logout(c); return c.json({ ok: true }); });
-app.get('/auth/me', async (c) => c.json({ user: await getSession(c) }));
-
-// ---------- crypto payments ----------
-app.post('/buy/create', async (c) => {
-  const user = await getSession(c);
-  if (!user) return c.json({ error: 'Connect a wallet first.' }, 401);
-  const { gameSlug } = await c.req.json().catch(() => ({}));
-  const g = await db.getGame(c.env, String(gameSlug || ''));
-  if (!g) return c.json({ error: 'Game not found.' }, 404);
-  const quote = await createOrder(c.env, g, user.id);
-  return c.json(quote, 'error' in quote ? 400 : 200);
-});
-app.post('/buy/confirm', async (c) => {
-  const user = await getSession(c);
-  if (!user) return c.json({ error: 'Connect a wallet first.' }, 401);
-  const { orderId, txHash } = await c.req.json().catch(() => ({}));
-  const r = await confirmOrder(c.env, String(orderId || ''), user.id, String(txHash || ''));
-  return c.json(r, r.ok ? 200 : 400);
-});
+// Wallet sign-in and crypto-payment routes were removed — the product is free
+// and no longer uses crypto identities. Password auth lives at /api/login,
+// /api/onboarding, /api/session, and /api/logout.
 
 app.get('/create', (c) => page(c, <CreatePage env={c.env} />));
 app.post('/create', async (c) => {

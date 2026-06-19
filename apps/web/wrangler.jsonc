@@ -13,10 +13,16 @@
       "/healthz",
       "/__version",
       "/og/*",
+      "/play/*",
       "/robots.txt",
       "/sitemap.xml",
+      "/sitemap-index.xml",
+      "/sitemaps/*",
       "/feed.xml",
-      "/llms.txt"
+      "/llms.txt",
+      "/indexnow-key.txt",
+      "/*.txt",
+      "/ugc/*"
     ]
   },
   "routes": [

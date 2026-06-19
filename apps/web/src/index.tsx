@@ -7,6 +7,7 @@ import { page } from './components';
 import { ogCard, favicon } from './og';
 import { playDoc, TEMPLATE_IDS } from './play';
 import { ingestZip } from './ingest';
+import { analyzeAndPrepare, type CompatReport } from './compat';
 import { getSession, logout, loginPassword, onboardPassword, rateLimit } from './auth';
 import { hasEntitlement } from './pay';
 import * as db from './db';
@@ -565,13 +566,17 @@ app.post('/api/games', async (c) => {
   let uploadEntry: string | null = null;
   let uploadBytes: number | null = null;
   let engine = 'web';
+  let compat: CompatReport | null = null;
   const build = b.build;
   if (build instanceof File && build.size > 0) {
     if (build.size > 95 * 1024 * 1024) return c.json({ detail: 'That build is over 90 MB.' }, 400);
     const res = ingestZip(new Uint8Array(await build.arrayBuffer()));
     if (!res.ok) return c.json({ detail: res.error }, 400);
-    await Promise.all(res.files.map((f) =>
+    const prepared = analyzeAndPrepare(res.files, res.entry);
+    compat = prepared.report;
+    await Promise.all(prepared.files.map((f) =>
       c.env.UGC.put(`ugc/${id}/${f.path}`, f.bytes, { httpMetadata: { contentType: f.ct, contentEncoding: f.enc, cacheControl: 'public, max-age=3600' } })));
+    await c.env.UGC.put(`ugc/${id}/__gg_compat.json`, JSON.stringify(compat), { httpMetadata: { contentType: 'application/json; charset=utf-8' } });
     uploadEntry = res.entry;
     uploadBytes = res.total;
     const paths = res.files.map((f) => f.path.toLowerCase()).join('\n');
@@ -588,7 +593,7 @@ app.post('/api/games', async (c) => {
     `INSERT INTO releases (id, game_id, version, changelog, channel, status, is_current, release_date) VALUES (?, ?, '1.0.0', 'Initial build uploaded to GoodGame.', 'public', 'published', 1, datetime('now'))`
   ).bind('rel_' + id, id).run();
   const game = await db.getGame(c.env, slug);
-  return c.json({ game: game ? apiGame(game) : { id, slug, title } });
+  return c.json({ game: game ? apiGame(game) : { id, slug, title }, compat });
 });
 app.get('/api/games/:slug', async (c) => {
   const g = await db.getGame(c.env, c.req.param('slug'));
@@ -614,8 +619,10 @@ app.post('/api/games/:slug/build', async (c) => {
   if (build.size > 95 * 1024 * 1024) return c.json({ detail: 'That build is over 90 MB.' }, 400);
   const res = ingestZip(new Uint8Array(await build.arrayBuffer()));
   if (!res.ok) return c.json({ detail: res.error }, 400);
-  await Promise.all(res.files.map((f) =>
+  const prepared = analyzeAndPrepare(res.files, res.entry);
+  await Promise.all(prepared.files.map((f) =>
     c.env.UGC.put(`ugc/${game.id}/${f.path}`, f.bytes, { httpMetadata: { contentType: f.ct, contentEncoding: f.enc, cacheControl: 'public, max-age=3600' } })));
+  await c.env.UGC.put(`ugc/${game.id}/__gg_compat.json`, JSON.stringify(prepared.report), { httpMetadata: { contentType: 'application/json; charset=utf-8' } });
   const paths = res.files.map((f) => f.path.toLowerCase()).join('\n');
   const engine = paths.includes('.pck') ? 'godot' : (paths.includes('.data') || paths.includes('.unityweb') || paths.includes('.framework.js')) ? 'unity' : 'web';
   await c.env.DB.batch([
@@ -625,7 +632,7 @@ app.post('/api/games/:slug/build', async (c) => {
     c.env.DB.prepare(`INSERT INTO releases (id, game_id, version, changelog, release_notes, channel, status, is_current, release_date) VALUES (?, ?, ?, ?, ?, 'public', 'published', 1, datetime('now'))`)
       .bind('rel_' + game.id + '_' + safeId(), game.id, version, notes || 'Build replaced.', notes || 'Build replaced.'),
   ]);
-  return c.json({ ok: true, upload_entry: res.entry, upload_bytes: res.total });
+  return c.json({ ok: true, upload_entry: res.entry, upload_bytes: res.total, compat: prepared.report });
 });
 app.post('/api/games/:slug/thumbnail', async (c) => {
   const owned = await requireGameOwner(c, c.req.param('slug'));

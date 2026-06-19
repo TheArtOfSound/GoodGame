@@ -1,18 +1,18 @@
-name: Deploy GoodGame Worker
+name: CI
 
 on:
-  push:
+  pull_request:
     branches:
       - main
   workflow_dispatch:
 
 concurrency:
-  group: goodgame-worker-production
+  group: goodgame-ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  deploy:
-    name: Typecheck and deploy
+  validate:
+    name: Build and typecheck
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -48,12 +48,5 @@ jobs:
       - name: Typecheck web worker
         run: pnpm --filter web exec tsc --noEmit
 
-      - name: Compute build time
-        id: meta
-        run: echo "time=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
-
-      - name: Deploy Cloudflare Worker
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: pnpm --filter web exec wrangler deploy --var BUILD_SHA:${{ github.sha }} --var BUILD_REF:${{ github.ref_name }} --var BUILD_TIME:${{ steps.meta.outputs.time }}
+      - name: Validate Worker bundle (dry run)
+        run: pnpm --filter web exec wrangler deploy --dry-run

@@ -12,6 +12,7 @@ export type Env = {
   CAPTURE_KEY?: string;
   STRIPE_SECRET_KEY?: string;
   STRIPE_PUBLISHABLE_KEY?: string;
+  ADMIN_PASSWORD?: string;
 };
 
 export type SessionUser = {

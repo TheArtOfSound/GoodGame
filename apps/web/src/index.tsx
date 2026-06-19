@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import type { Env, Game, Creator, Clip, Community } from './lib';
 import { fmtCount, initials, csv } from './lib';
 import { CSS } from './styles';
@@ -18,6 +19,8 @@ import { NewsDirectory, ArticlePage, SearchPage, DocsPage, Shell, NotFound } fro
 import { CreatePage } from './views/create';
 
 const app = new Hono<{ Bindings: Env }>();
+const ADMIN_COOKIE = 'gg_admin';
+const ADMIN_TTL = 60 * 60 * 12;
 
 const svg = (body: string) =>
   new Response(body, { headers: { 'content-type': 'image/svg+xml; charset=utf-8', 'cache-control': 'public, max-age=3600' } });
@@ -87,6 +90,92 @@ app.post('/api/donations/checkout', async (c) => {
   return c.json({ ok: true, url: stripe.url });
 });
 
+// ---------- admin moderation ----------
+app.get('/api/admin/session', async (c) => c.json({ logged_in: await isAdmin(c) }));
+
+app.post('/api/admin/login', async (c) => {
+  if (!c.env.ADMIN_PASSWORD) return c.json({ detail: 'Admin password is not configured.' }, 503);
+  const body = await c.req.json().catch(() => ({}));
+  const password = String(body.password || '');
+  if (!(await timingSafeTextEqual(password, c.env.ADMIN_PASSWORD))) {
+    return c.json({ detail: 'Invalid admin password.' }, 401);
+  }
+  const token = randomToken();
+  await c.env.KV.put(`admin:${token}`, '1', { expirationTtl: ADMIN_TTL });
+  setCookie(c, ADMIN_COOKIE, token, { httpOnly: true, secure: true, sameSite: 'Lax', path: '/', maxAge: ADMIN_TTL });
+  return c.json({ ok: true });
+});
+
+app.post('/api/admin/logout', async (c) => {
+  const token = getCookie(c, ADMIN_COOKIE);
+  if (token) await c.env.KV.delete(`admin:${token}`);
+  deleteCookie(c, ADMIN_COOKIE, { path: '/' });
+  return c.json({ ok: true });
+});
+
+app.get('/api/admin/games', async (c) => {
+  const admin = await requireAdmin(c);
+  if ('error' in admin) return admin.error;
+  const state = c.req.query('state') || 'active';
+  const where =
+    state === 'removed' ? `g.deleted_at IS NOT NULL OR g.status != 'published'`
+    : state === 'all' ? `1=1`
+    : `g.deleted_at IS NULL AND g.status = 'published'`;
+  const r = await c.env.DB.prepare(
+    `SELECT g.*, u.display_name owner_name, u.username owner_username,
+      (SELECT ma.source_path FROM media_assets ma WHERE ma.game_id = g.id AND ma.type = 'capsule' AND ma.moderation_status = 'clear' ORDER BY ma.sort ASC LIMIT 1) cover_image
+     FROM games g JOIN users u ON u.id = g.owner_id
+     WHERE ${where}
+     ORDER BY COALESCE(g.updated_at, g.created_at) DESC LIMIT 200`
+  ).all<any>();
+  const games = (r.results || []).map((g: any) => ({
+    ...apiGame(g),
+    deleted_at: g.deleted_at || null,
+    moderation_status: g.moderation_status || 'clear',
+    state: g.deleted_at || g.status !== 'published' ? 'removed' : 'active',
+  }));
+  const stats = await c.env.DB.prepare(
+    `SELECT
+      SUM(CASE WHEN deleted_at IS NULL AND status='published' THEN 1 ELSE 0 END) active,
+      SUM(CASE WHEN deleted_at IS NOT NULL OR status!='published' THEN 1 ELSE 0 END) removed
+     FROM games`
+  ).first<any>();
+  return c.json({ games, stats: { active: stats?.active || 0, removed: stats?.removed || 0 } });
+});
+
+app.post('/api/admin/games/:id/delete', async (c) => {
+  const admin = await requireAdmin(c);
+  if ('error' in admin) return admin.error;
+  const gameId = c.req.param('id');
+  const body = await c.req.json().catch(() => ({}));
+  const reason = cleanText(body.reason, 240) || 'admin_moderation';
+  const game = await c.env.DB.prepare(`SELECT id, title FROM games WHERE id=?`).bind(gameId).first<any>();
+  if (!game) return c.json({ detail: 'Game not found.' }, 404);
+  await c.env.DB.batch([
+    c.env.DB.prepare(`UPDATE games SET deleted_at=COALESCE(deleted_at, datetime('now')), status='unpublished', moderation_status='quarantined', updated_at=datetime('now') WHERE id=?`).bind(gameId),
+    c.env.DB.prepare(`UPDATE clips SET deleted_at=COALESCE(deleted_at, datetime('now')) WHERE game_id=?`).bind(gameId),
+    c.env.DB.prepare(`UPDATE posts SET deleted_at=COALESCE(deleted_at, datetime('now')) WHERE game_id=?`).bind(gameId),
+    c.env.DB.prepare(`UPDATE reviews SET status='hidden' WHERE game_id=?`).bind(gameId),
+    c.env.DB.prepare(`INSERT INTO audit_log (id, action, object_type, object_id, reason_code, metadata) VALUES (?, 'admin_delete_game', 'game', ?, ?, ?)`)
+      .bind('audit_' + randomToken(8), gameId, reason, JSON.stringify({ title: game.title })),
+  ]);
+  return c.json({ ok: true });
+});
+
+app.post('/api/admin/games/:id/restore', async (c) => {
+  const admin = await requireAdmin(c);
+  if ('error' in admin) return admin.error;
+  const gameId = c.req.param('id');
+  const game = await c.env.DB.prepare(`SELECT id FROM games WHERE id=?`).bind(gameId).first<any>();
+  if (!game) return c.json({ detail: 'Game not found.' }, 404);
+  await c.env.DB.batch([
+    c.env.DB.prepare(`UPDATE games SET deleted_at=NULL, status='published', moderation_status='clear', updated_at=datetime('now') WHERE id=?`).bind(gameId),
+    c.env.DB.prepare(`INSERT INTO audit_log (id, action, object_type, object_id, reason_code) VALUES (?, 'admin_restore_game', 'game', ?, 'admin_restore')`)
+      .bind('audit_' + randomToken(8), gameId),
+  ]);
+  return c.json({ ok: true });
+});
+
 // ---------- React/FastAPI compatibility API ----------
 const nowIso = () => new Date().toISOString();
 const cleanSlug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 44) || 'game';
@@ -119,6 +208,34 @@ const centsFromDonationAmount = (amount: unknown): number => {
   if (!Number.isFinite(numeric)) return 0;
   return Math.round(numeric * 100);
 };
+const randomToken = (bytes = 24) => {
+  const b = new Uint8Array(bytes);
+  crypto.getRandomValues(b);
+  return Array.from(b).map((x) => x.toString(16).padStart(2, '0')).join('');
+};
+const timingSafeTextEqual = async (a: string, b: string) => {
+  const enc = new TextEncoder();
+  const [ah, bh] = await Promise.all([
+    crypto.subtle.digest('SHA-256', enc.encode(a)),
+    crypto.subtle.digest('SHA-256', enc.encode(b)),
+  ]);
+  const av = new Uint8Array(ah);
+  const bv = new Uint8Array(bh);
+  let diff = av.length ^ bv.length;
+  for (let i = 0; i < Math.min(av.length, bv.length); i++) diff |= av[i] ^ bv[i];
+  return diff === 0;
+};
+
+async function isAdmin(c: any): Promise<boolean> {
+  const token = getCookie(c, ADMIN_COOKIE);
+  if (!token) return false;
+  return (await c.env.KV.get(`admin:${token}`)) === '1';
+}
+
+async function requireAdmin(c: any) {
+  if (!(await isAdmin(c))) return { error: c.json({ detail: 'Admin login required.' }, 401) };
+  return { ok: true };
+}
 
 async function requireGameOwner(c: any, slug: string) {
   const user = await getSession(c);

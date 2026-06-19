@@ -2,7 +2,7 @@ import { Helmet } from "react-helmet-async";
 
 const SITE = "GoodGame.center";
 
-export default function SEO({ title, description, image, type = "website", path = "" }) {
+export default function SEO({ title, description, image, type = "website", path = "", noindex = false }) {
   const fullTitle = title ? `${title} · ${SITE}` : SITE;
   const desc =
     description ||
@@ -21,6 +21,7 @@ export default function SEO({ title, description, image, type = "website", path 
       <meta name="twitter:description" content={desc} />
       {image && <meta name="twitter:image" content={image} />}
       {path && <link rel="canonical" href={path} />}
+      {noindex && <meta name="robots" content="noindex,nofollow" />}
     </Helmet>
   );
 }

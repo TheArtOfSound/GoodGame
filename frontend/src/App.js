@@ -18,6 +18,7 @@ import CommunityModeration from "@/pages/CommunityModeration";
 import Settings from "@/pages/Settings";
 import TagPage from "@/pages/TagPage";
 import Legal from "@/pages/Legal";
+import Admin from "@/pages/Admin";
 import { Toaster } from "sonner";
 import "@/App.css";
 
@@ -59,6 +60,7 @@ export default function App() {
               <Route path="/communities/:slug" element={<CommunityDetail />} />
               <Route path="/communities/:slug/moderate" element={<CommunityModeration />} />
               <Route path="/legal/:topic" element={<Legal />} />
+              <Route path="/admin" element={<Admin />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Layout>

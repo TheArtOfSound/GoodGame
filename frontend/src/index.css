@@ -76,3 +76,90 @@ code, .font-mono, [class*="font-mono"] {
     @apply h-auto py-3 leading-relaxed font-sans;
   }
 }
+
+.game-player-shell {
+  position: relative;
+}
+
+.game-player-toolbar {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  z-index: 6;
+  display: flex;
+  gap: 8px;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.game-player-shell:hover .game-player-toolbar,
+.game-player-shell:focus-within .game-player-toolbar,
+.game-player-shell.is-immersive .game-player-toolbar {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.game-player-frame {
+  border: 0;
+  display: block;
+  touch-action: none;
+}
+
+.mobile-landscape-hint {
+  display: none;
+}
+
+.game-player-shell.is-immersive {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  border: 0;
+  background: #000;
+}
+
+.game-player-shell.is-immersive .game-player-frame {
+  width: 100vw;
+  height: 100dvh;
+  aspect-ratio: auto;
+}
+
+@media (max-width: 940px) {
+  .game-player-shell.is-playing .mobile-landscape-hint {
+    display: block;
+    position: absolute;
+    left: 50%;
+    bottom: 12px;
+    transform: translateX(-50%);
+    z-index: 5;
+    width: max-content;
+    max-width: calc(100vw - 32px);
+    background: rgba(0, 0, 0, 0.68);
+    border: 1px solid rgba(212, 175, 55, 0.38);
+    color: #d4af37;
+    padding: 8px 10px;
+    font: 700 10px "JetBrains Mono", monospace;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+}
+
+@media (max-width: 940px) and (orientation: landscape) {
+  .game-player-shell.is-playing {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    border: 0;
+    background: #000;
+  }
+
+  .game-player-shell.is-playing .game-player-frame {
+    width: 100vw;
+    height: 100dvh;
+    aspect-ratio: auto;
+  }
+
+  .game-player-shell.is-playing .mobile-landscape-hint {
+    display: none;
+  }
+}

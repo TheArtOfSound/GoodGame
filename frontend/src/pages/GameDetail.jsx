@@ -1,26 +1,53 @@
-import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { Link, useLocation, useParams } from "react-router-dom";
 import { getJSON, postJSON } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
-import { Play, Settings } from "lucide-react";
+import { Maximize2, Minimize2, Play, RotateCcw, Settings } from "lucide-react";
 import SEO from "../components/SEO";
 import { BACKEND_URL } from "../lib/config";
 
 export default function GameDetail() {
   const { slug } = useParams();
+  const location = useLocation();
   const { user } = useAuth();
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [playing, setPlaying] = useState(false);
+  const [immersive, setImmersive] = useState(false);
+  const [forceInline, setForceInline] = useState(false);
+  const [counted, setCounted] = useState(false);
+  const playerRef = useRef(null);
+  const isPlayRoute = location.pathname.endsWith("/play");
 
   useEffect(() => {
     setData(null);
     setError(null);
-    setPlaying(false);
+    setPlaying(isPlayRoute);
+    setImmersive(false);
+    setForceInline(false);
+    setCounted(false);
     getJSON(`/games/${slug}`)
       .then(setData)
       .catch(() => setError("Game not found"));
-  }, [slug]);
+  }, [slug, isPlayRoute]);
+
+  useEffect(() => {
+    if (data && isPlayRoute) setPlaying(true);
+  }, [data, isPlayRoute]);
+
+  useEffect(() => {
+    if (!playing || counted) return;
+    setCounted(true);
+    postJSON(`/games/${slug}/play`, {}).catch(() => {});
+  }, [playing, counted, slug]);
+
+  useEffect(() => {
+    const sync = () => {
+      if (!document.fullscreenElement) setImmersive(false);
+    };
+    document.addEventListener("fullscreenchange", sync);
+    return () => document.removeEventListener("fullscreenchange", sync);
+  }, []);
 
   if (error)
     return (
@@ -39,14 +66,27 @@ export default function GameDetail() {
   const isOwner = user && user.id === game.owner_id;
   const iframeSrc = `${BACKEND_URL}/api/ugc/${game.id}/${game.upload_entry}`;
   const cover = game.cover_image ? `${BACKEND_URL}${game.cover_image}?v=${game.updated_at}` : null;
+  const fullScreenLayout = playing && (immersive || (isPlayRoute && !forceInline));
 
-  const onPlay = async () => {
+  const onPlay = () => {
     setPlaying(true);
+  };
+
+  const enterFullscreen = async () => {
+    setPlaying(true);
+    setForceInline(false);
+    setImmersive(true);
     try {
-      await postJSON(`/games/${slug}/play`, {});
-    } catch (_e) {
-      // best-effort play counter
-    }
+      await playerRef.current?.requestFullscreen?.();
+    } catch (_e) {}
+  };
+
+  const exitFullscreen = async () => {
+    setForceInline(true);
+    setImmersive(false);
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+    } catch (_e) {}
   };
 
   return (
@@ -60,16 +100,47 @@ export default function GameDetail() {
       />
       <div className="grid lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
-          <div className="bg-black border border-[#1A1A1A]" data-testid="play-iframe-container">
+          <div
+            ref={playerRef}
+            className={`game-player-shell bg-black border border-[#1A1A1A] ${playing ? "is-playing" : ""} ${fullScreenLayout ? "is-immersive" : ""}`}
+            data-testid="play-iframe-container"
+          >
             {playing ? (
-              <iframe
-                title={game.title}
-                src={iframeSrc}
-                sandbox="allow-scripts allow-pointer-lock allow-forms"
-                allow="fullscreen; autoplay; gamepad"
-                className="w-full aspect-video bg-black"
-                data-testid="play-iframe"
-              />
+              <>
+                <div className="game-player-toolbar">
+                  <button
+                    type="button"
+                    onClick={fullScreenLayout ? exitFullscreen : enterFullscreen}
+                    data-testid="game-fullscreen-toggle"
+                    className="h-10 px-3 bg-black/70 border border-white/15 text-white hover:border-[#D4AF37] hover:text-[#D4AF37] inline-flex items-center gap-2 uppercase tracking-wider text-xs font-bold backdrop-blur"
+                  >
+                    {fullScreenLayout ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                    {fullScreenLayout ? "Exit" : "Fullscreen"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const frame = document.querySelector("[data-testid='play-iframe']");
+                      if (frame) frame.src = frame.src;
+                    }}
+                    className="h-10 px-3 bg-black/70 border border-white/15 text-white hover:border-white inline-flex items-center gap-2 uppercase tracking-wider text-xs font-bold backdrop-blur"
+                  >
+                    <RotateCcw className="w-4 h-4" /> Reset
+                  </button>
+                </div>
+                <iframe
+                  title={game.title}
+                  src={iframeSrc}
+                  sandbox="allow-scripts allow-pointer-lock allow-forms"
+                  allow="fullscreen; autoplay; gamepad"
+                  allowFullScreen
+                  className="game-player-frame w-full aspect-video bg-black"
+                  data-testid="play-iframe"
+                />
+                <div className="mobile-landscape-hint">
+                  Turn your phone landscape for the full playfield.
+                </div>
+              </>
             ) : (
               <div className="relative w-full aspect-video bg-[#080808] flex items-center justify-center">
                 {cover && (
@@ -79,13 +150,22 @@ export default function GameDetail() {
                     className="absolute inset-0 w-full h-full object-cover opacity-40"
                   />
                 )}
-                <button
-                  onClick={onPlay}
-                  data-testid="play-game-button"
-                  className="relative z-10 bg-[#D4AF37] text-black font-bold uppercase tracking-wider text-sm px-8 h-14 flex items-center gap-3 hover:bg-[#E5C158]"
-                >
-                  <Play className="w-5 h-5" /> Play
-                </button>
+                <div className="relative z-10 flex flex-wrap items-center justify-center gap-3">
+                  <button
+                    onClick={onPlay}
+                    data-testid="play-game-button"
+                    className="bg-[#D4AF37] text-black font-bold uppercase tracking-wider text-sm px-8 h-14 flex items-center gap-3 hover:bg-[#E5C158]"
+                  >
+                    <Play className="w-5 h-5" /> Play
+                  </button>
+                  <button
+                    onClick={enterFullscreen}
+                    data-testid="play-fullscreen-button"
+                    className="border border-white/20 bg-black/60 text-white font-bold uppercase tracking-wider text-sm px-6 h-14 flex items-center gap-3 hover:border-[#D4AF37] hover:text-[#D4AF37] backdrop-blur"
+                  >
+                    <Maximize2 className="w-5 h-5" /> Fullscreen
+                  </button>
+                </div>
               </div>
             )}
           </div>

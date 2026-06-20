@@ -41,8 +41,9 @@ export async function generateGameSpec(env: Env, promptRaw: string): Promise<{ o
         messages: [{ role: 'system', content: sys }, { role: 'user', content: prompt }],
         max_tokens: 400,
       });
-      raw = String(out?.response ?? out?.result?.response ?? '');
-      if (raw.trim()) break;
+      const v = out?.response ?? out?.result?.response ?? out?.result ?? out;
+      raw = typeof v === 'string' ? v : JSON.stringify(v ?? '');
+      if (raw.trim() && raw !== '""') break;
     } catch (e: any) {
       lastErr = String(e?.message || e);
     }

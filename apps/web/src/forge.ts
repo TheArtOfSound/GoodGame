@@ -5,7 +5,15 @@
 import type { Env } from './lib';
 import { TEMPLATE_IDS, TEMPLATES } from './play';
 
-const MODEL = '@cf/meta/llama-3.1-8b-instruct';
+// Tried in order until one works — resilient to Workers AI model deprecations.
+const MODELS = [
+  '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
+  '@cf/meta/llama-4-scout-17b-16e-instruct',
+  '@cf/mistralai/mistral-small-3.1-24b-instruct',
+  '@cf/qwen/qwen2.5-coder-32b-instruct',
+  '@cf/meta/llama-3.1-8b-instruct-fast',
+  '@cf/google/gemma-3-12b-it',
+];
 const ACCENTS = ['#6b93ff', '#34d399', '#2dd4bf', '#b06bff', '#ec4899', '#f0b323', '#f97316', '#f43f5e', '#8b5cf6', '#38bdf8'];
 
 export type GameSpec = { template: string; title: string; pitch: string; description: string; accent: string; tags: string[] };
@@ -26,15 +34,20 @@ export async function generateGameSpec(env: Env, promptRaw: string): Promise<{ o
     `"description": 2-4 sentences, "tags": up to 5 short lowercase tags, "accent": a hex like #6b93ff matching the mood}.`;
 
   let raw = '';
-  try {
-    const out: any = await env.AI.run(MODEL, {
-      messages: [{ role: 'system', content: sys }, { role: 'user', content: prompt }],
-      max_tokens: 400,
-    });
-    raw = String(out?.response ?? out?.result?.response ?? '');
-  } catch (e: any) {
-    return { ok: false, error: 'AI error: ' + String(e?.message || e).slice(0, 220) };
+  let lastErr = '';
+  for (const model of MODELS) {
+    try {
+      const out: any = await env.AI.run(model, {
+        messages: [{ role: 'system', content: sys }, { role: 'user', content: prompt }],
+        max_tokens: 400,
+      });
+      raw = String(out?.response ?? out?.result?.response ?? '');
+      if (raw.trim()) break;
+    } catch (e: any) {
+      lastErr = String(e?.message || e);
+    }
   }
+  if (!raw.trim()) return { ok: false, error: 'AI is unavailable right now: ' + lastErr.slice(0, 180) };
 
   const start = raw.indexOf('{');
   const end = raw.lastIndexOf('}');

@@ -32,8 +32,8 @@ export async function generateGameSpec(env: Env, promptRaw: string): Promise<{ o
       max_tokens: 400,
     });
     raw = String(out?.response ?? out?.result?.response ?? '');
-  } catch {
-    return { ok: false, error: 'The generator is busy right now — try again in a moment.' };
+  } catch (e: any) {
+    return { ok: false, error: 'AI error: ' + String(e?.message || e).slice(0, 220) };
   }
 
   const start = raw.indexOf('{');

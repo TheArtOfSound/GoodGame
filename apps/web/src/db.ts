@@ -158,15 +158,18 @@ export async function homeData(env: Env) {
 
 export async function search(env: Env, q: string) {
   const like = `%${q}%`;
+  // Each subquery is isolated so one failure (e.g. an empty/legacy table) can't 500 the whole search.
+  const run = async <T>(sql: string, ...binds: unknown[]): Promise<T[]> => {
+    try { return (await env.DB.prepare(sql).bind(...binds).all<T>()).results; } catch { return []; }
+  };
   const [games, creators, communities, events, news] = await Promise.all([
-    env.DB.prepare(`SELECT ${GAME_COLS} ${GAME_FROM} WHERE ${GAME_PUB} AND (g.title LIKE ? OR g.tags LIKE ? OR g.pitch LIKE ?) ORDER BY g.play_count DESC LIMIT 12`)
-      .bind(like, like, like).all<Game>(),
-    env.DB.prepare(`${CREATOR_SELECT} WHERE u.display_name LIKE ? OR u.username LIKE ? LIMIT 8`).bind(like, like).all<Creator>(),
-    env.DB.prepare(`${COMMUNITY_SELECT} AND (c.name LIKE ? OR c.description LIKE ?) LIMIT 8`).bind(like, like).all<Community>(),
-    env.DB.prepare(`${EVENT_SELECT} WHERE e.title LIKE ? OR e.description LIKE ? LIMIT 8`).bind(like, like).all<EventRow>(),
-    env.DB.prepare(`${NEWS_SELECT} AND (a.title LIKE ? OR a.excerpt LIKE ?) LIMIT 8`).bind(like, like).all<Article>(),
+    run<Game>(`SELECT ${GAME_COLS} ${GAME_FROM} WHERE ${GAME_PUB} AND (g.title LIKE ? OR g.tags LIKE ? OR g.pitch LIKE ?) ORDER BY g.play_count DESC LIMIT 12`, like, like, like),
+    run<Creator>(`${CREATOR_SELECT} WHERE u.display_name LIKE ? OR u.username LIKE ? LIMIT 8`, like, like),
+    run<Community>(`${COMMUNITY_SELECT} AND (c.name LIKE ? OR c.description LIKE ?) LIMIT 8`, like, like),
+    run<EventRow>(`${EVENT_SELECT} WHERE e.title LIKE ? OR e.description LIKE ? LIMIT 8`, like, like),
+    run<Article>(`${NEWS_SELECT} AND (a.title LIKE ? OR a.excerpt LIKE ?) LIMIT 8`, like, like),
   ]);
-  return { games: games.results, creators: creators.results, communities: communities.results, events: events.results, news: news.results };
+  return { games, creators, communities, events, news };
 }
 
 // For sitemap generation

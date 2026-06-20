@@ -103,7 +103,7 @@ const FRONTEND_PATHS = [
   /^\/$/, /^\/games(?:\/.*)?$/, /^\/clips(?:\/.*)?$/, /^\/communities(?:\/.*)?$/,
   /^\/creators(?:\/.*)?$/, /^\/tags(?:\/.*)?$/, /^\/legal(?:\/.*)?$/,
   /^\/admin$/, /^\/login$/, /^\/onboarding$/, /^\/settings$/, /^\/create$/,
-  /^\/console(?:\/.*)?$/,
+  /^\/console(?:\/.*)?$/, /^\/search$/, /^\/forge(?:\/.*)?$/,
 ];
 const shouldServeReactShell = (method: string, path: string, accept: string) =>
   (method === 'GET' || method === 'HEAD') && (accept.includes('text/html') || accept.includes('*/*')) && FRONTEND_PATHS.some((re) => re.test(path));
@@ -157,7 +157,8 @@ const publicShellMeta = async (env: Env, path: string): Promise<{ meta: ShellMet
   if (path === '/communities') return { meta: base('GoodGame Communities — Indie Game Hubs and Creator Spaces', 'Join public communities around browser games, creators, game jams, genres, clips, and player-made worlds on GoodGame.center.', '/communities') };
   if (path === '/creators') return { meta: base('GoodGame Creators — Browser Games, Clips, and Communities', 'Discover indie creators publishing browser games, gameplay clips, updates, and communities on GoodGame.center.', '/creators') };
   if (path === '/admin') return { meta: base('Admin · GoodGame.center', 'Private moderation access for GoodGame.center operators.', '/admin', true) };
-  if (['/login', '/onboarding', '/settings', '/create'].includes(path) || path.startsWith('/console')) {
+  if (path === '/search') return { meta: base('Search · GoodGame.center', 'Search games, creators, and communities on GoodGame.center.', '/search', true) };
+  if (['/login', '/onboarding', '/settings', '/create'].includes(path) || path.startsWith('/console') || path.startsWith('/forge')) {
     return { meta: base('GoodGame.center', 'Account and creator tools on GoodGame.center.', path, true) };
   }
   if (path.startsWith('/legal/')) {
@@ -631,6 +632,39 @@ app.post('/api/games/:slug/play', async (c) => {
   const g = await db.getGame(c.env, c.req.param('slug'));
   if (g) await c.env.DB.prepare(`UPDATE games SET play_count=play_count+1 WHERE id=?`).bind(g.id).run();
   return c.json({ ok: true });
+});
+
+// ---------- reviews ----------
+app.get('/api/games/:slug/reviews', async (c) => {
+  const g = await db.getGame(c.env, c.req.param('slug'));
+  if (!g) return c.json({ reviews: [], summary: { avg: 0, count: 0 } });
+  const rows = await c.env.DB.prepare(
+    `SELECT r.id, r.rating, r.body, r.created_at, r.author_id, u.username author_username, u.display_name author_name
+     FROM reviews r JOIN users u ON u.id = r.author_id
+     WHERE r.game_id = ? AND r.status = 'published' ORDER BY r.created_at DESC LIMIT 100`
+  ).bind(g.id).all();
+  return c.json({ reviews: rows.results || [], summary: { avg: g.rating_avg || 0, count: g.rating_count || 0 } });
+});
+app.post('/api/games/:slug/reviews', async (c) => {
+  const user = await getSession(c);
+  if (!user) return c.json({ detail: 'Log in to review.' }, 401);
+  const rl = await tooMany(c, 'review', 30, 3600); if (rl) return rl;
+  const g = await db.getGame(c.env, c.req.param('slug'));
+  if (!g) return c.json({ detail: 'Game not found.' }, 404);
+  const body = await c.req.json().catch(() => ({}));
+  const rating = Math.max(1, Math.min(5, Math.round(Number(body.rating) || 0)));
+  if (!rating) return c.json({ detail: 'Pick a rating from 1 to 5.' }, 400);
+  const text = cleanText(body.body, 2000);
+  const existing = await c.env.DB.prepare(`SELECT id FROM reviews WHERE game_id=? AND author_id=?`).bind(g.id, user.id).first<{ id: string }>();
+  if (existing) {
+    await c.env.DB.prepare(`UPDATE reviews SET rating=?, body=?, status='published', created_at=datetime('now') WHERE id=?`).bind(rating, text, existing.id).run();
+  } else {
+    await c.env.DB.prepare(`INSERT INTO reviews (id, game_id, author_id, rating, body, status) VALUES (?, ?, ?, ?, ?, 'published')`).bind('rev_' + safeId(), g.id, user.id, rating, text).run();
+  }
+  const agg = await c.env.DB.prepare(`SELECT AVG(rating) avg, COUNT(*) count FROM reviews WHERE game_id=? AND status='published'`).bind(g.id).first<any>();
+  const avg = Math.round((agg?.avg || 0) * 10) / 10;
+  await c.env.DB.prepare(`UPDATE games SET rating_avg=?, rating_count=? WHERE id=?`).bind(avg, agg?.count || 0, g.id).run();
+  return c.json({ ok: true, summary: { avg, count: agg?.count || 0 } });
 });
 app.post('/api/games/:slug/build', async (c) => {
   const owned = await requireGameOwner(c, c.req.param('slug'));

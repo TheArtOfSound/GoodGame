@@ -14,6 +14,7 @@ export default function Nav() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
 
   const handleLogout = async () => {
     await logout();
@@ -55,6 +56,25 @@ export default function Nav() {
         </nav>
 
         <div className="hidden md:flex items-center gap-3">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (q.trim()) {
+                navigate(`/search?q=${encodeURIComponent(q.trim())}`);
+                setQ("");
+              }
+            }}
+            className="hidden lg:block"
+          >
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search"
+              aria-label="Search"
+              data-testid="nav-search"
+              className="bg-[#0A0A0A] border border-[#1A1A1A] focus:border-[#D4AF37] text-white text-sm px-3 h-10 w-40 outline-none transition-colors"
+            />
+          </form>
           <DonateButton />
           {user ? (
             <>

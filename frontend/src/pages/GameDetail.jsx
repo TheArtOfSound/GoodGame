@@ -264,6 +264,7 @@ export default function GameDetail() {
               </div>
             )}
           </div>
+          <Reviews slug={slug} user={user} />
         </div>
 
         <aside className="space-y-5">
@@ -324,5 +325,133 @@ export default function GameDetail() {
         </aside>
       </div>
     </div>
+  );
+}
+
+function stars(n) {
+  const r = Math.max(0, Math.min(5, Math.round(n || 0)));
+  return "★★★★★".slice(0, r) + "☆☆☆☆☆".slice(0, 5 - r);
+}
+
+function Reviews({ slug, user }) {
+  const [reviews, setReviews] = useState([]);
+  const [summary, setSummary] = useState({ avg: 0, count: 0 });
+  const [rating, setRating] = useState(0);
+  const [body, setBody] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+
+  const load = () => {
+    getJSON(`/games/${slug}/reviews`)
+      .then((d) => {
+        setReviews(d.reviews || []);
+        setSummary(d.summary || { avg: 0, count: 0 });
+      })
+      .catch(() => {});
+  };
+  useEffect(load, [slug]);
+
+  useEffect(() => {
+    if (!user) return;
+    const mine = reviews.find((r) => r.author_id === user.id);
+    if (mine) {
+      setRating(mine.rating);
+      setBody(mine.body || "");
+    }
+  }, [reviews, user]);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!rating) {
+      setMsg("Pick a rating first.");
+      return;
+    }
+    setBusy(true);
+    setMsg(null);
+    try {
+      await postJSON(`/games/${slug}/reviews`, { rating, body });
+      setMsg("Review posted.");
+      load();
+    } catch (e) {
+      setMsg(e.response?.data?.detail || "Could not post review.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section data-testid="reviews">
+      <div className="flex items-baseline gap-3 border-b border-[#1A1A1A] pb-2 mb-5">
+        <h2 className="text-[#52525B] font-mono text-xs uppercase tracking-[0.2em]">Reviews</h2>
+        {summary.count > 0 && (
+          <span className="text-sm text-[#A1A1AA]">
+            <span className="text-[#D4AF37]">{stars(summary.avg)}</span> {summary.avg} &middot; {summary.count}{" "}
+            review{summary.count === 1 ? "" : "s"}
+          </span>
+        )}
+      </div>
+
+      {user ? (
+        <form onSubmit={submit} className="mb-8 border border-[#1A1A1A] p-4">
+          <div className="flex items-center gap-1 mb-3" data-testid="rating-input">
+            {[1, 2, 3, 4, 5].map((n) => (
+              <button
+                key={n}
+                type="button"
+                onClick={() => setRating(n)}
+                aria-label={`${n} star${n === 1 ? "" : "s"}`}
+                className={`text-2xl leading-none ${n <= rating ? "text-[#D4AF37]" : "text-[#3A3A3A]"} hover:text-[#E5C158]`}
+              >
+                ★
+              </button>
+            ))}
+          </div>
+          <textarea
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            rows={3}
+            maxLength={2000}
+            placeholder="Share what you thought (optional)"
+            className="input w-full"
+            data-testid="review-body"
+          />
+          <div className="flex items-center gap-3 mt-3">
+            <button
+              disabled={busy}
+              data-testid="review-submit"
+              className="bg-[#D4AF37] text-black font-bold uppercase tracking-wider text-sm px-5 h-11 disabled:opacity-50"
+            >
+              {busy ? "Posting…" : "Post review"}
+            </button>
+            {msg && <span className="text-sm font-mono text-[#A1A1AA]">{msg}</span>}
+          </div>
+        </form>
+      ) : (
+        <div className="text-[#A1A1AA] text-sm mb-8">
+          <Link to="/login" className="text-[#D4AF37] underline">
+            Log in
+          </Link>{" "}
+          to leave a review.
+        </div>
+      )}
+
+      <div className="space-y-4">
+        {reviews.map((r) => (
+          <div key={r.id} className="border border-[#1A1A1A] p-4" data-testid="review-item">
+            <div className="flex items-center justify-between">
+              <Link
+                to={`/creators/${r.author_username}`}
+                className="text-white text-sm font-semibold hover:text-[#D4AF37]"
+              >
+                {r.author_name || `@${r.author_username}`}
+              </Link>
+              <span className="text-[#D4AF37] text-sm">{stars(r.rating)}</span>
+            </div>
+            {r.body && <p className="text-[#A1A1AA] text-sm mt-2 whitespace-pre-wrap">{r.body}</p>}
+          </div>
+        ))}
+        {reviews.length === 0 && <div className="text-[#52525B] text-sm">No reviews yet. Be the first.</div>}
+      </div>
+    </section>
   );
 }

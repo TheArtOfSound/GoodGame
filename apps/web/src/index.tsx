@@ -122,9 +122,13 @@ const sitemapIndex = (env: Env) => {
 const sitemapUrlset = (urls: string[]) =>
   `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.join('')}</urlset>`;
 const indexNowKey = (env: Env) => env.INDEXNOW_KEY || INDEXNOW_FALLBACK_KEY;
+// Fallback only — the live hashes are read from /asset-manifest.json via the
+// ASSETS binding at request time. Kept current so a manifest read failure still
+// serves a valid bundle instead of a stale hash (which the SPA fallback would
+// answer with index.html, breaking the page).
 const DEFAULT_FRONTEND_ASSETS = {
-  js: '/static/js/main.991025fe.js',
-  css: '/static/css/main.08aef32b.css',
+  js: '/static/js/main.3238cc37.js',
+  css: '/static/css/main.811a70d5.css',
 };
 
 type ShellMeta = {
@@ -227,10 +231,16 @@ const injectShellMeta = (html: string, env: Env, meta: ShellMeta) => {
     .replace(/<meta\s+name=["']description["'][^>]*>/i, '')
     .replace(/<head>/i, `<head>${head}`);
 };
-async function frontendAssets(requestUrl: string) {
+async function frontendAssets(c: any) {
   try {
-    const manifestUrl = new URL('/asset-manifest.json', requestUrl);
-    const res = await fetch(manifestUrl.toString(), { headers: { accept: 'application/json' } });
+    const url = new URL('/asset-manifest.json', c.req.url);
+    // Read through the assets binding (reliable) — a self-fetch can re-enter the
+    // Worker and miss the real manifest, which is what stranded the shell on a
+    // stale hash.
+    const res = c.env.ASSETS
+      ? await c.env.ASSETS.fetch(url)
+      : await fetch(url.toString(), { headers: { accept: 'application/json' } });
+    if (!res.ok) return DEFAULT_FRONTEND_ASSETS;
     const manifest: any = await res.json();
     return {
       js: manifest?.files?.['main.js'] || DEFAULT_FRONTEND_ASSETS.js,
@@ -241,7 +251,20 @@ async function frontendAssets(requestUrl: string) {
   }
 }
 async function reactShellDocument(c: any, meta: ShellMeta) {
-  const assets = await frontendAssets(c.req.url);
+  // Prefer the real built index.html (always carries the correct hashed asset
+  // tags + inline runtime) and just inject SEO meta into it. This is immune to
+  // asset-hash changes between builds. Fall back to a constructed shell only if
+  // the assets binding is unavailable.
+  try {
+    if (c.env.ASSETS) {
+      const res = await c.env.ASSETS.fetch(new URL('/index.html', c.req.url));
+      if (res.ok) {
+        const real = await res.text();
+        if (real.includes('<div id="root">')) return injectShellMeta(real, c.env, meta);
+      }
+    }
+  } catch { /* fall through to the constructed shell */ }
+  const assets = await frontendAssets(c);
   return injectShellMeta(
     `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#000000"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@600&display=swap" rel="stylesheet"><link href="${escapeXml(assets.css)}" rel="stylesheet"><script defer src="${escapeXml(assets.js)}"></script></head><body><noscript>You need to enable JavaScript to run this app.</noscript><div id="root"></div></body></html>`,
     c.env,

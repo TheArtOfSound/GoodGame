@@ -18,6 +18,7 @@ import CommunityModeration from "@/pages/CommunityModeration";
 import Settings from "@/pages/Settings";
 import TagPage from "@/pages/TagPage";
 import Search from "@/pages/Search";
+import Forge from "@/pages/Forge";
 import Legal from "@/pages/Legal";
 import Admin from "@/pages/Admin";
 import { Toaster } from "sonner";
@@ -49,6 +50,7 @@ export default function App() {
               <Route path="/games/:slug/play" element={<GameDetail />} />
               <Route path="/tags/:tag" element={<TagPage />} />
               <Route path="/search" element={<Search />} />
+              <Route path="/forge/:slug" element={<Forge />} />
               <Route path="/creators/:username" element={<CreatorProfile />} />
               <Route path="/login" element={<Login />} />
               <Route path="/onboarding" element={<Onboarding />} />

@@ -9,7 +9,7 @@ import { playDoc, TEMPLATE_IDS } from './play';
 import { ingestZip } from './ingest';
 import { analyzeAndPrepare, type CompatReport } from './compat';
 import { submitScore, getLeaderboard, putSave, getSave } from './sdk';
-import { generateGameSpec } from './forge';
+import { generateGameHtml, refineGameHtml } from './forge';
 import { runtimeCheck } from './runtime';
 import { getSession, logout, loginPassword, onboardPassword, rateLimit } from './auth';
 import { hasEntitlement } from './pay';
@@ -774,27 +774,54 @@ app.get('/api/sdk/save', async (c) => {
   return c.json({ data });
 });
 
-// ---------- Forge: prompt -> playable game from a built-in template (Workers AI) ----------
+// ---------- Forge: prompt -> iterative HTML5 game (Workers AI), kept as a draft ----------
+async function storeForgeHtml(env: Env, gameId: string, html: string) {
+  const prepared = analyzeAndPrepare([{ path: 'index.html', bytes: new TextEncoder().encode(html), ct: 'text/html; charset=utf-8' }], 'index.html');
+  await Promise.all(prepared.files.map((f) =>
+    env.UGC.put(`ugc/${gameId}/${f.path}`, f.bytes, { httpMetadata: { contentType: f.ct, cacheControl: 'public, max-age=30' } })));
+}
+
 app.post('/api/forge', async (c) => {
   const user = await getSession(c);
   if (!user) return c.json({ detail: 'Log in to generate a game.' }, 401);
-  const rl = await tooMany(c, 'forge', 8, 3600); if (rl) return rl;
+  const rl = await tooMany(c, 'forge', 12, 3600); if (rl) return rl;
   const body = await c.req.json().catch(() => ({}));
-  const gen = await generateGameSpec(c.env, String(body.prompt || ''));
+  const gen = await generateGameHtml(c.env, String(body.prompt || ''));
   if (!gen.ok) return c.json({ detail: gen.error }, 400);
-  const s = gen.spec;
-  if (body.preview) return c.json({ spec: s });
   const id = 'gmu_' + crypto.randomUUID().replace(/-/g, '').slice(0, 10);
-  const slug = `${cleanSlug(s.title)}-${Math.random().toString(36).slice(2, 6)}`;
+  const slug = `${cleanSlug(gen.title)}-${Math.random().toString(36).slice(2, 6)}`;
+  await storeForgeHtml(c.env, id, gen.html);
   await c.env.DB.prepare(
-    `INSERT INTO games (id, owner_id, slug, title, pitch, description, engine, tags, platforms, build_class, status, maturity, content_rating, official, verified, accent, play_template, upload_entry, upload_bytes, play_count, follow_count, rating_avg, rating_count)
-     VALUES (?, ?, ?, ?, ?, ?, 'gg', ?, 'web', 'browser', 'published', 'everyone', 'Everyone', 0, 0, ?, ?, NULL, NULL, 0, 0, 0, 0)`
-  ).bind(id, user.id, slug, s.title, s.pitch, s.description, s.tags.join(','), s.accent, s.template).run();
+    `INSERT INTO games (id, owner_id, slug, title, pitch, description, engine, tags, platforms, build_class, status, maturity, content_rating, official, verified, accent, upload_entry, upload_bytes, play_count, follow_count, rating_avg, rating_count)
+     VALUES (?, ?, ?, ?, ?, ?, 'forge', '', 'web', 'browser', 'draft', 'everyone', 'Everyone', 0, 0, '#6b93ff', 'index.html', ?, 0, 0, 0, 0)`
+  ).bind(id, user.id, slug, gen.title, cleanText(body.prompt, 120), 'Generated with GoodGame Forge from a prompt — refine it in the workspace.', gen.html.length).run();
   await c.env.DB.prepare(
-    `INSERT INTO releases (id, game_id, version, changelog, channel, status, is_current, release_date) VALUES (?, ?, '1.0.0', 'Generated with GoodGame Forge.', 'public', 'published', 1, datetime('now'))`
+    `INSERT INTO releases (id, game_id, version, changelog, channel, status, is_current, release_date) VALUES (?, ?, '0.1.0', 'Forge draft created.', 'public', 'published', 1, datetime('now'))`
   ).bind('rel_' + id, id).run();
-  const game = await db.getGame(c.env, slug);
-  return c.json({ game: game ? apiGame(game) : { id, slug, title: s.title }, spec: s });
+  return c.json({ slug, title: gen.title });
+});
+
+app.post('/api/games/:slug/forge-refine', async (c) => {
+  const owned = await requireGameOwner(c, c.req.param('slug'));
+  if ('error' in owned) return owned.error;
+  const { game } = owned;
+  const rl = await tooMany(c, 'forge-refine', 40, 3600); if (rl) return rl;
+  const body = await c.req.json().catch(() => ({}));
+  const obj = await c.env.UGC.get(`ugc/${game.id}/index.html`);
+  if (!obj) return c.json({ detail: 'No Forge draft to edit here.' }, 400);
+  const current = await obj.text();
+  const r = await refineGameHtml(c.env, current, String(body.prompt || ''));
+  if (!r.ok) return c.json({ detail: r.error }, 400);
+  await storeForgeHtml(c.env, game.id, r.html);
+  await c.env.DB.prepare(`UPDATE games SET upload_bytes=?, updated_at=datetime('now') WHERE id=?`).bind(r.html.length, game.id).run();
+  return c.json({ ok: true });
+});
+
+app.post('/api/games/:slug/publish', async (c) => {
+  const owned = await requireGameOwner(c, c.req.param('slug'));
+  if ('error' in owned) return owned.error;
+  await c.env.DB.prepare(`UPDATE games SET status='published', updated_at=datetime('now') WHERE id=?`).bind(owned.game.id).run();
+  return c.json({ ok: true });
 });
 
 // ---------- Runtime check via Browser Rendering (owner-only) ----------

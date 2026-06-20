@@ -58,7 +58,7 @@ export default function CreateGame() {
     setForgeBusy(true);
     try {
       const res = await postJSON("/forge", { prompt: forgePrompt });
-      navigate(`/games/${res.game.slug}`);
+      navigate(`/forge/${res.slug}`);
     } catch (e) {
       setForgeErr(e.response?.data?.detail || "Generation failed. Try again.");
     } finally {
@@ -86,7 +86,7 @@ export default function CreateGame() {
               Forge &middot; generate with AI
             </div>
             <p className="text-[#A1A1AA] text-sm mb-3">
-              Describe a game and GoodGame builds a playable browser game from a built-in template &mdash; no upload needed.
+              Describe a game and GoodGame drafts a real playable browser game. Keep refining it with prompts, test it, and publish when it&apos;s ready.
             </p>
             <textarea
               data-testid="forge-prompt"
@@ -109,7 +109,7 @@ export default function CreateGame() {
               data-testid="forge-submit"
               className="mt-3 h-11 px-5 bg-[#D4AF37] text-black font-bold uppercase tracking-wider text-sm hover:bg-[#E5C158] disabled:opacity-50"
             >
-              {forgeBusy ? "Generating..." : "Generate game"}
+              {forgeBusy ? "Generating..." : "Generate draft"}
             </button>
           </div>
 

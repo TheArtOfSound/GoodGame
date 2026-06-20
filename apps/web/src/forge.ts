@@ -49,11 +49,12 @@ export async function generateGameSpec(env: Env, promptRaw: string): Promise<{ o
   }
   if (!raw.trim()) return { ok: false, error: 'AI is unavailable right now: ' + lastErr.slice(0, 180) };
 
-  const start = raw.indexOf('{');
-  const end = raw.lastIndexOf('}');
-  if (start < 0 || end <= start) return { ok: false, error: 'Could not generate a valid game this time. Try rephrasing.' };
+  const cleaned = raw.replace(/```(?:json)?/gi, '').trim();
+  const start = cleaned.indexOf('{');
+  const end = cleaned.lastIndexOf('}');
+  if (start < 0 || end <= start) return { ok: false, error: 'RAW[' + raw.length + ']: ' + raw.slice(0, 240) };
   let parsed: any;
-  try { parsed = JSON.parse(raw.slice(start, end + 1)); } catch { return { ok: false, error: 'Could not generate a valid game this time. Try rephrasing.' }; }
+  try { parsed = JSON.parse(cleaned.slice(start, end + 1)); } catch (e: any) { return { ok: false, error: 'PARSE(' + String(e?.message || '').slice(0, 50) + '): ' + cleaned.slice(start, start + 200) }; }
 
   const template = TEMPLATE_IDS.includes(parsed.template) ? parsed.template : TEMPLATE_IDS[0];
   const title = clamp(parsed.title, 40) || 'Untitled Game';

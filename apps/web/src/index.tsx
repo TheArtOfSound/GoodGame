@@ -9,6 +9,7 @@ import { playDoc, TEMPLATE_IDS } from './play';
 import { ingestZip } from './ingest';
 import { analyzeAndPrepare, type CompatReport } from './compat';
 import { submitScore, getLeaderboard, putSave, getSave } from './sdk';
+import { generateGameSpec } from './forge';
 import { getSession, logout, loginPassword, onboardPassword, rateLimit } from './auth';
 import { hasEntitlement } from './pay';
 import * as db from './db';
@@ -736,6 +737,28 @@ app.get('/api/sdk/save', async (c) => {
   let data: unknown = null;
   if (raw != null) { try { data = JSON.parse(raw); } catch { data = raw; } }
   return c.json({ data });
+});
+
+// ---------- Forge: prompt -> playable game from a built-in template (Workers AI) ----------
+app.post('/api/forge', async (c) => {
+  const user = await getSession(c);
+  if (!user) return c.json({ detail: 'Log in to generate a game.' }, 401);
+  const rl = await tooMany(c, 'forge', 8, 3600); if (rl) return rl;
+  const body = await c.req.json().catch(() => ({}));
+  const gen = await generateGameSpec(c.env, String(body.prompt || ''));
+  if (!gen.ok) return c.json({ detail: gen.error }, 400);
+  const s = gen.spec;
+  const id = 'gmu_' + crypto.randomUUID().replace(/-/g, '').slice(0, 10);
+  const slug = `${cleanSlug(s.title)}-${Math.random().toString(36).slice(2, 6)}`;
+  await c.env.DB.prepare(
+    `INSERT INTO games (id, owner_id, slug, title, pitch, description, engine, tags, platforms, build_class, status, maturity, content_rating, official, verified, accent, play_template, upload_entry, upload_bytes, play_count, follow_count, rating_avg, rating_count)
+     VALUES (?, ?, ?, ?, ?, ?, 'gg', ?, 'web', 'browser', 'published', 'everyone', 'Everyone', 0, 0, ?, ?, NULL, NULL, 0, 0, 0, 0)`
+  ).bind(id, user.id, slug, s.title, s.pitch, s.description, s.tags.join(','), s.accent, s.template).run();
+  await c.env.DB.prepare(
+    `INSERT INTO releases (id, game_id, version, changelog, channel, status, is_current, release_date) VALUES (?, ?, '1.0.0', 'Generated with GoodGame Forge.', 'public', 'published', 1, datetime('now'))`
+  ).bind('rel_' + id, id).run();
+  const game = await db.getGame(c.env, slug);
+  return c.json({ game: game ? apiGame(game) : { id, slug, title: s.title }, spec: s });
 });
 app.get('/api/ugc/:gid/*', async (c) => {
   const gid = c.req.param('gid');

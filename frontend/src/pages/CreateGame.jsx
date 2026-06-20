@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { postForm } from "../lib/api";
+import { postForm, postJSON } from "../lib/api";
 
 export default function CreateGame() {
   const { user, loading: authLoading } = useAuth();
@@ -14,6 +14,9 @@ export default function CreateGame() {
   const [err, setErr] = useState(null);
   const [busy, setBusy] = useState(false);
   const [report, setReport] = useState(null);
+  const [forgePrompt, setForgePrompt] = useState("");
+  const [forgeBusy, setForgeBusy] = useState(false);
+  const [forgeErr, setForgeErr] = useState(null);
 
   if (authLoading) return null;
   if (!user) return <Navigate to="/login" replace />;
@@ -46,6 +49,23 @@ export default function CreateGame() {
     }
   };
 
+  const forge = async () => {
+    setForgeErr(null);
+    if (forgePrompt.trim().length < 3) {
+      setForgeErr("Describe your game idea first.");
+      return;
+    }
+    setForgeBusy(true);
+    try {
+      const res = await postJSON("/forge", { prompt: forgePrompt });
+      navigate(`/games/${res.game.slug}`);
+    } catch (e) {
+      setForgeErr(e.response?.data?.detail || "Generation failed. Try again.");
+    } finally {
+      setForgeBusy(false);
+    }
+  };
+
   return (
     <div className="max-w-2xl mx-auto px-4 py-12" data-testid="create-game-page">
       <div className="text-[#D4AF37] font-mono text-xs uppercase tracking-[0.3em]">
@@ -60,7 +80,44 @@ export default function CreateGame() {
       {report ? (
         <CompatReport report={report} onContinue={() => navigate(`/console/${report.slug}`)} />
       ) : (
-        <form onSubmit={submit} className="mt-8 space-y-4">
+        <>
+          <div className="mt-8 border border-[#1A1A1A] p-5" data-testid="forge-panel">
+            <div className="text-[#D4AF37] font-mono text-xs uppercase tracking-[0.2em] mb-2">
+              Forge &middot; generate with AI
+            </div>
+            <p className="text-[#A1A1AA] text-sm mb-3">
+              Describe a game and GoodGame builds a playable browser game from a built-in template &mdash; no upload needed.
+            </p>
+            <textarea
+              data-testid="forge-prompt"
+              value={forgePrompt}
+              onChange={(e) => setForgePrompt(e.target.value)}
+              rows={3}
+              maxLength={500}
+              placeholder="e.g. a neon arena shooter where enemies spawn in waves and get faster"
+              className="input w-full"
+            />
+            {forgeErr && (
+              <div className="text-[#FF3B30] text-sm font-mono mt-2" data-testid="forge-error">
+                {forgeErr}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={forge}
+              disabled={forgeBusy}
+              data-testid="forge-submit"
+              className="mt-3 h-11 px-5 bg-[#D4AF37] text-black font-bold uppercase tracking-wider text-sm hover:bg-[#E5C158] disabled:opacity-50"
+            >
+              {forgeBusy ? "Generating..." : "Generate game"}
+            </button>
+          </div>
+
+          <div className="mt-8 flex items-center gap-3 text-[#52525B] font-mono text-[10px] uppercase tracking-[0.2em]">
+            <span className="h-px bg-[#1A1A1A] flex-1" /> or upload your own <span className="h-px bg-[#1A1A1A] flex-1" />
+          </div>
+
+          <form onSubmit={submit} className="mt-8 space-y-4">
           <Field label="Title">
             <input
               data-testid="create-title"
@@ -122,6 +179,7 @@ export default function CreateGame() {
             {busy ? "Checking & publishing..." : "Publish game"}
           </button>
         </form>
+        </>
       )}
     </div>
   );

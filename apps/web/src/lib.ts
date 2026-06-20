@@ -5,6 +5,7 @@ export type Env = {
   UGC: R2Bucket;
   KV: KVNamespace;
   ASSETS?: { fetch: typeof fetch };
+  AI?: { run(model: string, input: any): Promise<any> };
   SITE_URL: string;
   SITE_NAME: string;
   BUILD_SHA?: string;

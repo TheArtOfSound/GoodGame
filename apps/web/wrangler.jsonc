@@ -81,6 +81,9 @@
       "id": "fd7efd08dae3427898cc67e5228b12ef"
     }
   ],
+  "ai": {
+    "binding": "AI"
+  },
   "vars": {
     "SITE_URL": "https://goodgame.center",
     "SITE_NAME": "GoodGame.center",

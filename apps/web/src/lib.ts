@@ -6,6 +6,7 @@ export type Env = {
   KV: KVNamespace;
   ASSETS?: { fetch: typeof fetch };
   AI?: { run(model: string, input: any): Promise<any> };
+  BROWSER?: any;
   SITE_URL: string;
   SITE_NAME: string;
   BUILD_SHA?: string;

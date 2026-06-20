@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams, Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { getJSON, postForm } from "../lib/api";
+import { getJSON, postForm, postJSON } from "../lib/api";
 import GameCard from "../components/GameCard";
 import { BACKEND_URL } from "../lib/config";
 
@@ -60,6 +60,8 @@ function GameConsole({ slug, user }) {
   const [patchMsg, setPatchMsg] = useState(null);
   const [buildBusy, setBuildBusy] = useState(false);
   const [buildMsg, setBuildMsg] = useState(null);
+  const [runBusy, setRunBusy] = useState(false);
+  const [runReport, setRunReport] = useState(null);
 
   useEffect(() => {
     getJSON(`/games/${slug}`)
@@ -133,6 +135,19 @@ function GameConsole({ slug, user }) {
       setPatchMsg(e.response?.data?.detail || "Failed");
     } finally {
       setPatchBusy(false);
+    }
+  };
+
+  const runCheck = async () => {
+    setRunBusy(true);
+    setRunReport(null);
+    try {
+      const r = await postJSON(`/games/${slug}/runtime-check`, {});
+      setRunReport(r.report);
+    } catch (e) {
+      setRunReport({ error: e.response?.data?.detail || "Check failed" });
+    } finally {
+      setRunBusy(false);
     }
   };
 
@@ -222,6 +237,45 @@ function GameConsole({ slug, user }) {
           </button>
           {patchMsg && <div className="text-sm font-mono text-[#A1A1AA]">{patchMsg}</div>}
         </form>
+      </Section>
+
+      <Section title="Runtime check">
+        <p className="text-[#A1A1AA] text-sm mb-3 max-w-lg">
+          Loads your game in a real headless browser and reports whether it renders and any console errors.
+        </p>
+        <button
+          onClick={runCheck}
+          disabled={runBusy}
+          data-testid="runtime-check-btn"
+          className="bg-[#D4AF37] text-black font-bold uppercase tracking-wider text-sm px-5 h-11 disabled:opacity-50"
+        >
+          {runBusy ? "Checking..." : "Run runtime check"}
+        </button>
+        {runReport && (
+          <div className="mt-4 border border-[#1A1A1A] p-4 max-w-lg text-sm" data-testid="runtime-report">
+            {runReport.error ? (
+              <div className="text-[#FF3B30] font-mono">{runReport.error}</div>
+            ) : (
+              <>
+                <div className={runReport.ok ? "text-[#34D399] font-bold" : "text-[#D4AF37] font-bold"}>
+                  {runReport.ok
+                    ? "Renders, no console errors"
+                    : runReport.rendered
+                    ? "Renders, but with issues"
+                    : "Did not render"}
+                </div>
+                {runReport.note && <div className="text-[#A1A1AA] mt-1">{runReport.note}</div>}
+                {runReport.errors && runReport.errors.length > 0 && (
+                  <ul className="mt-2 space-y-1 text-[#A1A1AA] font-mono text-xs">
+                    {runReport.errors.map((er, i) => (
+                      <li key={i}>&bull; {er}</li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            )}
+          </div>
+        )}
       </Section>
     </div>
   );

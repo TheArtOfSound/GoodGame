@@ -84,6 +84,9 @@
   "ai": {
     "binding": "AI"
   },
+  "browser": {
+    "binding": "BROWSER"
+  },
   "vars": {
     "SITE_URL": "https://goodgame.center",
     "SITE_NAME": "GoodGame.center",

@@ -10,6 +10,7 @@ import { ingestZip } from './ingest';
 import { analyzeAndPrepare, type CompatReport } from './compat';
 import { submitScore, getLeaderboard, putSave, getSave } from './sdk';
 import { generateGameSpec } from './forge';
+import { runtimeCheck } from './runtime';
 import { getSession, logout, loginPassword, onboardPassword, rateLimit } from './auth';
 import { hasEntitlement } from './pay';
 import * as db from './db';
@@ -748,6 +749,7 @@ app.post('/api/forge', async (c) => {
   const gen = await generateGameSpec(c.env, String(body.prompt || ''));
   if (!gen.ok) return c.json({ detail: gen.error }, 400);
   const s = gen.spec;
+  if (body.preview) return c.json({ spec: s });
   const id = 'gmu_' + crypto.randomUUID().replace(/-/g, '').slice(0, 10);
   const slug = `${cleanSlug(s.title)}-${Math.random().toString(36).slice(2, 6)}`;
   await c.env.DB.prepare(
@@ -759,6 +761,19 @@ app.post('/api/forge', async (c) => {
   ).bind('rel_' + id, id).run();
   const game = await db.getGame(c.env, slug);
   return c.json({ game: game ? apiGame(game) : { id, slug, title: s.title }, spec: s });
+});
+
+// ---------- Runtime check via Browser Rendering (owner-only) ----------
+app.post('/api/games/:slug/runtime-check', async (c) => {
+  const owned = await requireGameOwner(c, c.req.param('slug'));
+  if ('error' in owned) return owned.error;
+  const { game } = owned;
+  const rl = await tooMany(c, 'runtime-check', 10, 3600); if (rl) return rl;
+  const entry = game.upload_entry || (game.play_template ? '__template.html' : null);
+  if (!entry) return c.json({ detail: 'No playable build to check yet.' }, 400);
+  const report = await runtimeCheck(c.env, `${c.env.SITE_URL}/api/ugc/${game.id}/${entry}`);
+  await c.env.KV.put(`gg:runtime:${game.id}`, JSON.stringify(report));
+  return c.json({ report });
 });
 app.get('/api/ugc/:gid/*', async (c) => {
   const gid = c.req.param('gid');

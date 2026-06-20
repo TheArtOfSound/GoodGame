@@ -11,6 +11,7 @@ import { analyzeAndPrepare, type CompatReport } from './compat';
 import { submitScore, getLeaderboard, putSave, getSave } from './sdk';
 import { generateGameHtml, refineGameHtml } from './forge';
 import { runtimeCheck } from './runtime';
+import { newsList, newsArticle, newsSlugs } from './news';
 import { getSession, logout, loginPassword, onboardPassword, rateLimit } from './auth';
 import { hasEntitlement } from './pay';
 import * as db from './db';
@@ -103,7 +104,7 @@ const FRONTEND_PATHS = [
   /^\/$/, /^\/games(?:\/.*)?$/, /^\/clips(?:\/.*)?$/, /^\/communities(?:\/.*)?$/,
   /^\/creators(?:\/.*)?$/, /^\/tags(?:\/.*)?$/, /^\/legal(?:\/.*)?$/,
   /^\/admin$/, /^\/login$/, /^\/onboarding$/, /^\/settings$/, /^\/create$/,
-  /^\/console(?:\/.*)?$/, /^\/search$/, /^\/forge(?:\/.*)?$/, /^\/feed$/,
+  /^\/console(?:\/.*)?$/, /^\/search$/, /^\/forge(?:\/.*)?$/, /^\/feed$/, /^\/news(?:\/.*)?$/,
 ];
 const shouldServeReactShell = (method: string, path: string, accept: string) =>
   (method === 'GET' || method === 'HEAD') && (accept.includes('text/html') || accept.includes('*/*')) && FRONTEND_PATHS.some((re) => re.test(path));
@@ -159,6 +160,20 @@ const publicShellMeta = async (env: Env, path: string): Promise<{ meta: ShellMet
   if (path === '/admin') return { meta: base('Admin · GoodGame.center', 'Private moderation access for GoodGame.center operators.', '/admin', true) };
   if (path === '/search') return { meta: base('Search · GoodGame.center', 'Search games, creators, and communities on GoodGame.center.', '/search', true) };
   if (path === '/feed') return { meta: base('Your feed · GoodGame.center', 'Activity from the creators you follow on GoodGame.center.', '/feed', true) };
+  if (path === '/news') return { meta: base('News & Guides · GoodGame.center', 'Browser-game news, creator guides, and how-tos: make a game with AI, publish HTML5 games, and play the best free browser games.', '/news') };
+  const newsMatch = path.match(/^\/news\/([^/]+)$/);
+  if (newsMatch) {
+    const a = newsArticle(decodeURIComponent(newsMatch[1]));
+    if (!a) return { status: 404, meta: base('Article not found · GoodGame.center', 'This article is not available on GoodGame.center.', path, true) };
+    return { meta: { ...base(`${a.title} · GoodGame.center`, a.excerpt, `/news/${a.slug}`), type: 'article', jsonld: [{
+      '@context': 'https://schema.org', '@type': 'Article', headline: a.title, description: a.excerpt,
+      datePublished: a.date, dateModified: a.date, inLanguage: 'en',
+      author: { '@type': 'Organization', name: 'GoodGame.center', url: env.SITE_URL },
+      publisher: { '@type': 'Organization', name: 'GoodGame.center', url: env.SITE_URL },
+      mainEntityOfPage: `${env.SITE_URL}/news/${a.slug}`, url: `${env.SITE_URL}/news/${a.slug}`,
+      keywords: a.keywords.join(', '),
+    }] } };
+  }
   if (['/login', '/onboarding', '/settings', '/create'].includes(path) || path.startsWith('/console') || path.startsWith('/forge')) {
     return { meta: base('GoodGame.center', 'Account and creator tools on GoodGame.center.', path, true) };
   }
@@ -1396,9 +1411,13 @@ app.get('/community/:slug', (c) => c.redirect(`/communities/${c.req.param('slug'
 app.get('/arena', (c) => c.redirect('/games', 301));
 app.get('/arena/*', (c) => c.redirect('/games', 301));
 
-// ---------- news (no React equivalent yet → home) ----------
-app.get('/news', (c) => c.redirect('/', 301));
-app.get('/news/*', (c) => c.redirect('/', 301));
+// ---------- news (curated SEO articles) ----------
+app.get('/api/news', (c) => c.json({ articles: newsList() }));
+app.get('/api/news/:slug', (c) => {
+  const a = newsArticle(c.req.param('slug'));
+  if (!a) return c.json({ detail: 'Article not found' }, 404);
+  return c.json({ article: a });
+});
 
 // ---------- search ----------
 app.get('/search', async (c) => {
@@ -1554,8 +1573,9 @@ Sitemap: ${c.env.SITE_URL}/sitemap-index.xml
 `));
 
 const staticSitemapPaths = [
-  '/', '/games', '/games/browser', '/clips', '/communities', '/creators',
+  '/', '/games', '/games/browser', '/clips', '/communities', '/creators', '/news',
   '/legal/terms', '/legal/privacy', '/legal/dmca',
+  ...newsSlugs().map((s) => `/news/${s}`),
 ];
 
 app.get('/sitemap.xml', (c) => xml(sitemapIndex(c.env)));

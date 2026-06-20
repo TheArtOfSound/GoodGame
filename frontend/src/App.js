@@ -20,6 +20,8 @@ import TagPage from "@/pages/TagPage";
 import Search from "@/pages/Search";
 import Forge from "@/pages/Forge";
 import Feed from "@/pages/Feed";
+import News from "@/pages/News";
+import NewsArticle from "@/pages/NewsArticle";
 import Legal from "@/pages/Legal";
 import Admin from "@/pages/Admin";
 import { Toaster } from "sonner";
@@ -53,6 +55,8 @@ export default function App() {
               <Route path="/search" element={<Search />} />
               <Route path="/forge/:slug" element={<Forge />} />
               <Route path="/feed" element={<Feed />} />
+              <Route path="/news" element={<News />} />
+              <Route path="/news/:slug" element={<NewsArticle />} />
               <Route path="/creators/:username" element={<CreatorProfile />} />
               <Route path="/login" element={<Login />} />
               <Route path="/onboarding" element={<Onboarding />} />

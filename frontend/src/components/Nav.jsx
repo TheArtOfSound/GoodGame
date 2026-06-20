@@ -9,6 +9,7 @@ const navItems = [
   { to: "/feed", label: "Feed" },
   { to: "/clips", label: "Clips" },
   { to: "/communities", label: "Communities" },
+  { to: "/news", label: "News" },
 ];
 
 export default function Nav() {

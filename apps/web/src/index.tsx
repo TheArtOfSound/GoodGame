@@ -103,7 +103,7 @@ const FRONTEND_PATHS = [
   /^\/$/, /^\/games(?:\/.*)?$/, /^\/clips(?:\/.*)?$/, /^\/communities(?:\/.*)?$/,
   /^\/creators(?:\/.*)?$/, /^\/tags(?:\/.*)?$/, /^\/legal(?:\/.*)?$/,
   /^\/admin$/, /^\/login$/, /^\/onboarding$/, /^\/settings$/, /^\/create$/,
-  /^\/console(?:\/.*)?$/, /^\/search$/, /^\/forge(?:\/.*)?$/,
+  /^\/console(?:\/.*)?$/, /^\/search$/, /^\/forge(?:\/.*)?$/, /^\/feed$/,
 ];
 const shouldServeReactShell = (method: string, path: string, accept: string) =>
   (method === 'GET' || method === 'HEAD') && (accept.includes('text/html') || accept.includes('*/*')) && FRONTEND_PATHS.some((re) => re.test(path));
@@ -158,6 +158,7 @@ const publicShellMeta = async (env: Env, path: string): Promise<{ meta: ShellMet
   if (path === '/creators') return { meta: base('GoodGame Creators — Browser Games, Clips, and Communities', 'Discover indie creators publishing browser games, gameplay clips, updates, and communities on GoodGame.center.', '/creators') };
   if (path === '/admin') return { meta: base('Admin · GoodGame.center', 'Private moderation access for GoodGame.center operators.', '/admin', true) };
   if (path === '/search') return { meta: base('Search · GoodGame.center', 'Search games, creators, and communities on GoodGame.center.', '/search', true) };
+  if (path === '/feed') return { meta: base('Your feed · GoodGame.center', 'Activity from the creators you follow on GoodGame.center.', '/feed', true) };
   if (['/login', '/onboarding', '/settings', '/create'].includes(path) || path.startsWith('/console') || path.startsWith('/forge')) {
     return { meta: base('GoodGame.center', 'Account and creator tools on GoodGame.center.', path, true) };
   }
@@ -901,14 +902,86 @@ app.get('/api/search', async (c) => {
 app.get('/api/creators/:username', async (c) => {
   const cr = await db.getCreator(c.env, c.req.param('username'));
   if (!cr) return c.json({ detail: 'Creator not found' }, 404);
-  const [games, clips] = await Promise.all([
+  const user = await getSession(c);
+  const [games, clips, isFollowing, followingCount] = await Promise.all([
     db.listGames(c.env, { limit: 120 }).then((gs) => gs.filter((g) => g.owner_id === cr.id)),
     db.listClips(c.env, { authorId: cr.id, limit: 24 }),
+    user ? c.env.DB.prepare(`SELECT 1 FROM follows WHERE follower_id=? AND target_type='creator' AND target_id=?`).bind(user.id, cr.id).first().then((r) => !!r) : Promise.resolve(false),
+    c.env.DB.prepare(`SELECT COUNT(*) n FROM follows WHERE follower_id=? AND target_type='creator'`).bind(cr.id).first<any>().then((r) => r?.n || 0),
   ]);
-  return c.json({ creator: apiCreator(cr), games: games.map(apiGame), clips: clips.map(apiClip), is_self: false, is_following: false });
+  return c.json({ creator: { ...apiCreator(cr), following_count: followingCount }, games: games.map(apiGame), clips: clips.map(apiClip), is_self: user?.id === cr.id, is_following: isFollowing });
 });
-app.get('/api/creators/:username/followers', (c) => c.json({ followers: [] }));
-app.get('/api/creators/:username/following', (c) => c.json({ following: [] }));
+app.post('/api/creators/:username/follow', async (c) => {
+  const user = await getSession(c);
+  if (!user) return c.json({ detail: 'Log in to follow.' }, 401);
+  const rl = await tooMany(c, 'follow', 120, 600); if (rl) return rl;
+  const cr = await db.getCreator(c.env, c.req.param('username'));
+  if (!cr) return c.json({ detail: 'Creator not found.' }, 404);
+  if (cr.id === user.id) return c.json({ detail: "You can't follow yourself." }, 400);
+  const existing = await c.env.DB.prepare(`SELECT id FROM follows WHERE follower_id=? AND target_type='creator' AND target_id=?`).bind(user.id, cr.id).first<{ id: string }>();
+  if (existing) {
+    await c.env.DB.batch([
+      c.env.DB.prepare(`DELETE FROM follows WHERE id=?`).bind(existing.id),
+      c.env.DB.prepare(`UPDATE profiles SET follower_count=MAX(0, follower_count-1) WHERE user_id=?`).bind(cr.id),
+    ]);
+    return c.json({ following: false });
+  }
+  await c.env.DB.batch([
+    c.env.DB.prepare(`INSERT INTO follows (id, follower_id, target_type, target_id) VALUES (?, ?, 'creator', ?)`).bind(crypto.randomUUID(), user.id, cr.id),
+    c.env.DB.prepare(`UPDATE profiles SET follower_count=follower_count+1 WHERE user_id=?`).bind(cr.id),
+  ]);
+  return c.json({ following: true });
+});
+app.get('/api/creators/:username/followers', async (c) => {
+  const cr = await db.getCreator(c.env, c.req.param('username'));
+  if (!cr) return c.json({ followers: [] });
+  const r = await c.env.DB.prepare(
+    `SELECT u.username, u.display_name, p.avatar FROM follows f JOIN users u ON u.id=f.follower_id LEFT JOIN profiles p ON p.user_id=u.id
+     WHERE f.target_type='creator' AND f.target_id=? ORDER BY f.created_at DESC LIMIT 100`
+  ).bind(cr.id).all();
+  return c.json({ followers: r.results || [] });
+});
+app.get('/api/creators/:username/following', async (c) => {
+  const cr = await db.getCreator(c.env, c.req.param('username'));
+  if (!cr) return c.json({ following: [] });
+  const r = await c.env.DB.prepare(
+    `SELECT u.username, u.display_name, p.avatar FROM follows f JOIN users u ON u.id=f.target_id LEFT JOIN profiles p ON p.user_id=u.id
+     WHERE f.follower_id=? AND f.target_type='creator' ORDER BY f.created_at DESC LIMIT 100`
+  ).bind(cr.id).all();
+  return c.json({ following: r.results || [] });
+});
+
+// ---------- social feed: activity from followed creators (global discover fallback) ----------
+app.get('/api/feed', async (c) => {
+  const user = await getSession(c);
+  const safeAll = async (stmt: { all: () => Promise<any> }): Promise<any[]> => {
+    try { return (await stmt.all()).results || []; } catch { return []; }
+  };
+  let followed: string[] = [];
+  if (user) {
+    followed = (await safeAll(c.env.DB.prepare(`SELECT target_id FROM follows WHERE follower_id=? AND target_type='creator' LIMIT 200`).bind(user.id))).map((r: any) => r.target_id);
+  }
+  const personalized = followed.length > 0;
+  const ph = followed.map(() => '?').join(',');
+  const gamesSql = `SELECT g.*, u.username owner_username, u.display_name owner_name FROM games g JOIN users u ON u.id=g.owner_id
+    WHERE g.status='published' AND g.deleted_at IS NULL${personalized ? ` AND g.owner_id IN (${ph})` : ''} ORDER BY g.created_at DESC LIMIT 24`;
+  const clipsSql = `SELECT c.id, c.slug, c.caption, c.created_at, u.username author_username, u.display_name author_name FROM clips c JOIN users u ON u.id=c.author_id
+    WHERE c.deleted_at IS NULL AND c.moderation_status='clear'${personalized ? ` AND c.author_id IN (${ph})` : ''} ORDER BY c.created_at DESC LIMIT 24`;
+  const gameRows = await safeAll(c.env.DB.prepare(gamesSql).bind(...(personalized ? followed : [])));
+  const clipRows = await safeAll(c.env.DB.prepare(clipsSql).bind(...(personalized ? followed : [])));
+  const reviewRows = personalized
+    ? await safeAll(c.env.DB.prepare(
+        `SELECT r.id, r.rating, r.body, r.created_at, u.username author_username, u.display_name author_name, g.slug game_slug, g.title game_title
+         FROM reviews r JOIN users u ON u.id=r.author_id JOIN games g ON g.id=r.game_id
+         WHERE r.status='published' AND r.author_id IN (${ph}) ORDER BY r.created_at DESC LIMIT 24`).bind(...followed))
+    : [];
+  const items = [
+    ...gameRows.map((g: any) => ({ type: 'game', at: g.created_at, actor: { username: g.owner_username, name: g.owner_name }, game: apiGame(g) })),
+    ...clipRows.map((cl: any) => ({ type: 'clip', at: cl.created_at, actor: { username: cl.author_username, name: cl.author_name }, clip: { slug: cl.slug, caption: cl.caption || 'Clip' } })),
+    ...reviewRows.map((r: any) => ({ type: 'review', at: r.created_at, actor: { username: r.author_username, name: r.author_name }, review: { rating: r.rating, body: r.body || '', game_slug: r.game_slug, game_title: r.game_title } })),
+  ].sort((a, b) => String(b.at || '').localeCompare(String(a.at || ''))).slice(0, 40);
+  return c.json({ personalized, items });
+});
 
 app.get('/api/clips', async (c) => {
   const gameSlug = c.req.query('game_slug') || c.req.query('game');

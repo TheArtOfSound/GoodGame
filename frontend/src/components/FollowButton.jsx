@@ -18,13 +18,8 @@ export default function FollowButton({ username, initialFollowing, disabled }) {
     }
     setBusy(true);
     try {
-      if (following) {
-        await postJSON(`/unfollow/${username}`, {});
-        setFollowing(false);
-      } else {
-        await postJSON(`/follow/${username}`, {});
-        setFollowing(true);
-      }
+      const r = await postJSON(`/creators/${username}/follow`, {});
+      setFollowing(!!r.following);
     } catch (_e) {
       // ignore
     } finally {

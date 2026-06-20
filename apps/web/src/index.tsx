@@ -1216,37 +1216,17 @@ app.get('/clips/:idslug', async (c) => {
   return page(c, <ClipPage env={c.env} c={clip} related={related} />);
 });
 
-// ---------- communities ----------
-app.get('/communities', (c) => c.redirect('/community', 301));
-app.get('/community', async (c) => page(c, <CommunitiesDirectory env={c.env} communities={await db.listCommunities(c.env, 48)} />));
-for (const base of ['/community', '/communities']) {
-  app.get(`${base}/:slug`, async (c) => {
-    const cm = await db.getCommunity(c.env, c.req.param('slug'));
-    if (!cm) return c.notFound();
-    const events = cm.game_id ? await db.listEvents(c.env, {}).then((es) => es.filter((e) => e.game_id === cm.game_id)) : [];
-    return page(c, <CommunityPage env={c.env} c={cm} events={events} />);
-  });
-}
+// ---------- communities (legacy SSR paths → React /communities) ----------
+app.get('/community', (c) => c.redirect('/communities', 301));
+app.get('/community/:slug', (c) => c.redirect(`/communities/${c.req.param('slug')}`, 301));
 
-// ---------- arena ----------
-app.get('/arena', async (c) => page(c, <ArenaPage env={c.env} events={await db.listEvents(c.env, { limit: 48 })} />));
-app.get('/arena/events', (c) => c.redirect('/arena', 301));
-for (const base of ['/arena/events', '/arena/tournaments']) {
-  app.get(`${base}/:slug`, async (c) => {
-    const e = await db.getEvent(c.env, c.req.param('slug'));
-    if (!e) return c.notFound();
-    return page(c, <EventPage env={c.env} e={e} />);
-  });
-}
+// ---------- arena (no React equivalent yet → browse) ----------
+app.get('/arena', (c) => c.redirect('/games', 301));
+app.get('/arena/*', (c) => c.redirect('/games', 301));
 
-// ---------- news ----------
-app.get('/news', async (c) => page(c, <NewsDirectory env={c.env} articles={await db.listNews(c.env, { limit: 24 })} />));
-app.get('/news/:slug', async (c) => {
-  const a = await db.getArticle(c.env, c.req.param('slug'));
-  if (!a) return c.notFound();
-  const related = (await db.listNews(c.env, { limit: 4 })).filter((x) => x.id !== a.id).slice(0, 3);
-  return page(c, <ArticlePage env={c.env} a={a} related={related} />);
-});
+// ---------- news (no React equivalent yet → home) ----------
+app.get('/news', (c) => c.redirect('/', 301));
+app.get('/news/*', (c) => c.redirect('/', 301));
 
 // ---------- search ----------
 app.get('/search', async (c) => {
@@ -1255,9 +1235,9 @@ app.get('/search', async (c) => {
   return page(c, <SearchPage env={c.env} q={q} r={r} />);
 });
 
-// ---------- docs ----------
-app.get('/docs', async (c) => page(c, <DocsPage env={c.env} />));
-app.get('/docs/:slug', async (c) => page(c, <DocsPage env={c.env} slug={c.req.param('slug')} />));
+// ---------- docs (no React equivalent yet → home) ----------
+app.get('/docs', (c) => c.redirect('/', 301));
+app.get('/docs/*', (c) => c.redirect('/', 301));
 
 // ---------- app placeholders (real pages, noindex) ----------
 const placeholder = (active: string | undefined, title: string, desc: string, path: string, body: any, noindex = true) =>
@@ -1333,13 +1313,11 @@ const SAFETY: Record<string, string> = {
   privacy: 'What we collect, why, and your export/delete controls.',
   terms: 'The rules of the road for using GoodGame.center.',
 };
-app.get('/safety', placeholder('discover', 'Trust & safety', SAFETY[''], '/safety',
-  <div class="prose"><p>Trust is a product pillar. Every public release ships version history, a build scan date, a checksum, and a report button. Uploaded games run on an isolated origin in a sandboxed iframe. Reviews require evidence. Prize pools are age-, location-, and rules-gated.</p></div>, false));
-app.get('/safety/:s', async (c) => {
-  const s = c.req.param('s');
-  return page(c, <Shell env={c.env} active="discover" title={`Trust & safety — ${s}`} desc={SAFETY[s] || SAFETY['']} path={`/safety/${s}`} noindex={false}>
-    <div class="prose"><p>{SAFETY[s] || SAFETY['']}</p></div>
-  </Shell>);
+// Legacy trust/safety SSR pages → the React /legal pages.
+app.get('/safety', (c) => c.redirect('/legal/terms', 301));
+app.get('/safety/:s', (c) => {
+  const map: Record<string, string> = { dmca: 'dmca', privacy: 'privacy', terms: 'terms' };
+  return c.redirect(`/legal/${map[c.req.param('s')] || 'terms'}`, 301);
 });
 
 // ---------- OG images ----------
@@ -1405,9 +1383,7 @@ Sitemap: ${c.env.SITE_URL}/sitemap-index.xml
 
 const staticSitemapPaths = [
   '/', '/games', '/games/browser', '/clips', '/communities', '/creators',
-  '/arena', '/news', '/docs', '/docs/upload-browser-game',
-  '/safety', '/safety/terms', '/safety/privacy', '/safety/dmca',
-  '/safety/ratings',
+  '/legal/terms', '/legal/privacy', '/legal/dmca',
 ];
 
 app.get('/sitemap.xml', (c) => xml(sitemapIndex(c.env)));

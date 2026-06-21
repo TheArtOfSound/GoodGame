@@ -9,6 +9,7 @@ const navItems = [
   { to: "/feed", label: "Feed" },
   { to: "/clips", label: "Clips" },
   { to: "/communities", label: "Communities" },
+  { to: "/creators", label: "Creators" },
   { to: "/news", label: "News" },
 ];
 

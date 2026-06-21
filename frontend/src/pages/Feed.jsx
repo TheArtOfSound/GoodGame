@@ -74,6 +74,12 @@ export default function Feed() {
             >
               Browse games
             </Link>
+            <Link
+              to="/creators"
+              className="border border-[#1A1A1A] hover:border-white text-white text-xs uppercase tracking-wider font-bold px-4 h-10 flex items-center"
+            >
+              Find creators
+            </Link>
           </div>
           <p className="text-[#52525B] text-xs mt-3">Or share your first post below.</p>
         </div>

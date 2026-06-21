@@ -22,6 +22,7 @@ import Forge from "@/pages/Forge";
 import Feed from "@/pages/Feed";
 import News from "@/pages/News";
 import NewsArticle from "@/pages/NewsArticle";
+import Creators from "@/pages/Creators";
 import Legal from "@/pages/Legal";
 import Admin from "@/pages/Admin";
 import { Toaster } from "sonner";
@@ -57,6 +58,7 @@ export default function App() {
               <Route path="/feed" element={<Feed />} />
               <Route path="/news" element={<News />} />
               <Route path="/news/:slug" element={<NewsArticle />} />
+              <Route path="/creators" element={<Creators />} />
               <Route path="/creators/:username" element={<CreatorProfile />} />
               <Route path="/login" element={<Login />} />
               <Route path="/onboarding" element={<Onboarding />} />

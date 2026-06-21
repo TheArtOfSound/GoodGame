@@ -915,6 +915,10 @@ app.get('/api/search', async (c) => {
   });
 });
 
+app.get('/api/creators', async (c) => {
+  const creators = await db.listCreators(c.env, 60);
+  return c.json({ creators: creators.map(apiCreator) });
+});
 app.get('/api/creators/:username', async (c) => {
   const cr = await db.getCreator(c.env, c.req.param('username'));
   if (!cr) return c.json({ detail: 'Creator not found' }, 404);

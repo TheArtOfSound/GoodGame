@@ -12,6 +12,7 @@ import { submitScore, getLeaderboard, putSave, getSave } from './sdk';
 import { generateGameHtml, refineGameHtml } from './forge';
 import { runtimeCheck } from './runtime';
 import { newsList, newsArticle, newsSlugs } from './news';
+import { togglePostLike, postLikes } from './social';
 import { getSession, logout, loginPassword, onboardPassword, rateLimit } from './auth';
 import { hasEntitlement } from './pay';
 import * as db from './db';
@@ -990,12 +991,49 @@ app.get('/api/feed', async (c) => {
          FROM reviews r JOIN users u ON u.id=r.author_id JOIN games g ON g.id=r.game_id
          WHERE r.status='published' AND r.author_id IN (${ph}) ORDER BY r.created_at DESC LIMIT 24`).bind(...followed))
     : [];
+  const meId = user?.id;
+  const postWhere = personalized ? ` AND p.author_id IN (${followed.map(() => '?').join(',')}${meId ? ',?' : ''})` : '';
+  const postBinds = personalized ? [...followed, ...(meId ? [meId] : [])] : [];
+  const postRows = await safeAll(c.env.DB.prepare(
+    `SELECT p.id, p.body, p.created_at, p.author_id, u.username author_username, u.display_name author_name
+     FROM posts p JOIN users u ON u.id=p.author_id
+     WHERE p.deleted_at IS NULL AND p.community_id IS NULL AND p.visibility='public' AND p.moderation_status='clear'${postWhere}
+     ORDER BY p.created_at DESC LIMIT 24`).bind(...postBinds));
+  const likeMap = await postLikes(c.env, postRows.map((p: any) => p.id), meId);
   const items = [
+    ...postRows.map((p: any) => ({ type: 'post', at: p.created_at, id: p.id, actor: { username: p.author_username, name: p.author_name }, post: { body: p.body || '', mine: p.author_id === meId }, likes: likeMap[p.id]?.count || 0, liked: likeMap[p.id]?.liked || false })),
     ...gameRows.map((g: any) => ({ type: 'game', at: g.created_at, actor: { username: g.owner_username, name: g.owner_name }, game: apiGame(g) })),
     ...clipRows.map((cl: any) => ({ type: 'clip', at: cl.created_at, actor: { username: cl.author_username, name: cl.author_name }, clip: { slug: cl.slug, caption: cl.caption || 'Clip' } })),
     ...reviewRows.map((r: any) => ({ type: 'review', at: r.created_at, actor: { username: r.author_username, name: r.author_name }, review: { rating: r.rating, body: r.body || '', game_slug: r.game_slug, game_title: r.game_title } })),
-  ].sort((a, b) => String(b.at || '').localeCompare(String(a.at || ''))).slice(0, 40);
+  ].sort((a, b) => String(b.at || '').localeCompare(String(a.at || ''))).slice(0, 50);
   return c.json({ personalized, items });
+});
+
+// ---------- posts (status updates) ----------
+app.post('/api/posts', async (c) => {
+  const user = await getSession(c);
+  if (!user) return c.json({ detail: 'Log in to post.' }, 401);
+  const rl = await tooMany(c, 'post', 40, 3600); if (rl) return rl;
+  const body = await c.req.json().catch(() => ({}));
+  const text = cleanText(body.body, 600);
+  if (text.length < 1) return c.json({ detail: 'Write something first.' }, 400);
+  const id = 'post_' + safeId();
+  await c.env.DB.prepare(
+    `INSERT INTO posts (id, author_id, type, body, visibility, moderation_status) VALUES (?, ?, 'status', ?, 'public', 'clear')`
+  ).bind(id, user.id, text).run();
+  return c.json({ post: { type: 'post', id, at: nowIso(), actor: { username: user.username, name: user.display_name }, post: { body: text, mine: true }, likes: 0, liked: false } });
+});
+app.post('/api/posts/:id/like', async (c) => {
+  const user = await getSession(c);
+  if (!user) return c.json({ detail: 'Log in to like.' }, 401);
+  const rl = await tooMany(c, 'like', 240, 600); if (rl) return rl;
+  return c.json(await togglePostLike(c.env, c.req.param('id'), user.id));
+});
+app.post('/api/posts/:id/delete', async (c) => {
+  const user = await getSession(c);
+  if (!user) return c.json({ detail: 'Log in first.' }, 401);
+  await c.env.DB.prepare(`UPDATE posts SET deleted_at=datetime('now') WHERE id=? AND author_id=?`).bind(c.req.param('id'), user.id).run();
+  return c.json({ ok: true });
 });
 
 app.get('/api/clips', async (c) => {

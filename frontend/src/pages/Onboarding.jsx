@@ -24,7 +24,7 @@ export default function Onboarding() {
     try {
       await postJSON("/onboarding", form);
       await refresh();
-      navigate(`/creators/${form.username.toLowerCase()}`);
+      navigate("/feed?welcome=1");
     } catch (e) {
       setErr(e.response?.data?.detail || "Could not create account");
     } finally {
@@ -39,8 +39,13 @@ export default function Onboarding() {
       </div>
       <h1 className="text-3xl font-bold uppercase text-white mt-2">Create an account</h1>
       <p className="text-[#A1A1AA] mt-2 text-sm">
-        Free. No wallet, no token. Just ship games.
+        Free. No wallet, no token. One account to play, post, follow, and ship games.
       </p>
+      <ul className="mt-4 space-y-1.5 text-sm text-[#A1A1AA]" data-testid="onb-valueprops">
+        <li>&#9654; Play any game instantly in your browser</li>
+        <li>&#10022; Generate a game from a prompt with Forge — no code</li>
+        <li>&hearts; Post updates, follow creators, and build a following</li>
+      </ul>
       <form onSubmit={submit} className="mt-8 space-y-4">
         <Field label="Username (3-24, a-z 0-9 _)">
           <input
@@ -83,6 +88,9 @@ export default function Onboarding() {
             className="input"
             required
           />
+          <div className="text-[#52525B] text-xs mt-1.5">
+            A short numeric code for quick confirmations — separate from your password.
+          </div>
         </Field>
         {err && (
           <div className="text-[#FF3B30] text-sm font-mono" data-testid="onb-error">

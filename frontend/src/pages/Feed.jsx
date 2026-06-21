@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { getJSON, postJSON } from "../lib/api";
 import SEO from "../components/SEO";
 import GameCard from "../components/GameCard";
@@ -12,6 +12,8 @@ function stars(n) {
 
 export default function Feed() {
   const { user } = useAuth();
+  const [params] = useSearchParams();
+  const welcome = params.get("welcome");
   const [data, setData] = useState(null);
   const [text, setText] = useState("");
   const [posting, setPosting] = useState(false);
@@ -52,6 +54,30 @@ export default function Feed() {
       <h1 className="text-3xl font-bold uppercase text-white mt-1">
         {personalized ? "Your feed" : "Latest on GoodGame"}
       </h1>
+
+      {welcome && user && (
+        <div className="mt-6 border border-[#D4AF37]/40 bg-[#D4AF37]/5 p-5" data-testid="welcome-panel">
+          <div className="text-[#D4AF37] font-bold uppercase tracking-wider text-sm">
+            Welcome to GoodGame, @{user.username}
+          </div>
+          <p className="text-[#A1A1AA] text-sm mt-1">Here&apos;s how to get started:</p>
+          <div className="flex flex-wrap gap-2 mt-3">
+            <Link
+              to="/create"
+              className="bg-[#D4AF37] text-black font-bold uppercase tracking-wider text-xs px-4 h-10 flex items-center"
+            >
+              Make a game with AI
+            </Link>
+            <Link
+              to="/games"
+              className="border border-[#1A1A1A] hover:border-white text-white text-xs uppercase tracking-wider font-bold px-4 h-10 flex items-center"
+            >
+              Browse games
+            </Link>
+          </div>
+          <p className="text-[#52525B] text-xs mt-3">Or share your first post below.</p>
+        </div>
+      )}
 
       {user ? (
         <form onSubmit={submitPost} className="mt-6 border border-[#1A1A1A] p-4" data-testid="post-composer">

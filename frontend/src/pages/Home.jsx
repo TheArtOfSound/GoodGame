@@ -2,21 +2,32 @@ import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { getJSON } from "../lib/api";
 import GameCard from "../components/GameCard";
-import { Play, Upload, Users } from "lucide-react";
+import { Play, Trophy, Upload, Users } from "lucide-react";
 import SEO from "../components/SEO";
 import DonateButton from "../components/DonateButton";
+import ActivityFeed from "../components/ActivityFeed";
 
 const HERO_BG = "https://images.unsplash.com/photo-1517241034903-9a4c3ab12f00?crop=entropy&cs=srgb&fm=jpg&w=1600&q=70";
 
 export default function Home() {
   const [games, setGames] = useState([]);
+  const [activity, setActivity] = useState([]);
+  const [leaders, setLeaders] = useState([]);
   const [loading, setLoading] = useState(true);
   const location = useLocation();
   const donationState = new URLSearchParams(location.search).get("donation");
 
   useEffect(() => {
-    getJSON("/games?limit=18")
-      .then((d) => setGames(d.games || []))
+    Promise.all([
+      getJSON("/games?limit=18&sort=new"),
+      getJSON("/feed/global?limit=8"),
+      getJSON("/leaderboards?limit=6"),
+    ])
+      .then(([gameData, activityData, leaderboardData]) => {
+        setGames(gameData.games || []);
+        setActivity(activityData.activity || []);
+        setLeaders(leaderboardData.leaders || []);
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -107,6 +118,54 @@ export default function Home() {
             ))}
           </div>
         )}
+      </section>
+
+      <section className="border-t border-[#1A1A1A]">
+        <div className="max-w-7xl mx-auto px-4 md:px-8 py-12 grid lg:grid-cols-[1.35fr_0.65fr] gap-10">
+          <div>
+            <div className="flex items-end justify-between gap-4 mb-2">
+              <div>
+                <div className="text-[#52525B] font-mono text-xs uppercase tracking-[0.2em]">Across GoodGame</div>
+                <h2 className="text-2xl md:text-3xl font-bold uppercase text-white tracking-tight">Global activity</h2>
+              </div>
+              <Link to="/activity" className="text-[#D4AF37] font-mono text-xs uppercase tracking-[0.2em] hover:underline">
+                Open feed &rarr;
+              </Link>
+            </div>
+            <ActivityFeed activity={activity} compact />
+          </div>
+
+          <div>
+            <div className="flex items-end justify-between gap-4 mb-4">
+              <div>
+                <div className="text-[#52525B] font-mono text-xs uppercase tracking-[0.2em]">Current holders</div>
+                <h2 className="text-2xl font-bold uppercase text-white tracking-tight">Champions</h2>
+              </div>
+              <Link to="/leaderboards" aria-label="All leaderboards" className="text-[#D4AF37]">
+                <Trophy className="w-5 h-5" />
+              </Link>
+            </div>
+            {leaders.length ? (
+              <div className="border border-[#1A1A1A] divide-y divide-[#1A1A1A]">
+                {leaders.map((leader) => (
+                  <Link key={leader.game_id} to={`/games/${leader.game_slug}#leaderboard`} className="block px-4 py-3 hover:bg-[#0A0A0A]">
+                    <div className="flex justify-between gap-4">
+                      <span className="text-white font-semibold truncate">{leader.game_title}</span>
+                      <span className="text-[#D4AF37] font-mono font-bold tabular-nums">{Number(leader.score).toLocaleString()}</span>
+                    </div>
+                    <div className="text-[#52525B] font-mono text-[10px] uppercase tracking-wider mt-1">
+                      @{leader.username}
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <div className="border border-dashed border-[#1A1A1A] p-6 text-[#71717A] text-sm">
+                No champion yet. The first authenticated score takes the board.
+              </div>
+            )}
+          </div>
+        </div>
       </section>
     </div>
   );

@@ -25,6 +25,8 @@ import NewsArticle from "@/pages/NewsArticle";
 import Creators from "@/pages/Creators";
 import Legal from "@/pages/Legal";
 import Admin from "@/pages/Admin";
+import Activity from "@/pages/Activity";
+import Leaderboards from "@/pages/Leaderboards";
 import { Toaster } from "sonner";
 import "@/App.css";
 
@@ -52,6 +54,8 @@ export default function App() {
               <Route path="/games/browser" element={<Browse />} />
               <Route path="/games/:slug" element={<GameDetail />} />
               <Route path="/games/:slug/play" element={<GameDetail />} />
+              <Route path="/activity" element={<Activity />} />
+              <Route path="/leaderboards" element={<Leaderboards />} />
               <Route path="/tags/:tag" element={<TagPage />} />
               <Route path="/search" element={<Search />} />
               <Route path="/forge/:slug" element={<Forge />} />

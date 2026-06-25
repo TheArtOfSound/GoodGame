@@ -42,6 +42,8 @@ yarn-error.log*
 .pnpm-debug.log*
 dump.rdb
 reports/
+output/
+**/.wrangler/
 
 # System files
 .DS_Store

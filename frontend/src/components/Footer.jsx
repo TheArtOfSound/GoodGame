@@ -23,6 +23,8 @@ export default function Footer() {
           title="Platform"
           links={[
             ["Browse Games", "/games"],
+            ["Global Activity", "/activity"],
+            ["Leaderboards", "/leaderboards"],
             ["Clips", "/clips"],
             ["Communities", "/communities"],
           ]}

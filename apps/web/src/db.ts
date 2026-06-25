@@ -172,6 +172,151 @@ export async function search(env: Env, q: string) {
   return { games, creators, communities, events, news };
 }
 
+export async function gameLeaderboard(env: Env, gameId: string, limit = 25) {
+  const config = await env.DB.prepare(
+    `SELECT enabled, score_mode, score_unit, trust_mode FROM game_leaderboard_config WHERE game_id=?`
+  ).bind(gameId).first<{ enabled: number; score_mode: string; score_unit: string; trust_mode: string }>();
+  if (!config?.enabled) return { config: config || null, entries: [] };
+  const direction = config.score_mode === 'low' ? 'ASC' : 'DESC';
+  const r = await env.DB.prepare(
+    `WITH ranked AS (
+       SELECT s.*,
+         ROW_NUMBER() OVER (PARTITION BY s.user_id ORDER BY s.score ${direction}, s.created_at ASC) user_row
+       FROM game_scores s
+       WHERE s.game_id=?
+     ),
+     best AS (
+       SELECT r.*, u.username, u.display_name, p.avatar
+       FROM ranked r JOIN users u ON u.id=r.user_id
+       LEFT JOIN profiles p ON p.user_id=u.id
+       WHERE r.user_row=1 AND u.status='active' AND u.deleted_at IS NULL
+     )
+     SELECT best.*,
+       ROW_NUMBER() OVER (ORDER BY score ${direction}, created_at ASC) rank
+     FROM best
+     ORDER BY score ${direction}, created_at ASC
+     LIMIT ?`
+  ).bind(gameId, limit).all();
+  return { config, entries: r.results };
+}
+
+export async function globalLeaderboard(env: Env, limit = 18) {
+  const r = await env.DB.prepare(
+    `WITH user_best AS (
+       SELECT s.*,
+         ROW_NUMBER() OVER (
+           PARTITION BY s.game_id, s.user_id
+           ORDER BY
+             CASE WHEN cfg.score_mode='low' THEN s.score END ASC,
+             CASE WHEN cfg.score_mode='high' THEN s.score END DESC,
+             s.created_at ASC
+         ) user_row
+       FROM game_scores s
+       JOIN game_leaderboard_config cfg ON cfg.game_id=s.game_id AND cfg.enabled=1
+     ),
+     game_ranked AS (
+       SELECT ub.*,
+         ROW_NUMBER() OVER (
+           PARTITION BY ub.game_id
+           ORDER BY
+             CASE WHEN cfg.score_mode='low' THEN ub.score END ASC,
+             CASE WHEN cfg.score_mode='high' THEN ub.score END DESC,
+             ub.created_at ASC
+         ) game_rank
+       FROM user_best ub
+       JOIN game_leaderboard_config cfg ON cfg.game_id=ub.game_id
+       WHERE ub.user_row=1
+     )
+     SELECT gr.score, gr.created_at, gr.game_rank,
+       u.id user_id, u.username, u.display_name, p.avatar,
+       g.id game_id, g.slug game_slug, g.title game_title, g.accent,
+       cfg.score_unit, cfg.score_mode, cfg.trust_mode
+     FROM game_ranked gr
+     JOIN users u ON u.id=gr.user_id
+     LEFT JOIN profiles p ON p.user_id=u.id
+     JOIN games g ON g.id=gr.game_id
+     JOIN game_leaderboard_config cfg ON cfg.game_id=g.id
+     WHERE gr.game_rank=1
+       AND u.status='active' AND u.deleted_at IS NULL
+       AND g.status='published' AND g.deleted_at IS NULL
+     ORDER BY gr.created_at DESC
+     LIMIT ?`
+  ).bind(limit).all();
+  return r.results;
+}
+
+export async function globalActivity(env: Env, limit = 40) {
+  const r = await env.DB.prepare(
+    `SELECT * FROM (
+       SELECT
+         'game:' || g.id id, 'game' kind,
+         u.id actor_id, u.username actor_username, u.display_name actor_name,
+         g.slug game_slug, g.title game_title,
+         NULL community_slug, NULL community_name,
+         g.title title, g.pitch body, NULL score,
+         g.created_at created_at, '/games/' || g.slug href
+       FROM games g JOIN users u ON u.id=g.owner_id
+       WHERE g.status='published' AND g.deleted_at IS NULL
+         AND u.status='active' AND u.deleted_at IS NULL
+
+       UNION ALL
+
+       SELECT
+         'post:' || p.id id, 'post' kind,
+         u.id actor_id, u.username actor_username, u.display_name actor_name,
+         g.slug game_slug, g.title game_title,
+         c.slug community_slug, c.name community_name,
+         p.title title, p.body body, NULL score,
+         p.created_at created_at,
+         CASE
+           WHEN c.slug IS NOT NULL THEN '/communities/' || c.slug
+           WHEN g.slug IS NOT NULL THEN '/games/' || g.slug
+           ELSE '/activity'
+         END href
+       FROM posts p
+       JOIN users u ON u.id=p.author_id
+       LEFT JOIN games g ON g.id=p.game_id AND g.deleted_at IS NULL
+       LEFT JOIN communities c ON c.id=p.community_id AND c.deleted_at IS NULL AND c.visibility='public'
+       WHERE p.deleted_at IS NULL AND p.visibility='public' AND p.moderation_status='clear'
+         AND u.status='active' AND u.deleted_at IS NULL
+
+       UNION ALL
+
+       SELECT
+         'clip:' || cl.id id, 'clip' kind,
+         u.id actor_id, u.username actor_username, u.display_name actor_name,
+         g.slug game_slug, g.title game_title,
+         NULL community_slug, NULL community_name,
+         cl.caption title, cl.caption body, NULL score,
+         cl.created_at created_at, '/clips/' || cl.id || '-' || cl.slug href
+       FROM clips cl
+       JOIN users u ON u.id=cl.author_id
+       LEFT JOIN games g ON g.id=cl.game_id
+       WHERE cl.deleted_at IS NULL AND cl.visibility='public' AND cl.moderation_status='clear'
+         AND u.status='active' AND u.deleted_at IS NULL
+         AND (cl.game_id IS NULL OR (g.status='published' AND g.deleted_at IS NULL))
+
+       UNION ALL
+
+       SELECT
+         'score:' || s.id id, 'score' kind,
+         u.id actor_id, u.username actor_username, u.display_name actor_name,
+         g.slug game_slug, g.title game_title,
+         NULL community_slug, NULL community_name,
+         'New score' title, NULL body, s.score score,
+         s.created_at created_at, '/games/' || g.slug || '#leaderboard' href
+       FROM game_scores s
+       JOIN users u ON u.id=s.user_id
+       JOIN games g ON g.id=s.game_id
+       WHERE u.status='active' AND u.deleted_at IS NULL
+         AND g.status='published' AND g.deleted_at IS NULL
+     )
+     ORDER BY datetime(created_at) DESC
+     LIMIT ?`
+  ).bind(limit).all();
+  return r.results;
+}
+
 // For sitemap generation
 export async function sitemapRows(env: Env) {
   const [games, creators, communities, events, news, clips] = await Promise.all([

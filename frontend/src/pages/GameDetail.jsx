@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { getJSON, postJSON } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { Maximize2, Minimize2, Play, RotateCcw, Settings } from "lucide-react";
 import SEO from "../components/SEO";
+import LeaderboardTable from "../components/LeaderboardTable";
 import { BACKEND_URL } from "../lib/config";
 
 export default function GameDetail() {
@@ -16,10 +17,14 @@ export default function GameDetail() {
   const [immersive, setImmersive] = useState(false);
   const [forceInline, setForceInline] = useState(false);
   const [counted, setCounted] = useState(false);
-  const [leaderboard, setLeaderboard] = useState([]);
+  const [leaderboard, setLeaderboard] = useState({ config: null, entries: [] });
+  const [sdkLeaderboard, setSdkLeaderboard] = useState([]);
+  const [scoreNotice, setScoreNotice] = useState("");
   const playerRef = useRef(null);
-  const frameRef = useRef(null);
+  const iframeRef = useRef(null);
+  const runRef = useRef(null);
   const isPlayRoute = location.pathname.endsWith("/play");
+  const fullScreenLayout = playing && (immersive || (isPlayRoute && !forceInline));
 
   useEffect(() => {
     setData(null);
@@ -28,8 +33,12 @@ export default function GameDetail() {
     setImmersive(false);
     setForceInline(false);
     setCounted(false);
+    runRef.current = null;
     getJSON(`/games/${slug}`)
-      .then(setData)
+      .then((next) => {
+        setData(next);
+        setLeaderboard(next.leaderboard || { config: null, entries: [] });
+      })
       .catch(() => setError("Game not found"));
   }, [slug, isPlayRoute]);
 
@@ -51,50 +60,100 @@ export default function GameDetail() {
     return () => document.removeEventListener("fullscreenchange", sync);
   }, []);
 
-  const loadLeaderboard = () => {
+  const loadSdkLeaderboard = useCallback(() => {
     getJSON(`/sdk/leaderboard?game=${encodeURIComponent(slug)}&board=default`)
-      .then((r) => setLeaderboard(r.entries || []))
+      .then((r) => setSdkLeaderboard(r.entries || []))
       .catch(() => {});
-  };
-
-  useEffect(() => {
-    if (data) loadLeaderboard();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, slug]);
-
-  // Bridge the sandboxed game (opaque origin, no session cookie) to the API.
-  useEffect(() => {
-    const onMsg = async (e) => {
-      const frame = frameRef.current;
-      if (!frame || e.source !== frame.contentWindow) return;
-      const m = e.data;
-      if (!m || m.source !== "goodgame") return;
-      const reply = (payload) => {
-        try {
-          e.source.postMessage({ source: "goodgame-host", reqId: m.reqId, data: payload }, "*");
-        } catch (_) {}
-      };
-      try {
-        if (m.type === "GG_SCORE") {
-          await postJSON("/sdk/score", { game_slug: slug, board: m.board || "default", score: m.score });
-          loadLeaderboard();
-        } else if (m.type === "GG_SAVE") {
-          await postJSON("/sdk/save", { game_slug: slug, data: m.data });
-        } else if (m.type === "GG_LOAD") {
-          const r = await getJSON(`/sdk/save?game=${encodeURIComponent(slug)}`).catch(() => ({ data: null }));
-          reply(r.data ?? null);
-        } else if (m.type === "GG_LEADERBOARD") {
-          const r = await getJSON(
-            `/sdk/leaderboard?game=${encodeURIComponent(slug)}&board=${encodeURIComponent(m.board || "default")}`
-          ).catch(() => ({ entries: [] }));
-          reply(r.entries || []);
-        }
-      } catch (_) {}
-    };
-    window.addEventListener("message", onMsg);
-    return () => window.removeEventListener("message", onMsg);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug]);
+
+  useEffect(() => {
+    if (data && !leaderboard.config?.enabled) loadSdkLeaderboard();
+  }, [data, leaderboard.config?.enabled, loadSdkLeaderboard]);
+
+  useEffect(() => {
+    if (!fullScreenLayout) return undefined;
+    const htmlOverflow = document.documentElement.style.overflow;
+    const bodyOverflow = document.body.style.overflow;
+    document.documentElement.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.documentElement.style.overflow = htmlOverflow;
+      document.body.style.overflow = bodyOverflow;
+    };
+  }, [fullScreenLayout]);
+
+  const startRun = useCallback(async () => {
+    if (!user || !data?.game || !leaderboard.config?.enabled) return null;
+    try {
+      const result = await postJSON(`/games/${slug}/runs`, { client_build: "web-player-1.1.0" });
+      runRef.current = result.run_id;
+      setScoreNotice("");
+      return result.run_id;
+    } catch (runError) {
+      setScoreNotice(runError.response?.data?.detail || "This run cannot be ranked.");
+      return null;
+    }
+  }, [data, leaderboard.config, slug, user]);
+
+  const submitScore = useCallback(async (payload) => {
+    if (!user || !leaderboard.config?.enabled) return;
+    const runId = runRef.current || (await startRun());
+    if (!runId) return;
+    runRef.current = null;
+    try {
+      const result = await postJSON(`/games/${slug}/scores`, {
+        run_id: runId,
+        score: Math.max(0, Math.round(Number(payload.score) || 0)),
+        duration_ms: Math.max(0, Math.round(Number(payload.duration_ms) || 0)),
+      });
+      setLeaderboard((current) => ({ ...current, entries: result.leaderboard || current.entries }));
+      const rank = result.personal_best?.rank;
+      setScoreNotice(rank ? `Score saved. Personal rank #${rank}.` : "Score saved.");
+    } catch (scoreError) {
+      setScoreNotice(scoreError.response?.data?.detail || "Score could not be saved.");
+    }
+  }, [leaderboard.config, slug, startRun, user]);
+
+  useEffect(() => {
+    const receive = async (event) => {
+      if (!iframeRef.current || event.source !== iframeRef.current.contentWindow) return;
+      const payload = event.data || {};
+      if (payload.type === "goodgame:run-start") {
+        runRef.current = null;
+        startRun();
+      } else if (payload.type === "goodgame:score") {
+        submitScore(payload);
+      } else if (payload.source === "goodgame") {
+        const reply = (data) => {
+          try {
+            event.source.postMessage({ source: "goodgame-host", reqId: payload.reqId, data }, "*");
+          } catch (_error) {}
+        };
+        try {
+          if (payload.type === "GG_SCORE") {
+            await postJSON("/sdk/score", {
+              game_slug: slug,
+              board: payload.board || "default",
+              score: payload.score,
+            });
+            loadSdkLeaderboard();
+          } else if (payload.type === "GG_SAVE") {
+            await postJSON("/sdk/save", { game_slug: slug, data: payload.data });
+          } else if (payload.type === "GG_LOAD") {
+            const result = await getJSON(`/sdk/save?game=${encodeURIComponent(slug)}`).catch(() => ({ data: null }));
+            reply(result.data ?? null);
+          } else if (payload.type === "GG_LEADERBOARD") {
+            const result = await getJSON(
+              `/sdk/leaderboard?game=${encodeURIComponent(slug)}&board=${encodeURIComponent(payload.board || "default")}`
+            ).catch(() => ({ entries: [] }));
+            reply(result.entries || []);
+          }
+        } catch (_error) {}
+      }
+    };
+    window.addEventListener("message", receive);
+    return () => window.removeEventListener("message", receive);
+  }, [loadSdkLeaderboard, slug, startRun, submitScore]);
 
   if (error)
     return (
@@ -113,8 +172,6 @@ export default function GameDetail() {
   const isOwner = user && user.id === game.owner_id;
   const iframeSrc = `${BACKEND_URL}/api/ugc/${game.id}/${game.upload_entry}`;
   const cover = game.cover_image ? `${BACKEND_URL}${game.cover_image}?v=${game.updated_at}` : null;
-  const fullScreenLayout = playing && (immersive || (isPlayRoute && !forceInline));
-
   const onPlay = () => {
     setPlaying(true);
   };
@@ -139,8 +196,8 @@ export default function GameDetail() {
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-8 py-8" data-testid="game-detail-page">
       <SEO
-        title={game.title}
-        description={game.pitch || game.description?.slice(0, 200) || "Play this browser game on GoodGame.center"}
+        title={game.seo_title || game.title}
+        description={game.seo_description || game.pitch || game.description?.slice(0, 200) || "Play this browser game on GoodGame.center"}
         image={cover}
         type="game"
         path={`/games/${game.slug}`}
@@ -167,7 +224,8 @@ export default function GameDetail() {
                   <button
                     type="button"
                     onClick={() => {
-                      const frame = document.querySelector("[data-testid='play-iframe']");
+                      const frame = iframeRef.current;
+                      runRef.current = null;
                       if (frame) frame.src = frame.src;
                     }}
                     className="h-10 px-3 bg-black/70 border border-white/15 text-white hover:border-white inline-flex items-center gap-2 uppercase tracking-wider text-xs font-bold backdrop-blur"
@@ -176,7 +234,7 @@ export default function GameDetail() {
                   </button>
                 </div>
                 <iframe
-                  ref={frameRef}
+                  ref={iframeRef}
                   title={game.title}
                   src={iframeSrc}
                   sandbox="allow-scripts allow-pointer-lock allow-forms"
@@ -184,6 +242,10 @@ export default function GameDetail() {
                   allowFullScreen
                   className="game-player-frame w-full aspect-video bg-black"
                   data-testid="play-iframe"
+                  onLoad={() => {
+                    runRef.current = null;
+                    if (!game.play_template) startRun();
+                  }}
                 />
                 <div className="mobile-landscape-hint">
                   Turn your phone landscape for the full playfield.
@@ -249,6 +311,11 @@ export default function GameDetail() {
                 {game.description}
               </div>
             )}
+            {scoreNotice && (
+              <div className="mt-5 border-l-2 border-[#D4AF37] pl-3 text-[#D4AF37] text-sm" data-testid="score-notice">
+                {scoreNotice}
+              </div>
+            )}
             {game.tags && game.tags.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-4">
                 {game.tags.map((t) => (
@@ -268,23 +335,46 @@ export default function GameDetail() {
         </div>
 
         <aside className="space-y-5">
+          <section id="leaderboard" className="scroll-mt-24">
+            <div className="flex items-end justify-between gap-3 mb-2">
+              <div>
+                <div className="text-[#52525B] font-mono text-xs uppercase tracking-[0.2em]">Ranked runs</div>
+                <h2 className="text-xl font-bold uppercase text-white">Leaderboard</h2>
+              </div>
+              <Link to="/leaderboards" className="text-[#D4AF37] font-mono text-[10px] uppercase tracking-wider">
+                Global
+              </Link>
+            </div>
+            <LeaderboardTable
+              entries={leaderboard.entries || []}
+              currentUserId={user?.id}
+              unit={leaderboard.config?.score_unit || "points"}
+              limit={10}
+            />
+            <p className="text-[#52525B] text-xs mt-3 leading-relaxed">
+              {user
+                ? "Your best authenticated run is ranked automatically."
+                : "Play freely, or log in before a run to save your score."}
+            </p>
+          </section>
+
           <div className="border border-[#1A1A1A] p-4">
             <div className="text-[#52525B] font-mono text-xs uppercase tracking-[0.2em] mb-2">
               Build
             </div>
             <div className="text-white text-sm font-mono">{game.engine}</div>
             <div className="text-[#52525B] text-xs mt-1">
-              {(game.upload_bytes / 1024 / 1024).toFixed(2)} MB
+              {game.play_template ? "GoodGame canvas runtime" : `${(game.upload_bytes / 1024 / 1024).toFixed(2)} MB`}
             </div>
           </div>
 
-          {leaderboard.length > 0 && (
+          {!leaderboard.config?.enabled && sdkLeaderboard.length > 0 && (
             <div className="border border-[#1A1A1A] p-4" data-testid="leaderboard">
               <div className="text-[#52525B] font-mono text-xs uppercase tracking-[0.2em] mb-3">
-                Leaderboard
+                Casual leaderboard
               </div>
               <ol className="space-y-2">
-                {leaderboard.slice(0, 10).map((e) => (
+                {sdkLeaderboard.slice(0, 10).map((e) => (
                   <li key={e.rank} className="flex items-center justify-between text-sm">
                     <span className="text-[#A1A1AA] truncate">
                       <span className="text-[#52525B] font-mono mr-2">{e.rank}</span>

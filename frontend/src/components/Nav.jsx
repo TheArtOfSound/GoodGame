@@ -41,7 +41,7 @@ export default function Nav() {
           </span>
         </Link>
 
-        <nav className="hidden md:flex items-center gap-6 text-sm">
+        <nav className="hidden lg:flex items-center gap-5 text-sm">
           {navItems.map((n) => (
             <NavLink
               key={n.to}
@@ -134,7 +134,7 @@ export default function Nav() {
         </div>
 
         <button
-          className="md:hidden text-white p-2"
+          className="lg:hidden text-white p-2"
           onClick={() => setOpen((s) => !s)}
           data-testid="mobile-menu-toggle"
           aria-label="Menu"
@@ -145,7 +145,7 @@ export default function Nav() {
 
       {open && (
         <div
-          className="md:hidden border-t border-[#1A1A1A] bg-black px-4 py-4 space-y-3"
+          className="lg:hidden border-t border-[#1A1A1A] bg-black px-4 py-4 space-y-3"
           data-testid="mobile-menu"
         >
           {navItems.map((n) => (

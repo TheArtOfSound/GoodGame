@@ -1,22 +1,10 @@
 import { Link } from "react-router-dom";
 import { BACKEND_URL } from "../lib/config";
 
-const FALLBACKS = [
-  "https://images.unsplash.com/photo-1759171053096-e7dbe7c36eb6?crop=entropy&cs=srgb&fm=jpg&w=600&q=70",
-  "https://images.unsplash.com/photo-1631896928983-2c94ea6f97e8?crop=entropy&cs=srgb&fm=jpg&w=600&q=70",
-  "https://images.unsplash.com/photo-1773053965532-7ca7adcd6b49?crop=entropy&cs=srgb&fm=jpg&w=600&q=70",
-];
-
-function fallbackArt(id) {
-  let h = 0;
-  for (let i = 0; i < (id || "x").length; i++) h = (h * 31 + id.charCodeAt(i)) % 999;
-  return FALLBACKS[h % FALLBACKS.length];
-}
-
 export default function GameCard({ game }) {
   const cover = game.cover_image
     ? `${BACKEND_URL}${game.cover_image}?v=${game.updated_at || ""}`
-    : fallbackArt(game.id || game.slug);
+    : `${BACKEND_URL}/og/game/${game.slug}.svg`;
   return (
     <Link
       to={`/games/${game.slug}`}

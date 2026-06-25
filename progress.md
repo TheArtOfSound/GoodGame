@@ -34,7 +34,10 @@ Original prompt: Make as many custom games as practical on GoodGame.center, give
 - Final nine-game smoke suite passed with deterministic state from every engine and no console-error artifacts; refreshed all nine public covers from the final inspected gameplay.
 - Whole-site local browser QA passed for logout/login, account creation with cleanup, search, feed, authenticated score persistence, personal rank, global activity, global champions, and exact 812x375 immersive play sizing.
 - Final Worker typecheck, React production build, Wrangler dry-run, conflict scan, and diff whitespace check passed.
+- Production moderation login opened the live 13-game console; Stripe created a real hosted checkout session for a $1 donation without charging it.
+- Removed retired redirect URLs and inaccurate legacy claims from crawler surfaces; the final production crawl passed all 36 canonical URLs across six sitemaps with zero issues.
+- IndexNow accepted all 36 canonical URLs with HTTP 202. GitHub main, production, and the successful deploy workflow all converged on the same commit.
 
-## TODO
+## External follow-up
 
-- Deploy the exact final commit, verify production moderation and Stripe checkout, crawl and visually inspect live pages, submit IndexNow, push current main, and confirm CI.
+- Point `www.goodgame.center` at Cloudflare instead of the registrar's AWS parking records. The apex `goodgame.center` is live and canonical; the `www` DNS record is outside the current Worker deployment.

@@ -1713,12 +1713,9 @@ Sitemap: ${c.env.SITE_URL}/sitemap-index.xml
 
 const staticSitemapPaths = [
   '/', '/games', '/games/browser', '/clips', '/communities', '/creators', '/news',
-  '/legal/terms', '/legal/privacy', '/legal/dmca',
+  '/activity', '/leaderboards', '/arena', '/docs', '/docs/upload-browser-game',
+  '/legal/terms', '/legal/privacy', '/legal/dmca', '/legal/content',
   ...newsSlugs().map((s) => `/news/${s}`),
-  '/activity', '/leaderboards',
-  '/arena', '/news', '/docs', '/docs/upload-browser-game',
-  '/safety', '/safety/terms', '/safety/privacy', '/safety/dmca',
-  '/safety/ratings',
 ];
 
 app.get('/sitemap.xml', (c) => xml(sitemapIndex(c.env)));

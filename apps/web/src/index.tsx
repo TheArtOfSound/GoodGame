@@ -1713,7 +1713,7 @@ Sitemap: ${c.env.SITE_URL}/sitemap-index.xml
 
 const staticSitemapPaths = [
   '/', '/games', '/games/browser', '/clips', '/communities', '/creators', '/news',
-  '/activity', '/leaderboards', '/arena', '/docs', '/docs/upload-browser-game',
+  '/activity', '/leaderboards',
   '/legal/terms', '/legal/privacy', '/legal/dmca', '/legal/content',
   ...newsSlugs().map((s) => `/news/${s}`),
 ];
@@ -1751,25 +1751,25 @@ app.get(`/${INDEXNOW_FALLBACK_KEY}.txt`, (c) => text(indexNowKey(c.env), 'text/p
 app.get('/llms.txt', (c) => text(
 `# GoodGame.center
 
-> An instant browser arcade and creator upload lab: play web games immediately, publish zipped web builds, and layer clips, communities, events, wallet features, and creator tools around the playable core.
+> A browser-game platform where players can play instantly and creators can publish zipped HTML5 builds.
 
 ## What this site is
-GoodGame.center is a web-native arcade layer where the first loop is simple: open a game, play it in the browser, and share it. Creator uploads turn a zipped web export into a hosted playable page, with clips, communities, events, and monetization layered on top.
+GoodGame.center hosts first-party and creator-published browser games with public creator profiles, clips, communities, social posts, reviews, and persistent leaderboards.
 
 ## Public content
-- /games — game catalog (browser, native, cloud-streamed). Canonical game pages at /games/{slug}
+- /games — browser-game catalog. Canonical game pages at /games/{slug}
 - /creators — creator profiles at /creators/{username}
 - /clips — shareable gameplay clips at /clips/{id}-{slug}
-- /community — public community hubs at /community/{slug}
-- /arena — tournaments, jams, leagues; events at /arena/events/{slug}
+- /communities — public community hubs at /communities/{slug}
+- /activity — public game, post, clip, and leaderboard activity
+- /leaderboards — current authenticated high scores across ranked games
 - /news — newsroom, guides, and creator spotlights at /news/{slug}
-- /docs — creator and SDK documentation
 
 ## For creators
-Publish browser-first games by uploading a zipped web build that contains index.html. Every release is versioned and designed to expose trust surfaces such as scan status, report tools, structured metadata, and a shareable URL.
+Publish browser-first games by uploading a zipped web build that contains index.html. Public releases receive a playable page, version notes, reviews, creator attribution, and a shareable URL.
 
 ## Crawling
-Public entity pages are server-rendered with canonical URLs and schema.org structured data. Private surfaces (/dashboard, /create, /admin, /login, /search) are not indexed. See /robots.txt and /sitemap.xml.
+Public pages provide crawlable fallback content, canonical URLs, metadata, and structured data where applicable. Private surfaces (/create, /admin, /login, /search, /console) are not indexed. See /robots.txt and /sitemap.xml.
 
 ## Not available to crawlers
 User dashboards, the creator console, admin tools, auth flows, search result pages, internal APIs, and isolated game-play runtimes.

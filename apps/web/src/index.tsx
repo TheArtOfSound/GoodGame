@@ -185,7 +185,7 @@ const publicShellMeta = async (env: Env, path: string): Promise<{ meta: ShellMet
     const noindex = matches.length < 5;
     return {
       meta: base(
-        `Free ${tag} Browser Games · GoodGame.center`,
+        `Play ${tag} Games Online · GoodGame.center`,
         `Play ${matches.length} free browser games tagged ${tag}, with instant web play and creator pages on GoodGame.center.`,
         path,
         noindex,
@@ -1637,11 +1637,11 @@ app.get('/dashboard', placeholder(undefined, 'Your dashboard', 'Profile, library
   <div class="notice">This is a private surface (profile, library, messages, settings). It unlocks with auth.</div>));
 
 const SAFETY: Record<string, string> = {
-  '': 'Community guidelines, content policy, and how moderation works on GoodGame.center.',
-  dmca: 'Copyright, takedown, counter-notice, and repeat-infringer policy.',
-  ratings: 'Age and content ratings, mature filters, and how we gate prize and economy flows.',
-  privacy: 'What we collect, why, and your export/delete controls.',
-  terms: 'The rules of the road for using GoodGame.center.',
+  '': 'Read GoodGame.center community guidelines, browser-build isolation practices, reporting tools, content rules, and moderation policies.',
+  dmca: 'Read the GoodGame.center copyright policy, including takedown requests, counter-notices, repeat-infringer handling, and contact expectations.',
+  ratings: 'Learn how GoodGame.center labels game maturity, handles creator-provided content information, and applies age-sensitive community rules.',
+  privacy: 'Review what GoodGame.center stores for accounts, profiles, uploaded games, posts, clips, sessions, and scores, plus available account controls.',
+  terms: 'Review the rules for using GoodGame.center as a player or creator, including acceptable uploads, public content, accounts, moderation, and platform access.',
 };
 // Legacy trust/safety SSR pages → the React /legal pages.
 app.get('/safety', (c) => c.redirect('/legal/terms', 301));

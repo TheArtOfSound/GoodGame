@@ -114,13 +114,14 @@ const GG_BUILD_JSON = `{
 
 export function DocsPage(props: { env: Env; slug?: string }) {
   const { env } = props;
-  const docs: Record<string, { title: string; body: any }> = {
+  const docs: Record<string, { title: string; description: string; body: any }> = {
     'upload-browser-game': {
       title: 'How to upload a browser game',
+      description: 'Export, validate, upload, publish, and index an HTML5, WebGL, WASM, Godot Web, or Unity WebGL game on GoodGame.center.',
       body: <>
         <div class="prose">
-          <p>Publishing a browser game on GoodGame takes about ten minutes. Export a web build (HTML5/WebGL/WASM), zip it, and upload it to the creator console. We run an automatic safety scan and a headless smoke test in an isolated sandbox before anything goes public.</p>
-          <p>Fill in your game page metadata — title, slug, short pitch, long description, tags, engine, maturity — preview the Open Graph card, and publish. Your game gets an immutable release URL, a sitemap entry, and a clip-capture hook out of the box.</p>
+          <p>Export a web build (HTML5, WebGL, WASM, Godot Web, or Unity WebGL), place its entrypoint at index.html, zip the build, and upload it through the creator flow. GoodGame validates archive paths, rejects obvious native executable formats, enforces file and archive limits, and serves the build inside a restricted sandboxed iframe.</p>
+          <p>Add a title, short pitch, description, and tags before publishing. The live game page receives a canonical URL, structured game metadata, a sitemap entry, patch notes, fullscreen play, and an optional authenticated leaderboard score bridge.</p>
         </div>
         <h3 style="margin:26px 0 12px">Example gg-build.json</h3>
         <div class="codeblock">{GG_BUILD_JSON}</div>
@@ -128,15 +129,16 @@ export function DocsPage(props: { env: Env; slug?: string }) {
     },
     sdk: {
       title: 'GG SDK overview',
+      description: 'Use GoodGame’s current browser message contract for run lifecycle and authenticated leaderboard score submission.',
       body: <div class="prose">
-        <p>The GG SDK is the moat: it plugs games into identity, entitlements, achievements, leaderboards, cloud saves, events, UGC, and clips. JS first, with Unity, Godot, and Unreal plugins to follow.</p>
-        <p>Core surfaces: auth/session (getSession, requestScopedToken), achievements (unlockAchievement), leaderboards (submitScore with anti-cheat proof), cloud saves (saveBlob/loadBlob), events (checkIn, submitMatchResult), and clips (markHighlight).</p>
+        <p>The current browser integration uses parent-window messages. A game can announce a run with goodgame:run-start and report its final integer score with goodgame:score. The parent page creates an authenticated, expiring run record and submits one score for that run.</p>
+        <p>Scores are client-reported unless a game is first-party, and server-authoritative anti-cheat is not claimed. Achievements, cloud saves, engine plugins, and broader SDK scopes are future work and are not presented as live APIs.</p>
       </div>,
     },
   };
   const doc = props.slug ? docs[props.slug] : null;
   if (doc) {
-    return <Document env={env} active="discover" meta={{ title: `${doc.title} — GG Docs`, description: doc.title, path: `/docs/${props.slug}` }}>
+    return <Document env={env} active="discover" meta={{ title: `${doc.title} — GG Docs`, description: doc.description, path: `/docs/${props.slug}` }}>
       <div class="container"><article class="article" style="margin-top:34px"><a href="/docs" class="dim" style="font-size:13px">← Docs</a><h1 style="margin-top:16px">{doc.title}</h1><div style="margin-top:20px">{doc.body}</div></article></div>
     </Document>;
   }

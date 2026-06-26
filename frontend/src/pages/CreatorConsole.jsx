@@ -4,12 +4,15 @@ import { useAuth } from "../context/AuthContext";
 import { getJSON, postForm, postJSON } from "../lib/api";
 import GameCard from "../components/GameCard";
 import { BACKEND_URL } from "../lib/config";
+import { Upload } from "lucide-react";
+import { EmptyState, ErrorState, InlineNotice, PageHeader, PageLoader } from "../components/UIState";
+import { FormField } from "../components/FormControls";
 
 export default function CreatorConsole() {
   const { slug } = useParams();
   const { user, loading: authLoading } = useAuth();
 
-  if (authLoading) return null;
+  if (authLoading) return <PageLoader label="Checking creator account" />;
   if (!user) return <Navigate to="/login" replace />;
 
   if (!slug) return <ConsoleHome user={user} />;
@@ -17,31 +20,39 @@ export default function CreatorConsole() {
 }
 
 function ConsoleHome({ user }) {
-  const [games, setGames] = useState([]);
+  const [games, setGames] = useState(null);
+  const [error, setError] = useState(false);
   useEffect(() => {
-    getJSON("/creator/games").then((d) => setGames(d.games || []));
+    getJSON("/creator/games")
+      .then((d) => setGames(d.games || []))
+      .catch(() => {
+        setGames([]);
+        setError(true);
+      });
   }, []);
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-8 py-10" data-testid="console-home">
-      <div className="text-[#D4AF37] font-mono text-xs uppercase tracking-[0.3em]">
-        Creator console
-      </div>
-      <h1 className="text-3xl font-bold uppercase text-white mt-2">Your games</h1>
-      <div className="mt-6 flex gap-3">
-        <Link
-          to="/create"
-          data-testid="console-upload-cta"
-          className="bg-[#D4AF37] text-black font-bold uppercase tracking-wider text-sm px-5 h-11 flex items-center"
-        >
-          Upload new game
-        </Link>
-      </div>
-      {games.length === 0 ? (
-        <div className="text-[#A1A1AA] border border-dashed border-[#1A1A1A] p-8 text-center mt-8" data-testid="console-empty">
-          You haven&apos;t uploaded any games yet.
-        </div>
+      <PageHeader
+        eyebrow="Creator console"
+        title="Your games"
+        description={`Manage releases and browser-readiness checks for @${user.username}.`}
+        actions={<Link to="/create" data-testid="console-upload-cta" className="btn-primary"><Upload className="w-4 h-4" /> New game</Link>}
+      />
+      {!games ? (
+        <PageLoader label="Loading your games" />
+      ) : error ? (
+        <ErrorState className="mt-8" title="Your games could not load" body="The creator catalog request failed." />
+      ) : games.length === 0 ? (
+        <EmptyState
+          className="mt-8"
+          icon={Upload}
+          testId="console-empty"
+          title="No games published"
+          body="Generate a draft or upload an HTML5 zip to start your catalog."
+          action={<Link to="/create" className="btn-primary">Create a game</Link>}
+        />
       ) : (
-        <div className="mt-8 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 md:gap-4">
+        <div className="mt-8 game-grid">
           {games.map((g) => (
             <GameCard key={g.id} game={g} />
           ))}
@@ -69,8 +80,8 @@ function GameConsole({ slug, user }) {
       .catch(() => setErr("Not found"));
   }, [slug]);
 
-  if (err) return <div className="px-8 py-16 text-[#A1A1AA]">{err}</div>;
-  if (!data) return <div className="px-8 py-16 text-[#52525B]">Loading...</div>;
+  if (err) return <div className="max-w-3xl mx-auto px-4 py-16"><ErrorState title="Game console unavailable" body={err} /></div>;
+  if (!data) return <PageLoader label="Loading game console" />;
 
   const { game } = data;
   if (game.owner_id !== user.id)
@@ -155,18 +166,12 @@ function GameConsole({ slug, user }) {
 
   return (
     <div className="max-w-5xl mx-auto px-4 md:px-8 py-10 space-y-10" data-testid="game-console">
-      <div>
-        <div className="text-[#D4AF37] font-mono text-xs uppercase tracking-[0.3em]">
-          Manage
-        </div>
-        <h1 className="text-3xl font-bold uppercase text-white mt-2">{game.title}</h1>
-        <Link
-          to={`/games/${slug}`}
-          className="text-[#A1A1AA] hover:text-[#D4AF37] font-mono text-xs uppercase tracking-[0.2em]"
-        >
-          View public page &rarr;
-        </Link>
-      </div>
+      <PageHeader
+        eyebrow="Manage"
+        title={game.title}
+        description="Update media and builds, publish release notes, and verify the live browser runtime."
+        actions={<Link to={`/games/${slug}`} className="btn-secondary">View public page</Link>}
+      />
 
       <Section title="Thumbnail">
         <div className="flex items-start gap-6 flex-wrap">
@@ -180,7 +185,9 @@ function GameConsole({ slug, user }) {
             )}
           </div>
           <form onSubmit={uploadThumb} className="flex-1 min-w-[260px] space-y-3">
+            <label htmlFor="thumb-input" className="block text-[#71717A] font-mono text-xs uppercase tracking-[0.2em]">Thumbnail image</label>
             <input
+              id="thumb-input"
               type="file"
               name="thumb"
               data-testid="thumb-input"
@@ -196,14 +203,16 @@ function GameConsole({ slug, user }) {
             >
               {thumbBusy ? "Uploading..." : "Upload thumbnail"}
             </button>
-            {thumbMsg && <div className="text-sm font-mono text-[#A1A1AA]">{thumbMsg}</div>}
+            {thumbMsg && <InlineNotice tone={thumbMsg.includes("updated") ? "success" : "error"}>{thumbMsg}</InlineNotice>}
           </form>
         </div>
       </Section>
 
       <Section title="Replace build">
         <form onSubmit={updateBuild} className="space-y-3 max-w-lg">
+          <label htmlFor="build-input" className="block text-[#71717A] font-mono text-xs uppercase tracking-[0.2em]">Build zip</label>
           <input
+            id="build-input"
             type="file"
             name="build"
             data-testid="build-input"
@@ -211,8 +220,12 @@ function GameConsole({ slug, user }) {
             className="block text-white font-mono text-sm"
             required
           />
-          <input name="version" placeholder="Version (e.g. 1.1.0)" className="input" />
-          <textarea name="notes" placeholder="Patch notes" rows={3} className="input" />
+          <FormField id="build-version" label="Version" hint="For example, 1.1.0">
+            <input id="build-version" name="version" className="input" aria-describedby="build-version-hint" />
+          </FormField>
+          <FormField id="build-notes" label="Patch notes">
+            <textarea id="build-notes" name="notes" rows={3} className="input" />
+          </FormField>
           <button
             disabled={buildBusy}
             data-testid="build-submit"
@@ -220,14 +233,18 @@ function GameConsole({ slug, user }) {
           >
             {buildBusy ? "Uploading..." : "Replace build"}
           </button>
-          {buildMsg && <div className="text-sm font-mono text-[#A1A1AA]">{buildMsg}</div>}
+          {buildMsg && <InlineNotice tone={buildMsg.includes("updated") ? "success" : "error"}>{buildMsg}</InlineNotice>}
         </form>
       </Section>
 
       <Section title="Add patch note">
         <form onSubmit={addPatch} className="space-y-3 max-w-lg">
-          <input name="version" placeholder="Version" className="input" required />
-          <textarea name="notes" placeholder="What changed?" rows={4} className="input" required />
+          <FormField id="patch-version" label="Version">
+            <input id="patch-version" name="version" className="input" required />
+          </FormField>
+          <FormField id="patch-notes" label="What changed">
+            <textarea id="patch-notes" name="notes" rows={4} className="input" required />
+          </FormField>
           <button
             disabled={patchBusy}
             data-testid="patch-submit"
@@ -235,7 +252,7 @@ function GameConsole({ slug, user }) {
           >
             {patchBusy ? "Posting..." : "Post note"}
           </button>
-          {patchMsg && <div className="text-sm font-mono text-[#A1A1AA]">{patchMsg}</div>}
+          {patchMsg && <InlineNotice tone={patchMsg.includes("posted") ? "success" : "error"}>{patchMsg}</InlineNotice>}
         </form>
       </Section>
 
@@ -247,7 +264,7 @@ function GameConsole({ slug, user }) {
           onClick={runCheck}
           disabled={runBusy}
           data-testid="runtime-check-btn"
-          className="bg-[#D4AF37] text-black font-bold uppercase tracking-wider text-sm px-5 h-11 disabled:opacity-50"
+          className="btn-primary"
         >
           {runBusy ? "Checking..." : "Run runtime check"}
         </button>

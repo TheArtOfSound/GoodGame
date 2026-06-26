@@ -2,6 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, LogOut, RotateCcw, Search, Shield, Trash2 } from "lucide-react";
 import { getJSON, postJSON } from "../lib/api";
 import SEO from "../components/SEO";
+import { toast } from "sonner";
+import ConfirmDialog from "../components/ConfirmDialog";
+import { InlineNotice, PageLoader } from "../components/UIState";
+import { FormField, PasswordInput } from "../components/FormControls";
 
 const filters = [
   ["active", "Active"],
@@ -18,6 +22,9 @@ export default function Admin() {
   const [stats, setStats] = useState({ active: 0, removed: 0 });
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
+  const [moderationTarget, setModerationTarget] = useState(null);
+  const [reason, setReason] = useState("bad_faith_or_policy_violation");
+  const [actionBusy, setActionBusy] = useState(false);
 
   const load = async (nextState = state) => {
     const data = await getJSON(`/admin/games?state=${nextState}`);
@@ -75,19 +82,36 @@ export default function Admin() {
   };
 
   const deleteGame = async (game) => {
-    const reason = window.prompt(`Delete "${game.title}" from public GoodGame?`, "bad_faith_or_policy_violation");
-    if (!reason) return;
-    await postJSON(`/admin/games/${game.id}/delete`, { reason });
-    await load();
+    setModerationTarget({ type: "delete", game });
+    setReason("bad_faith_or_policy_violation");
   };
 
   const restoreGame = async (game) => {
-    if (!window.confirm(`Restore "${game.title}" to the public catalog?`)) return;
-    await postJSON(`/admin/games/${game.id}/restore`, {});
-    await load();
+    setModerationTarget({ type: "restore", game });
   };
 
-  if (loggedIn === null) return <div className="px-8 py-10 text-[#52525B]">Loading...</div>;
+  const confirmModeration = async () => {
+    if (!moderationTarget) return;
+    setActionBusy(true);
+    const { type, game } = moderationTarget;
+    try {
+      if (type === "delete") {
+        await postJSON(`/admin/games/${game.id}/delete`, { reason: reason.trim() });
+        toast.success(`${game.title} removed from public pages.`);
+      } else {
+        await postJSON(`/admin/games/${game.id}/restore`, {});
+        toast.success(`${game.title} restored.`);
+      }
+      setModerationTarget(null);
+      await load();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || "Moderation action failed.");
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
+  if (loggedIn === null) return <PageLoader label="Checking admin session" />;
 
   if (!loggedIn) {
     return (
@@ -101,21 +125,21 @@ export default function Admin() {
           Private operator access for removing bad-faith uploads from the public catalog.
         </p>
         <form onSubmit={login} className="mt-8 space-y-4">
-          <input
-            data-testid="admin-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            type="password"
-            autoComplete="current-password"
-            className="input"
-            placeholder="Admin password"
-            required
-          />
-          {err && <div className="text-[#FF3B30] text-sm font-mono" data-testid="admin-error">{err}</div>}
+          <FormField id="admin-password" label="Admin password">
+            <PasswordInput
+              id="admin-password"
+              data-testid="admin-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+              required
+            />
+          </FormField>
+          {err && <InlineNotice tone="error" testId="admin-error">{err}</InlineNotice>}
           <button
             data-testid="admin-login-submit"
             disabled={busy}
-            className="w-full h-12 bg-[#D4AF37] text-black font-black uppercase tracking-wider disabled:opacity-50"
+            className="btn-primary w-full h-12"
           >
             {busy ? "Checking..." : "Enter admin"}
           </button>
@@ -162,9 +186,11 @@ export default function Admin() {
             </button>
           ))}
         </div>
-        <label className="relative w-full md:w-80">
+        <label htmlFor="admin-search" className="relative w-full md:w-80">
+          <span className="sr-only">Search moderated games</span>
           <Search className="absolute left-3 top-3 w-4 h-4 text-[#52525B]" />
           <input
+            id="admin-search"
             data-testid="admin-search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -245,6 +271,30 @@ export default function Admin() {
         <AlertTriangle className="w-4 h-4 text-[#D4AF37]" />
         Delete soft-removes a game from public pages, hides linked clips/posts/reviews, and writes an audit entry.
       </div>
+      <ConfirmDialog
+        open={!!moderationTarget}
+        title={moderationTarget?.type === "delete" ? `Remove “${moderationTarget.game.title}”?` : `Restore “${moderationTarget?.game.title}”?`}
+        body={moderationTarget?.type === "delete" ? (
+          <div className="space-y-4">
+            <p>This hides the game and its linked public content. The action is recorded and can be reversed.</p>
+            <label className="block">
+              <span className="block text-[#71717A] font-mono text-[10px] uppercase tracking-[0.18em] mb-2">Moderation reason</span>
+              <input
+                value={reason}
+                onChange={(event) => setReason(event.target.value)}
+                className="input"
+                maxLength={240}
+                required
+              />
+            </label>
+          </div>
+        ) : "The game and its linked public content will become visible again."}
+        confirmLabel={moderationTarget?.type === "delete" ? "Remove game" : "Restore game"}
+        tone={moderationTarget?.type === "delete" ? "danger" : "warning"}
+        busy={actionBusy}
+        onConfirm={confirmModeration}
+        onClose={() => setModerationTarget(null)}
+      />
     </main>
   );
 }

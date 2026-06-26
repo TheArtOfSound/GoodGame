@@ -108,9 +108,9 @@ function Footer(props: { env: Env }) {
             <a href="/" class="brand"><span class="logo" dangerouslySetInnerHTML={{ __html: brandMark() }} />GoodGame<span>.center</span></a>
             <p class="tag">Instant browser games and creator-uploaded web builds — play, publish, clip, and grow from the playable core.</p>
           </div>
-          {col('Explore', [['/games', 'Games'], ['/arena', 'Arena'], ['/clips', 'Clips'], ['/community', 'Communities'], ['/creators', 'Creators'], ['/news', 'News']])}
-          {col('Create', [['/create', 'Upload a game'], ['/create', 'Creator console'], ['/docs/sdk', 'GG SDK'], ['/studio', 'GG Studio'], ['/forge', 'GG Forge']])}
-          {col('Platform', [['/docs', 'Docs'], ['/news', 'Newsroom'], ['/docs/upload-browser-game', 'Guides'], ['/llms.txt', 'llms.txt']])}
+          {col('Explore', [['/games', 'Games'], ['/clips', 'Clips'], ['/communities', 'Communities'], ['/creators', 'Creators'], ['/leaderboards', 'Leaderboards'], ['/news', 'News']])}
+          {col('Create', [['/create', 'Upload a game'], ['/console', 'Creator console'], ['/clips', 'Upload clips'], ['/news', 'Guides']])}
+          {col('Platform', [['/activity', 'Activity'], ['/feed', 'Feed'], ['/news', 'Newsroom'], ['/llms.txt', 'llms.txt']])}
           {col('Trust', [['/safety', 'Guidelines'], ['/safety/dmca', 'DMCA'], ['/safety/ratings', 'Ratings'], ['/safety/privacy', 'Privacy'], ['/safety/terms', 'Terms']])}
         </div>
         <div class="legal">

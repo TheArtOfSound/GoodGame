@@ -2,6 +2,9 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { getJSON, postJSON } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
+import { Users } from "lucide-react";
+import { EmptyState, ErrorState, InlineNotice, PageHeader, PageLoader } from "../components/UIState";
+import { FormField } from "../components/FormControls";
 
 export default function Communities() {
   const { user } = useAuth();
@@ -11,10 +14,13 @@ export default function Communities() {
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
   const [err, setErr] = useState(null);
+  const [loadError, setLoadError] = useState(false);
+  const [busy, setBusy] = useState(false);
 
   const refresh = () =>
     getJSON("/communities")
       .then((d) => setItems(d.communities || []))
+      .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
 
   useEffect(() => {
@@ -24,6 +30,7 @@ export default function Communities() {
   const create = async (e) => {
     e.preventDefault();
     setErr(null);
+    setBusy(true);
     try {
       const res = await postJSON("/communities", { name, description: desc });
       setName("");
@@ -35,51 +42,69 @@ export default function Communities() {
       refresh();
     } catch (e) {
       setErr(e.response?.data?.detail || "Failed");
+    } finally {
+      setBusy(false);
     }
   };
 
   return (
     <div className="max-w-5xl mx-auto px-4 md:px-8 py-10" data-testid="communities-page">
-      <div className="text-[#52525B] font-mono text-xs uppercase tracking-[0.2em]">
-        Communities
-      </div>
-      <h1 className="text-3xl font-bold uppercase text-white tracking-tight">Hubs for players</h1>
+      <PageHeader
+        eyebrow="Communities"
+        title="Player hubs"
+        description="Create or join focused spaces for games, genres, playtests, and creator communities."
+      />
 
       {user && (
         <form onSubmit={create} className="mt-6 border border-[#1A1A1A] p-5 bg-[#080808] grid md:grid-cols-3 gap-3">
-          <input
-            data-testid="community-name"
-            placeholder="Community name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="input md:col-span-1"
-            required
-            minLength={3}
-            maxLength={48}
-          />
-          <input
-            data-testid="community-desc"
-            placeholder="Short description"
-            value={desc}
-            onChange={(e) => setDesc(e.target.value)}
-            className="input md:col-span-2"
-          />
-          {err && <div className="text-[#FF3B30] text-sm font-mono md:col-span-3">{err}</div>}
+          <FormField id="community-name" label="Community name">
+            <input
+              id="community-name"
+              data-testid="community-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="input"
+              required
+              minLength={3}
+              maxLength={48}
+            />
+          </FormField>
+          <div className="md:col-span-2">
+            <FormField id="community-desc" label="Short description">
+              <input
+                id="community-desc"
+                data-testid="community-desc"
+                value={desc}
+                onChange={(e) => setDesc(e.target.value)}
+                className="input"
+                maxLength={240}
+              />
+            </FormField>
+          </div>
+          {err && <InlineNotice tone="error" className="md:col-span-3">{err}</InlineNotice>}
           <button
             data-testid="community-create"
-            className="bg-[#D4AF37] text-black font-bold uppercase tracking-wider h-11 md:col-span-3"
+            disabled={busy}
+            className="btn-primary md:col-span-3"
           >
-            Create community
+            {busy ? "Creating..." : "Create community"}
           </button>
         </form>
       )}
 
       {loading ? (
-        <div className="text-[#52525B] mt-8">Loading...</div>
+        <PageLoader label="Loading communities" />
+      ) : loadError ? (
+        <ErrorState className="mt-8" title="Communities could not load" body="The community directory is temporarily unavailable." />
       ) : items.length === 0 ? (
-        <div className="text-[#A1A1AA] border border-dashed border-[#1A1A1A] p-8 mt-8 text-center" data-testid="communities-empty">
-          No communities yet. {user ? "Create the first one." : "Log in to create one."}
-        </div>
+        <EmptyState
+          className="mt-8"
+          icon={Users}
+          testId="communities-empty"
+          title="No communities yet"
+          body={user ? "Create the first focused space for players." : "Log in to create or join a community."}
+          action={!user ? <Link to="/login" className="btn-secondary">Log in</Link> : null}
+        />
       ) : (
         <div className="mt-8 grid md:grid-cols-2 gap-4">
           {items.map((c) => (

@@ -3,7 +3,11 @@ import { useParams, Link } from "react-router-dom";
 import { getJSON, postForm } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import SEO from "../components/SEO";
-import { BACKEND_URL } from "../lib/config";
+import ConfirmDialog from "../components/ConfirmDialog";
+import { EmptyState, ErrorState, PageHeader, PageLoader } from "../components/UIState";
+import { ShieldCheck, Users } from "lucide-react";
+import { toast } from "sonner";
+import Avatar from "../components/Avatar";
 
 export default function CommunityModeration() {
   const { slug } = useParams();
@@ -12,8 +16,11 @@ export default function CommunityModeration() {
   const [reports, setReports] = useState([]);
   const [err, setErr] = useState(null);
   const [tab, setTab] = useState("members");
+  const [busyAction, setBusyAction] = useState(null);
+  const [confirmAction, setConfirmAction] = useState(null);
 
   const load = async () => {
+    setErr(null);
     try {
       const d = await getJSON(`/communities/${slug}/members`);
       setData(d);
@@ -31,47 +38,58 @@ export default function CommunityModeration() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load(); }, [slug]);
 
-  if (err) return <div className="px-8 py-16 text-[#A1A1AA]">{err}</div>;
-  if (!data) return <div className="px-8 py-10 text-[#52525B]">Loading...</div>;
+  if (err) return <div className="max-w-4xl mx-auto px-4 py-16"><ErrorState title="Moderation tools unavailable" body={err} action={<button type="button" className="btn-secondary" onClick={load}>Retry</button>} /></div>;
+  if (!data) return <PageLoader label="Loading moderation tools" />;
   const isMod = ["owner", "moderator"].includes(data.viewer_role);
   const isOwner = data.viewer_role === "owner";
 
   const act = async (path, body = {}) => {
+    setBusyAction(path);
     const fd = new FormData();
     Object.entries(body).forEach(([k, v]) => fd.append(k, v));
     try {
       await postForm(path, fd);
-      load();
-    } catch (_e) {
-      // ignore
+      await load();
+      toast.success("Moderation action completed");
+      return true;
+    } catch (error) {
+      toast.error(error.response?.data?.detail || "Moderation action failed");
+      return false;
+    } finally {
+      setBusyAction(null);
     }
+  };
+
+  const requestAction = (action) => setConfirmAction(action);
+
+  const runConfirmedAction = async () => {
+    if (!confirmAction) return;
+    const completed = await act(confirmAction.path, confirmAction.body);
+    if (completed) setConfirmAction(null);
   };
 
   if (!user || !isMod)
     return (
       <div className="px-8 py-16 text-[#A1A1AA]" data-testid="mod-no-access">
-        You need to be a moderator of this community.{" "}
-        <Link to={`/communities/${slug}`} className="text-[#D4AF37] underline">
-          Back
-        </Link>
+        <ErrorState
+          title="Moderator access required"
+          body="You need to be an owner or moderator to manage this community."
+          action={<Link to={`/communities/${slug}`} className="btn-secondary">Back to community</Link>}
+        />
       </div>
     );
 
   return (
     <div className="max-w-4xl mx-auto px-4 md:px-8 py-10" data-testid="community-moderation">
       <SEO title={`Moderate ${slug}`} path={`/communities/${slug}/moderate`} />
-      <div className="text-[#D4AF37] font-mono text-xs uppercase tracking-[0.3em]">
-        Moderation
-      </div>
-      <h1 className="text-3xl font-bold uppercase text-white">Manage community</h1>
-      <Link
-        to={`/communities/${slug}`}
-        className="text-[#A1A1AA] hover:text-white text-sm font-mono uppercase tracking-[0.2em]"
-      >
-        &larr; Back to community
-      </Link>
+      <PageHeader
+        eyebrow="Moderation"
+        title="Manage community"
+        description="Review membership, roles, restrictions, and open reports."
+        actions={<Link to={`/communities/${slug}`} className="btn-secondary">Back to community</Link>}
+      />
 
-      <div className="mt-6 border-b border-[#1A1A1A] flex gap-6">
+      <div className="mt-8 border-b border-[#1A1A1A] flex gap-6" role="tablist" aria-label="Moderation views">
         {[
           ["members", `Members (${data.members.length})`],
           ["reports", `Reports (${reports.length})`],
@@ -80,6 +98,8 @@ export default function CommunityModeration() {
             key={k}
             onClick={() => setTab(k)}
             data-testid={`mod-tab-${k}`}
+            role="tab"
+            aria-selected={tab === k}
             className={`uppercase font-mono text-xs tracking-[0.2em] py-3 border-b-2 -mb-px ${
               tab === k ? "border-[#D4AF37] text-[#D4AF37]" : "border-transparent text-[#A1A1AA] hover:text-white"
             }`}
@@ -91,26 +111,37 @@ export default function CommunityModeration() {
 
       {tab === "members" ? (
         <div className="mt-6 divide-y divide-[#1A1A1A] border border-[#1A1A1A]">
-          {data.members.map((m) => (
+          {data.members.length === 0 ? (
+            <EmptyState className="border-0" icon={Users} title="No members" body="This community does not have any members to moderate." />
+          ) : data.members.map((m) => (
             <MemberRow
               key={m.user_id}
               member={m}
               isOwner={isOwner}
-              onRole={(role) =>
-                act(`/communities/${slug}/members/${m.user_id}/role`, { role })
-              }
+              busy={busyAction?.includes(`/members/${m.user_id}/`)}
+              onRole={(role) => act(`/communities/${slug}/members/${m.user_id}/role`, { role })}
               onMute={() => act(`/communities/${slug}/members/${m.user_id}/mute`)}
               onUnmute={() => act(`/communities/${slug}/members/${m.user_id}/unmute`)}
-              onBan={() => act(`/communities/${slug}/members/${m.user_id}/ban`)}
+              onBan={() => requestAction({
+                title: `Ban @${m.username}?`,
+                body: "They will lose access to this community until a moderator reverses the ban.",
+                label: "Ban member",
+                path: `/communities/${slug}/members/${m.user_id}/ban`,
+              })}
               onUnban={() => act(`/communities/${slug}/members/${m.user_id}/unban`)}
-              onRemove={() => act(`/communities/${slug}/members/${m.user_id}/remove`)}
+              onRemove={() => requestAction({
+                title: `Remove @${m.username}?`,
+                body: "They will be removed from the member list and can rejoin unless separately banned.",
+                label: "Remove member",
+                path: `/communities/${slug}/members/${m.user_id}/remove`,
+              })}
             />
           ))}
         </div>
       ) : (
         <div className="mt-6 space-y-3" data-testid="reports-list">
           {reports.length === 0 ? (
-            <div className="text-[#52525B] font-mono text-sm">No open reports.</div>
+            <EmptyState icon={ShieldCheck} title="No open reports" body="Reported community content will appear here for review." />
           ) : (
             reports.map((r) => (
               <article
@@ -127,9 +158,10 @@ export default function CommunityModeration() {
                       act(`/reports/${r.id}/resolve`, { resolution: "dismissed" })
                     }
                     data-testid={`resolve-report-${r.id}`}
-                    className="text-xs uppercase font-bold tracking-wider text-[#A1A1AA] border border-[#1A1A1A] hover:border-white px-3 h-8 flex items-center"
+                    disabled={busyAction === `/reports/${r.id}/resolve`}
+                    className="btn-secondary h-8 px-3 text-xs"
                   >
-                    Resolve
+                    {busyAction === `/reports/${r.id}/resolve` ? "Resolving..." : "Resolve"}
                   </button>
                 </div>
                 <div className="text-white mt-2 text-sm">{r.reason}</div>
@@ -141,25 +173,31 @@ export default function CommunityModeration() {
           )}
         </div>
       )}
+      <ConfirmDialog
+        open={Boolean(confirmAction)}
+        title={confirmAction?.title}
+        body={confirmAction?.body}
+        confirmLabel={confirmAction?.label}
+        busy={Boolean(busyAction)}
+        onClose={() => setConfirmAction(null)}
+        onConfirm={runConfirmedAction}
+      />
     </div>
   );
 }
 
-function MemberRow({ member, isOwner, onRole, onMute, onUnmute, onBan, onUnban, onRemove }) {
+function MemberRow({ member, isOwner, busy, onRole, onMute, onUnmute, onBan, onUnban, onRemove }) {
   return (
     <div
       data-testid={`member-row-${member.username}`}
       className="flex items-center gap-3 px-4 py-3 flex-wrap"
     >
-      <div className="w-10 h-10 bg-[#0A0A0A] border border-[#1A1A1A] overflow-hidden">
-        {member.avatar ? (
-          <img src={`${BACKEND_URL}${member.avatar}`} alt="" className="w-full h-full object-cover" />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center text-[#D4AF37] font-bold uppercase">
-            {member.username?.[0]}
-          </div>
-        )}
-      </div>
+      <Avatar
+        value={member.avatar}
+        name={member.display_name || member.username}
+        className="w-10 h-10 border border-[#1A1A1A]"
+        textClassName="text-base"
+      />
       <div className="flex-1 min-w-0">
         <Link
           to={`/creators/${member.username}`}
@@ -180,7 +218,8 @@ function MemberRow({ member, isOwner, onRole, onMute, onUnmute, onBan, onUnban, 
             onClick={() =>
               onRole(member.role === "moderator" ? "member" : "moderator")
             }
-            className="text-xs uppercase font-bold tracking-wider border border-[#1A1A1A] hover:border-white text-white px-3 h-8 flex items-center"
+            disabled={busy}
+            className="btn-secondary h-8 px-3 text-xs"
           >
             {member.role === "moderator" ? "Demote" : "Promote"}
           </button>
@@ -191,7 +230,8 @@ function MemberRow({ member, isOwner, onRole, onMute, onUnmute, onBan, onUnban, 
               <button
                 data-testid={`unmute-${member.username}`}
                 onClick={onUnmute}
-                className="text-xs uppercase font-bold tracking-wider border border-[#1A1A1A] hover:border-white text-white px-3 h-8 flex items-center"
+                disabled={busy}
+                className="btn-secondary h-8 px-3 text-xs"
               >
                 Unmute
               </button>
@@ -199,7 +239,8 @@ function MemberRow({ member, isOwner, onRole, onMute, onUnmute, onBan, onUnban, 
               <button
                 data-testid={`mute-${member.username}`}
                 onClick={onMute}
-                className="text-xs uppercase font-bold tracking-wider border border-[#1A1A1A] hover:border-white text-white px-3 h-8 flex items-center"
+                disabled={busy}
+                className="btn-secondary h-8 px-3 text-xs"
               >
                 Mute
               </button>
@@ -208,7 +249,8 @@ function MemberRow({ member, isOwner, onRole, onMute, onUnmute, onBan, onUnban, 
               <button
                 data-testid={`unban-${member.username}`}
                 onClick={onUnban}
-                className="text-xs uppercase font-bold tracking-wider border border-[#1A1A1A] hover:border-white text-white px-3 h-8 flex items-center"
+                disabled={busy}
+                className="btn-secondary h-8 px-3 text-xs"
               >
                 Unban
               </button>
@@ -216,7 +258,8 @@ function MemberRow({ member, isOwner, onRole, onMute, onUnmute, onBan, onUnban, 
               <button
                 data-testid={`ban-${member.username}`}
                 onClick={onBan}
-                className="text-xs uppercase font-bold tracking-wider border border-[#1A1A1A] hover:border-[#FF3B30] hover:text-[#FF3B30] text-[#FF3B30] px-3 h-8 flex items-center"
+                disabled={busy}
+                className="btn-danger h-8 px-3 text-xs"
               >
                 Ban
               </button>
@@ -224,7 +267,8 @@ function MemberRow({ member, isOwner, onRole, onMute, onUnmute, onBan, onUnban, 
             <button
               data-testid={`remove-${member.username}`}
               onClick={onRemove}
-              className="text-xs uppercase font-bold tracking-wider border border-[#1A1A1A] hover:border-white text-[#A1A1AA] px-3 h-8 flex items-center"
+              disabled={busy}
+              className="btn-secondary h-8 px-3 text-xs"
             >
               Remove
             </button>

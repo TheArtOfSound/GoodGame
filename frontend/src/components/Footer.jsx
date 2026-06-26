@@ -23,17 +23,19 @@ export default function Footer() {
           title="Platform"
           links={[
             ["Browse Games", "/games"],
+            ["Feed", "/feed"],
             ["Global Activity", "/activity"],
             ["Leaderboards", "/leaderboards"],
             ["Clips", "/clips"],
-            ["Communities", "/communities"],
           ]}
         />
         <FooterCol
           title="Create"
           links={[
+            ["Creators", "/creators"],
             ["Upload Game", "/create"],
             ["Creator Console", "/console"],
+            ["News & Guides", "/news"],
           ]}
         />
         <FooterCol

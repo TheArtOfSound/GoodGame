@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Send } from "lucide-react";
+import { MessageSquare, Send } from "lucide-react";
 import { toast } from "sonner";
 import { getJSON, postJSON } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import ActivityFeed from "../components/ActivityFeed";
 import SEO from "../components/SEO";
+import { CharacterCount, EmptyState, ErrorState, PageHeader, PageLoader } from "../components/UIState";
 
 export default function Activity() {
   const { user } = useAuth();
@@ -13,14 +14,21 @@ export default function Activity() {
   const [body, setBody] = useState("");
   const [loading, setLoading] = useState(true);
   const [posting, setPosting] = useState(false);
+  const [error, setError] = useState(false);
 
   const load = async () => {
-    const data = await getJSON("/feed/global?limit=60");
-    setActivity(data.activity || []);
+    try {
+      setError(false);
+      const data = await getJSON("/feed/global?limit=60");
+      setActivity(data.activity || []);
+    } catch (loadError) {
+      setError(true);
+      throw loadError;
+    }
   };
 
   useEffect(() => {
-    load().finally(() => setLoading(false));
+    load().catch(() => {}).finally(() => setLoading(false));
   }, []);
 
   const submit = async (event) => {
@@ -46,11 +54,11 @@ export default function Activity() {
         description="Follow public game releases, player posts, gameplay clips, and persistent high scores from across GoodGame.center."
         path="/activity"
       />
-      <div className="text-[#D4AF37] font-mono text-xs uppercase tracking-[0.24em]">Live network</div>
-      <h1 className="text-3xl md:text-4xl font-bold uppercase tracking-tight text-white">Global activity</h1>
-      <p className="text-[#A1A1AA] mt-2 max-w-2xl">
-        One public stream for releases, player posts, clips, and leaderboard runs.
-      </p>
+      <PageHeader
+        eyebrow="Live network"
+        title="Global activity"
+        description="One public stream for releases, player posts, clips, and leaderboard runs."
+      />
 
       <div className="mt-8 border-y border-[#1A1A1A] py-5">
         {user ? (
@@ -65,11 +73,11 @@ export default function Activity() {
               data-testid="global-post-input"
             />
             <div className="mt-3 flex items-center justify-between gap-4">
-              <span className="text-[#52525B] font-mono text-[10px]">{body.length}/800</span>
+              <CharacterCount value={body} max={800} />
               <button
                 type="submit"
                 disabled={posting || !body.trim()}
-                className="h-10 px-4 bg-[#D4AF37] text-black font-bold uppercase tracking-wider text-xs inline-flex items-center gap-2 disabled:opacity-40"
+                className="btn-primary h-10"
                 data-testid="global-post-submit"
               >
                 <Send className="w-4 h-4" /> {posting ? "Posting" : "Post"}
@@ -87,7 +95,19 @@ export default function Activity() {
       </div>
 
       <div className="mt-3">
-        {loading ? <div className="py-10 text-[#52525B]">Loading activity...</div> : <ActivityFeed activity={activity} />}
+        {loading ? (
+          <PageLoader label="Loading activity" />
+        ) : error ? (
+          <ErrorState
+            title="Activity could not load"
+            body="The public stream is temporarily unavailable."
+            action={<button type="button" className="btn-secondary" onClick={() => load().catch(() => {})}>Retry</button>}
+          />
+        ) : activity.length ? (
+          <ActivityFeed activity={activity} />
+        ) : (
+          <EmptyState icon={MessageSquare} title="No public activity yet" body="Posts, releases, clips, and ranked runs will appear here." />
+        )}
       </div>
     </div>
   );

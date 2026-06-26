@@ -1,18 +1,33 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Trophy } from "lucide-react";
+import { Search, Trophy, X } from "lucide-react";
 import { getJSON } from "../lib/api";
 import SEO from "../components/SEO";
+import { EmptyState, ErrorState, PageHeader, PageLoader } from "../components/UIState";
 
 export default function Leaderboards() {
   const [leaders, setLeaders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     getJSON("/leaderboards?limit=60")
       .then((data) => setLeaders(data.leaders || []))
+      .catch(() => setError(true))
       .finally(() => setLoading(false));
   }, []);
+
+  const normalized = query.trim().toLowerCase();
+  const visible = normalized
+    ? leaders.filter((leader) =>
+        [leader.game_title, leader.username, leader.display_name, leader.score_unit]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+          .includes(normalized)
+      )
+    : leaders;
 
   return (
     <div className="max-w-6xl mx-auto px-4 md:px-8 py-10" data-testid="leaderboards-page">
@@ -21,26 +36,40 @@ export default function Leaderboards() {
         description="See persistent global high scores and current champions across free browser games on GoodGame.center."
         path="/leaderboards"
       />
-      <div className="text-[#D4AF37] font-mono text-xs uppercase tracking-[0.24em]">Persistent scores</div>
-      <h1 className="text-3xl md:text-4xl font-bold uppercase tracking-tight text-white">Global champions</h1>
-      <p className="text-[#A1A1AA] mt-2 max-w-2xl">
-        Each row is the current best authenticated run for that game. Scores are never prefilled.
-      </p>
+      <PageHeader
+        eyebrow="Persistent scores"
+        title="Global champions"
+        description="Each row is the current best authenticated run for that game. Scores are never prefilled."
+      />
 
       {loading ? (
-        <div className="py-12 text-[#52525B]">Loading leaderboards...</div>
+        <PageLoader label="Loading leaderboards" />
+      ) : error ? (
+        <ErrorState className="mt-8" title="Leaderboards could not load" body="Ranked scores are temporarily unavailable." />
       ) : leaders.length === 0 ? (
-        <div className="mt-8 border border-dashed border-[#1A1A1A] px-6 py-12 text-center">
-          <Trophy className="w-7 h-7 text-[#D4AF37] mx-auto" />
-          <div className="mt-3 text-white font-bold">Every board is open.</div>
-          <div className="text-[#71717A] text-sm mt-1">Play a ranked game while signed in to become its first champion.</div>
-          <Link to="/games" className="inline-flex mt-5 h-10 px-4 bg-[#D4AF37] text-black items-center font-bold uppercase tracking-wider text-xs">
-            Find a game
-          </Link>
-        </div>
+        <EmptyState
+          className="mt-8"
+          icon={Trophy}
+          title="Every board is open"
+          body="Play a ranked game while signed in to become its first champion."
+          action={<Link to="/games" className="btn-primary">Find a game</Link>}
+        />
       ) : (
-        <div className="mt-8 border border-[#1A1A1A] divide-y divide-[#1A1A1A]">
-          {leaders.map((leader) => (
+        <>
+          <div className="mt-6 flex items-center justify-between gap-4 flex-wrap">
+            <label htmlFor="leaderboard-filter" className="relative w-full md:w-80">
+              <span className="sr-only">Filter leaderboards</span>
+              <Search className="absolute left-3 top-4 w-4 h-4 text-[#52525B]" />
+              <input id="leaderboard-filter" value={query} onChange={(event) => setQuery(event.target.value)} className="input pl-10 pr-11" placeholder="Game or player" />
+              {query && <button type="button" className="absolute right-1 top-1 w-10 h-10 grid place-items-center text-[#71717A] hover:text-white" onClick={() => setQuery("")} aria-label="Clear filter"><X className="w-4 h-4" /></button>}
+            </label>
+            <div className="text-[#52525B] font-mono text-[10px] uppercase tracking-wider">{visible.length} board{visible.length === 1 ? "" : "s"}</div>
+          </div>
+          {visible.length === 0 ? (
+            <EmptyState className="mt-6" icon={Search} title="No matching boards" body={`Nothing matches “${query.trim()}”.`} action={<button type="button" className="btn-secondary" onClick={() => setQuery("")}>Clear filter</button>} />
+          ) : (
+          <div className="mt-6 border border-[#1A1A1A] divide-y divide-[#1A1A1A]">
+          {visible.map((leader) => (
             <Link
               key={leader.game_id}
               to={`/games/${leader.game_slug}#leaderboard`}
@@ -63,6 +92,8 @@ export default function Leaderboards() {
             </Link>
           ))}
         </div>
+          )}
+        </>
       )}
     </div>
   );

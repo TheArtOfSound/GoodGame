@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { getJSON } from "../lib/api";
 import SEO from "../components/SEO";
+import { ErrorState, PageLoader } from "../components/UIState";
 
 export default function NewsArticle() {
   const { slug } = useParams();
@@ -18,14 +19,11 @@ export default function NewsArticle() {
 
   if (err)
     return (
-      <div className="max-w-3xl mx-auto px-4 py-20 text-center" data-testid="news-not-found">
-        <h1 className="text-2xl font-bold uppercase text-white">Article not found</h1>
-        <Link to="/news" className="text-[#D4AF37] underline mt-4 inline-block">
-          Back to news
-        </Link>
+      <div className="max-w-3xl mx-auto px-4 py-20" data-testid="news-not-found">
+        <ErrorState title="Article not found" body="This guide may have moved or been unpublished." action={<Link to="/news" className="btn-secondary">Back to news</Link>} />
       </div>
     );
-  if (!a) return <div className="px-8 py-16 text-[#52525B]">Loading&hellip;</div>;
+  if (!a) return <PageLoader label="Loading article" />;
 
   return (
     <article className="max-w-3xl mx-auto px-4 md:px-8 py-10" data-testid="news-article">

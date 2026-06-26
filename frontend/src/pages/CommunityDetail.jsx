@@ -2,6 +2,10 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { getJSON, postJSON, postForm } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
+import { MessageSquare } from "lucide-react";
+import { toast } from "sonner";
+import ConfirmDialog from "../components/ConfirmDialog";
+import { CharacterCount, EmptyState, ErrorState, PageLoader } from "../components/UIState";
 
 export default function CommunityDetail() {
   const { slug } = useParams();
@@ -10,6 +14,10 @@ export default function CommunityDetail() {
   const [err, setErr] = useState(null);
   const [body, setBody] = useState("");
   const [postErr, setPostErr] = useState(null);
+  const [action, setAction] = useState(null);
+  const [reason, setReason] = useState("");
+  const [actionBusy, setActionBusy] = useState(false);
+  const [joinBusy, setJoinBusy] = useState(false);
 
   const load = () =>
     getJSON(`/communities/${slug}`)
@@ -21,22 +29,30 @@ export default function CommunityDetail() {
 
   if (err)
     return (
-      <div className="px-8 py-20 text-center" data-testid="community-not-found">
-        <h1 className="text-2xl uppercase text-white font-bold">Community not found</h1>
+      <div className="max-w-3xl mx-auto px-4 py-20" data-testid="community-not-found">
+        <ErrorState
+          title="Community not found"
+          body="This community may have been removed or renamed."
+          action={<Link to="/communities" className="btn-secondary">Browse communities</Link>}
+        />
       </div>
     );
-  if (!data) return <div className="px-8 py-10 text-[#52525B]">Loading...</div>;
+  if (!data) return <PageLoader label="Loading community" />;
 
   const { community, role, posts } = data;
   const canPost = ["owner", "moderator", "member"].includes(role);
   const canMod = ["owner", "moderator"].includes(role);
 
   const join = async () => {
+    setJoinBusy(true);
     try {
       await postJSON(`/communities/${slug}/join`, {});
       load();
-    } catch (_e) {
-      // ignore
+      toast.success(`Joined ${community.name}.`);
+    } catch (joinError) {
+      toast.error(joinError.response?.data?.detail || "Could not join community.");
+    } finally {
+      setJoinBusy(false);
     }
   };
 
@@ -55,28 +71,40 @@ export default function CommunityDetail() {
   };
 
   const hide = async (pid) => {
-    const fd = new FormData();
-    try {
-      await postForm(`/communities/${slug}/posts/${pid}/hide`, fd);
-      load();
-    } catch (_e) {
-      // ignore
-    }
+    setAction({ type: "hide", id: pid });
   };
 
   const reportPost = async (pid) => {
-    const reason = window.prompt("Why are you reporting this post?");
-    if (!reason) return;
+    setReason("");
+    setAction({ type: "report", id: pid });
+  };
+
+  const confirmAction = async () => {
+    if (!action) return;
+    if (action.type === "report" && !reason.trim()) {
+      toast.error("Add a reason before submitting the report.");
+      return;
+    }
+    setActionBusy(true);
     const fd = new FormData();
-    fd.append("target_type", "community_post");
-    fd.append("target_id", pid);
-    fd.append("reason", reason);
-    fd.append("community_slug", slug);
     try {
-      await postForm("/reports", fd);
-      window.alert("Report submitted");
-    } catch (_e) {
-      window.alert("Could not submit report");
+      if (action.type === "hide") {
+        await postForm(`/communities/${slug}/posts/${action.id}/hide`, fd);
+        toast.success("Post hidden.");
+        await load();
+      } else {
+        fd.append("target_type", "community_post");
+        fd.append("target_id", action.id);
+        fd.append("reason", reason.trim());
+        fd.append("community_slug", slug);
+        await postForm("/reports", fd);
+        toast.success("Report submitted.");
+      }
+      setAction(null);
+    } catch (actionError) {
+      toast.error(actionError.response?.data?.detail || "Action could not be completed.");
+    } finally {
+      setActionBusy(false);
     }
   };
 
@@ -105,10 +133,11 @@ export default function CommunityDetail() {
       {user && role === "guest" && (
         <button
           onClick={join}
+          disabled={joinBusy}
           data-testid="community-join"
-          className="mt-4 bg-[#D4AF37] text-black font-bold uppercase tracking-wider text-sm px-5 h-11"
+          className="btn-primary mt-4"
         >
-          Join community
+          {joinBusy ? "Joining..." : "Join community"}
         </button>
       )}
       {!user && (
@@ -122,7 +151,11 @@ export default function CommunityDetail() {
 
       {canPost && (
         <form onSubmit={submitPost} className="mt-8 border border-[#1A1A1A] p-4 bg-[#080808] space-y-3">
+          <label htmlFor="community-post-body" className="block text-[#71717A] font-mono text-xs uppercase tracking-[0.2em]">
+            New community post
+          </label>
           <textarea
+            id="community-post-body"
             data-testid="community-post-body"
             value={body}
             onChange={(e) => setBody(e.target.value)}
@@ -130,11 +163,13 @@ export default function CommunityDetail() {
             placeholder="Share something..."
             required
             className="input"
+            maxLength={4000}
           />
+          <div className="flex justify-end"><CharacterCount value={body} max={4000} /></div>
           {postErr && <div className="text-[#FF3B30] text-sm font-mono">{postErr}</div>}
           <button
             data-testid="community-post-submit"
-            className="bg-[#D4AF37] text-black font-bold uppercase tracking-wider text-sm px-5 h-11"
+            className="btn-primary"
           >
             Post
           </button>
@@ -143,9 +178,7 @@ export default function CommunityDetail() {
 
       <div className="mt-8 space-y-3">
         {posts.length === 0 ? (
-          <div className="text-[#52525B] font-mono text-sm" data-testid="community-empty-posts">
-            No posts yet.
-          </div>
+          <EmptyState icon={MessageSquare} testId="community-empty-posts" title="No posts yet" body={canPost ? "Start the conversation for this community." : "Join the community to participate."} />
         ) : (
           posts.map((p) => (
             <article
@@ -186,6 +219,27 @@ export default function CommunityDetail() {
           ))
         )}
       </div>
+      <ConfirmDialog
+        open={!!action}
+        title={action?.type === "hide" ? "Hide this post?" : "Report this post?"}
+        body={action?.type === "report" ? (
+          <div className="space-y-3">
+            <p>Reports are sent to moderators. Describe the specific policy or safety concern.</p>
+            <textarea
+              value={reason}
+              onChange={(event) => setReason(event.target.value.slice(0, 500))}
+              className="input min-h-28"
+              placeholder="Reason for report"
+              autoFocus
+            />
+            <div className="flex justify-end"><CharacterCount value={reason} max={500} /></div>
+          </div>
+        ) : "The post will be removed from the community feed. Moderators can review the action later."}
+        confirmLabel={action?.type === "hide" ? "Hide post" : "Submit report"}
+        busy={actionBusy}
+        onConfirm={confirmAction}
+        onClose={() => setAction(null)}
+      />
     </div>
   );
 }

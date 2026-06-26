@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { postForm, postJSON } from "../lib/api";
+import { FileArchive, Sparkles, Upload } from "lucide-react";
+import { CharacterCount, InlineNotice, PageHeader, PageLoader } from "../components/UIState";
 
 export default function CreateGame() {
   const { user, loading: authLoading } = useAuth();
@@ -18,7 +20,7 @@ export default function CreateGame() {
   const [forgeBusy, setForgeBusy] = useState(false);
   const [forgeErr, setForgeErr] = useState(null);
 
-  if (authLoading) return null;
+  if (authLoading) return <PageLoader label="Checking account" />;
   if (!user) return <Navigate to="/login" replace />;
 
   const submit = async (e) => {
@@ -68,27 +70,26 @@ export default function CreateGame() {
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-12" data-testid="create-game-page">
-      <div className="text-[#D4AF37] font-mono text-xs uppercase tracking-[0.3em]">
-        New game
-      </div>
-      <h1 className="text-3xl font-bold uppercase text-white mt-2">Upload a browser game</h1>
-      <p className="text-[#A1A1AA] mt-2 text-sm">
-        Provide an HTML5 build as a zip with an <code className="text-[#D4AF37]">index.html</code>{" "}
-        at the root.
-      </p>
+      <PageHeader
+        eyebrow="Creator tools"
+        title="Create a browser game"
+        description="Generate a draft with Forge or publish your own HTML5 zip with index.html at the root."
+      />
 
       {report ? (
         <CompatReport report={report} onContinue={() => navigate(`/console/${report.slug}`)} />
       ) : (
         <>
-          <div className="mt-8 border border-[#1A1A1A] p-5" data-testid="forge-panel">
-            <div className="text-[#D4AF37] font-mono text-xs uppercase tracking-[0.2em] mb-2">
-              Forge &middot; generate with AI
+          <div className="mt-8 border-y border-[#1A1A1A] py-6" data-testid="forge-panel">
+            <div className="text-[#D4AF37] font-mono text-xs uppercase tracking-[0.2em] mb-2 flex items-center gap-2">
+              <Sparkles className="w-4 h-4" /> Forge &middot; generate with AI
             </div>
             <p className="text-[#A1A1AA] text-sm mb-3">
               Describe a game and GoodGame drafts a real playable browser game. Keep refining it with prompts, test it, and publish when it&apos;s ready.
             </p>
+            <label htmlFor="forge-prompt" className="sr-only">Game idea</label>
             <textarea
+              id="forge-prompt"
               data-testid="forge-prompt"
               value={forgePrompt}
               onChange={(e) => setForgePrompt(e.target.value)}
@@ -97,19 +98,20 @@ export default function CreateGame() {
               placeholder="e.g. a neon arena shooter where enemies spawn in waves and get faster"
               className="input w-full"
             />
+            <div className="flex justify-end mt-1">
+              <CharacterCount value={forgePrompt} max={500} />
+            </div>
             {forgeErr && (
-              <div className="text-[#FF3B30] text-sm font-mono mt-2" data-testid="forge-error">
-                {forgeErr}
-              </div>
+              <InlineNotice tone="error" className="mt-2" testId="forge-error">{forgeErr}</InlineNotice>
             )}
             <button
               type="button"
               onClick={forge}
               disabled={forgeBusy}
               data-testid="forge-submit"
-              className="mt-3 h-11 px-5 bg-[#D4AF37] text-black font-bold uppercase tracking-wider text-sm hover:bg-[#E5C158] disabled:opacity-50"
+              className="btn-primary mt-3"
             >
-              {forgeBusy ? "Generating..." : "Generate draft"}
+              <Sparkles className="w-4 h-4" /> {forgeBusy ? "Generating..." : "Generate draft"}
             </button>
           </div>
 
@@ -118,8 +120,9 @@ export default function CreateGame() {
           </div>
 
           <form onSubmit={submit} className="mt-8 space-y-4">
-          <Field label="Title">
+          <Field id="create-title" label="Title">
             <input
+              id="create-title"
               data-testid="create-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -128,8 +131,9 @@ export default function CreateGame() {
               maxLength={120}
             />
           </Field>
-          <Field label="One-line pitch">
+          <Field id="create-pitch" label="One-line pitch">
             <input
+              id="create-pitch"
               data-testid="create-pitch"
               value={pitch}
               onChange={(e) => setPitch(e.target.value)}
@@ -137,17 +141,21 @@ export default function CreateGame() {
               maxLength={240}
             />
           </Field>
-          <Field label="Description">
+          <Field id="create-description" label="Description">
             <textarea
+              id="create-description"
               data-testid="create-description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={5}
               className="input"
+              maxLength={4000}
             />
+            <div className="flex justify-end mt-1"><CharacterCount value={description} max={4000} /></div>
           </Field>
-          <Field label="Tags (comma separated)">
+          <Field id="create-tags" label="Tags (comma separated)">
             <input
+              id="create-tags"
               data-testid="create-tags"
               value={tags}
               onChange={(e) => setTags(e.target.value)}
@@ -155,28 +163,38 @@ export default function CreateGame() {
               placeholder="action, puzzle, retro"
             />
           </Field>
-          <Field label="Build zip">
-            <input
-              data-testid="create-build"
-              type="file"
-              accept=".zip,application/zip"
-              onChange={(e) => setFile(e.target.files?.[0] || null)}
-              className="text-white font-mono text-sm"
-              required
-            />
+          <Field id="create-build" label="Build zip">
+            <div className="border border-dashed border-[#27272A] bg-[#080808] p-5">
+              <label className="flex items-center gap-3 cursor-pointer">
+                <span className="w-10 h-10 border border-[#27272A] grid place-items-center text-[#D4AF37] shrink-0">
+                  <FileArchive className="w-5 h-5" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-white text-sm font-semibold truncate">{file?.name || "Choose a zip build"}</span>
+                  <span className="block text-[#52525B] text-xs mt-0.5">{file ? `${(file.size / 1024 / 1024).toFixed(2)} MB selected` : "Maximum 90 MB"}</span>
+                </span>
+                <input
+                  id="create-build"
+                  data-testid="create-build"
+                  type="file"
+                  accept=".zip,application/zip"
+                  onChange={(e) => setFile(e.target.files?.[0] || null)}
+                  className="sr-only"
+                  required
+                />
+              </label>
+            </div>
           </Field>
           {err && (
-            <div className="text-[#FF3B30] text-sm font-mono" data-testid="create-error">
-              {err}
-            </div>
+            <InlineNotice tone="error" testId="create-error">{err}</InlineNotice>
           )}
           <button
             type="submit"
             disabled={busy}
             data-testid="create-submit"
-            className="w-full h-12 bg-[#D4AF37] text-black font-bold uppercase tracking-wider hover:bg-[#E5C158] disabled:opacity-50"
+            className="btn-primary w-full h-12"
           >
-            {busy ? "Checking & publishing..." : "Publish game"}
+            <Upload className="w-4 h-4" /> {busy ? "Checking & publishing..." : "Publish game"}
           </button>
         </form>
         </>
@@ -242,13 +260,13 @@ function CompatReport({ report, onContinue }) {
   );
 }
 
-function Field({ label, children }) {
+function Field({ id, label, children }) {
   return (
-    <label className="block">
-      <div className="text-[#52525B] font-mono text-xs uppercase tracking-[0.2em] mb-2">
+    <div>
+      <label htmlFor={id} className="block text-[#71717A] font-mono text-xs uppercase tracking-[0.2em] mb-2">
         {label}
-      </div>
+      </label>
       {children}
-    </label>
+    </div>
   );
 }

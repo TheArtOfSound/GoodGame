@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { getJSON } from "../lib/api";
 import { BACKEND_URL } from "../lib/config";
+import { ErrorState, PageLoader } from "../components/UIState";
 
 export default function ClipDetail() {
   const { idslug } = useParams();
@@ -16,11 +17,15 @@ export default function ClipDetail() {
 
   if (err)
     return (
-      <div className="px-8 py-20 text-center" data-testid="clip-not-found">
-        <h1 className="text-2xl uppercase text-white font-bold">Clip not found</h1>
+      <div className="max-w-3xl mx-auto px-4 py-20" data-testid="clip-not-found">
+        <ErrorState
+          title="Clip not found"
+          body="This clip may have been removed or its link may be incomplete."
+          action={<Link to="/clips" className="btn-secondary">Browse clips</Link>}
+        />
       </div>
     );
-  if (!clip) return <div className="px-8 py-10 text-[#52525B]">Loading...</div>;
+  if (!clip) return <PageLoader label="Loading clip" />;
 
   return (
     <div className="max-w-4xl mx-auto px-4 md:px-8 py-10" data-testid="clip-detail">

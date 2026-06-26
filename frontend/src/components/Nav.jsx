@@ -1,7 +1,16 @@
-import { Link, NavLink, useNavigate } from "react-router-dom";
+import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { Gamepad2, Upload, LogOut, Menu } from "lucide-react";
-import { useState } from "react";
+import {
+  ChevronRight,
+  Gamepad2,
+  LogOut,
+  Menu,
+  Search,
+  Settings,
+  Upload,
+  X,
+} from "lucide-react";
+import { useEffect, useState } from "react";
 import DonateButton from "./DonateButton";
 
 const navItems = [
@@ -13,120 +22,132 @@ const navItems = [
   { to: "/news", label: "News" },
 ];
 
+const secondaryItems = [
+  { to: "/activity", label: "Global activity" },
+  { to: "/leaderboards", label: "Leaderboards" },
+];
+
 export default function Nav() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
 
+  useEffect(() => {
+    setOpen(false);
+  }, [location.pathname, location.search]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKey = (event) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = "";
+    };
+  }, [open]);
+
+  const submitSearch = (event) => {
+    event.preventDefault();
+    const value = q.trim();
+    if (!value) return;
+    navigate(`/search?q=${encodeURIComponent(value)}`);
+    setQ("");
+  };
+
   const handleLogout = async () => {
     await logout();
+    setOpen(false);
     navigate("/");
   };
 
   return (
-    <header
-      data-testid="site-header"
-      className="sticky top-0 z-50 bg-black/90 backdrop-blur-xl border-b border-[#1A1A1A]"
-    >
-      <div className="max-w-7xl mx-auto px-4 md:px-8 h-16 flex items-center justify-between">
+    <>
+      <header
+        data-testid="site-header"
+        className="sticky top-0 z-50 bg-black/95 backdrop-blur-xl border-b border-[#1A1A1A]"
+      >
+        <div className="max-w-[1440px] mx-auto px-4 md:px-6 h-16 flex items-center gap-5">
         <Link
           to="/"
           data-testid="brand-link"
-          className="flex items-center gap-2 text-white"
+          className="flex items-center gap-2 text-white shrink-0"
+          aria-label="GoodGame.center home"
         >
           <Gamepad2 className="w-6 h-6 text-[#D4AF37]" />
-          <span className="font-black uppercase tracking-tight text-lg">
+          <span className="font-black uppercase text-lg whitespace-nowrap">
             GoodGame<span className="text-[#D4AF37]">.center</span>
           </span>
         </Link>
 
-        <nav className="hidden lg:flex items-center gap-5 text-sm">
-          {navItems.map((n) => (
+        <nav className="hidden xl:flex items-center gap-4 text-sm ml-2" aria-label="Primary">
+          {navItems.map((item) => (
             <NavLink
-              key={n.to}
-              to={n.to}
-              data-testid={`nav-${n.label.toLowerCase()}`}
+              key={item.to}
+              to={item.to}
+              data-testid={`nav-${item.label.toLowerCase()}`}
               className={({ isActive }) =>
-                `uppercase tracking-[0.18em] font-mono text-xs transition-colors ${
+                `uppercase tracking-[0.14em] font-mono text-[11px] transition-colors ${
                   isActive ? "text-[#D4AF37]" : "text-[#A1A1AA] hover:text-white"
                 }`
               }
             >
-              {n.label}
+              {item.label}
             </NavLink>
           ))}
         </nav>
 
-        <div className="hidden md:flex items-center gap-3">
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (q.trim()) {
-                navigate(`/search?q=${encodeURIComponent(q.trim())}`);
-                setQ("");
-              }
-            }}
-            className="hidden lg:block"
+        <div className="hidden xl:flex items-center gap-2 ml-auto">
+          <Link
+            to="/search"
+            className="icon-button hidden xl:inline-grid 2xl:hidden"
+            aria-label="Search"
+            title="Search"
           >
+            <Search className="w-4 h-4" />
+          </Link>
+          <form onSubmit={submitSearch} className="relative hidden 2xl:block">
+            <Search className="absolute left-3 top-3 w-4 h-4 text-[#52525B]" aria-hidden="true" />
             <input
               value={q}
-              onChange={(e) => setQ(e.target.value)}
+              onChange={(event) => setQ(event.target.value)}
               placeholder="Search"
               aria-label="Search"
               data-testid="nav-search"
-              className="bg-[#0A0A0A] border border-[#1A1A1A] focus:border-[#D4AF37] text-white text-sm px-3 h-10 w-40 outline-none transition-colors"
+              className="bg-[#0A0A0A] border border-[#27272A] focus:border-[#D4AF37] text-white text-sm pl-9 pr-3 h-10 w-44 outline-none transition-colors"
             />
           </form>
           <DonateButton />
           {user ? (
             <>
-              <Link
-                to="/create"
-                data-testid="upload-game-cta"
-                className="bg-[#D4AF37] text-black font-bold uppercase tracking-wider text-xs px-4 h-10 flex items-center gap-2 hover:bg-[#E5C158] transition-colors"
-              >
-                <Upload className="w-4 h-4" /> Upload Game
+              <Link to="/create" data-testid="upload-game-cta" className="btn-primary h-10 px-4">
+                <Upload className="w-4 h-4" /> Upload
               </Link>
               <Link
                 to={`/creators/${user.username}`}
                 data-testid="account-link"
-                className="text-white font-mono text-sm border border-[#1A1A1A] hover:border-white px-3 h-10 flex items-center transition-colors"
+                className="h-10 max-w-36 border border-[#27272A] hover:border-white px-3 flex items-center text-white font-mono text-xs truncate"
+                title={`@${user.username}`}
               >
                 @{user.username}
               </Link>
-              <Link
-                to="/settings"
-                data-testid="settings-link"
-                className="text-[#A1A1AA] hover:text-white p-2"
-                aria-label="Settings"
-                title="Settings"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+              <Link to="/settings" data-testid="settings-link" className="icon-button" aria-label="Settings" title="Settings">
+                <Settings className="w-4 h-4" />
               </Link>
-              <button
-                onClick={handleLogout}
-                data-testid="logout-button"
-                className="text-[#A1A1AA] hover:text-white p-2"
-                aria-label="Log out"
-              >
+              <button onClick={handleLogout} data-testid="logout-button" className="icon-button" aria-label="Log out" title="Log out">
                 <LogOut className="w-4 h-4" />
               </button>
             </>
           ) : (
             <>
-              <Link
-                to="/login"
-                data-testid="login-link"
-                className="text-white border border-[#1A1A1A] hover:border-white px-4 h-10 flex items-center uppercase tracking-wider text-xs font-bold transition-colors"
-              >
+              <Link to="/login" data-testid="login-link" className="btn-secondary h-10 px-4">
                 Log in
               </Link>
-              <Link
-                to="/onboarding"
-                data-testid="join-link"
-                className="bg-[#D4AF37] text-black font-bold uppercase tracking-wider text-xs px-4 h-10 flex items-center hover:bg-[#E5C158] transition-colors"
-              >
+              <Link to="/onboarding" data-testid="join-link" className="btn-primary h-10 px-4">
                 Join
               </Link>
             </>
@@ -134,87 +155,74 @@ export default function Nav() {
         </div>
 
         <button
-          className="lg:hidden text-white p-2"
-          onClick={() => setOpen((s) => !s)}
+          className="xl:hidden icon-button ml-auto"
+          onClick={() => setOpen((value) => !value)}
           data-testid="mobile-menu-toggle"
-          aria-label="Menu"
+          aria-label={open ? "Close menu" : "Open menu"}
+          aria-expanded={open}
+          aria-controls="mobile-navigation"
         >
-          <Menu className="w-6 h-6" />
+          {open ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
         </button>
-      </div>
+        </div>
+      </header>
 
       {open && (
-        <div
-          className="lg:hidden border-t border-[#1A1A1A] bg-black px-4 py-4 space-y-3"
-          data-testid="mobile-menu"
-        >
-          {navItems.map((n) => (
-            <Link
-              key={n.to}
-              to={n.to}
-              onClick={() => setOpen(false)}
-              className="block text-white uppercase font-mono text-xs tracking-[0.18em]"
-            >
-              {n.label}
-            </Link>
-          ))}
-          <div className="border-t border-[#1A1A1A] pt-3 space-y-2">
+        <div id="mobile-navigation" className="nav-drawer xl:hidden" data-testid="mobile-menu">
+          <form onSubmit={submitSearch} className="relative mb-4">
+            <Search className="absolute left-3 top-3.5 w-4 h-4 text-[#52525B]" aria-hidden="true" />
+            <input
+              value={q}
+              onChange={(event) => setQ(event.target.value)}
+              placeholder="Search games, creators, communities"
+              aria-label="Search"
+              className="input pl-10"
+            />
+          </form>
+
+          <nav aria-label="Mobile primary">
+            {[...navItems, ...secondaryItems].map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                className={({ isActive }) => `nav-drawer-link ${isActive ? "is-active" : ""}`}
+              >
+                {item.label}
+                <ChevronRight className="w-4 h-4" aria-hidden="true" />
+              </NavLink>
+            ))}
+          </nav>
+
+          <div className="mt-6 grid gap-2">
             <DonateButton variant="footer" className="w-full justify-center" />
             {user ? (
               <>
-                <Link
-                  to="/create"
-                  onClick={() => setOpen(false)}
-                  className="block bg-[#D4AF37] text-black font-bold uppercase text-xs px-4 h-10 leading-10 text-center"
-                >
-                  Upload Game
+                <Link to="/create" className="btn-primary w-full">
+                  <Upload className="w-4 h-4" /> Upload game
                 </Link>
-                <Link
-                  to={`/creators/${user.username}`}
-                  onClick={() => setOpen(false)}
-                  className="block text-white border border-[#1A1A1A] px-4 h-10 leading-10 text-center"
-                >
+                <Link to={`/creators/${user.username}`} className="btn-secondary w-full">
                   @{user.username}
                 </Link>
-                <Link
-                  to="/settings"
-                  onClick={() => setOpen(false)}
-                  data-testid="settings-link-mobile"
-                  className="block text-white border border-[#1A1A1A] px-4 h-10 leading-10 text-center"
-                >
-                  Settings
+                <Link to="/settings" data-testid="settings-link-mobile" className="btn-secondary w-full">
+                  <Settings className="w-4 h-4" /> Settings
                 </Link>
-                <button
-                  onClick={() => {
-                    setOpen(false);
-                    handleLogout();
-                  }}
-                  className="w-full text-[#A1A1AA] border border-[#1A1A1A] px-4 h-10"
-                >
-                  Log out
+                <button onClick={handleLogout} className="btn-secondary w-full">
+                  <LogOut className="w-4 h-4" /> Log out
                 </button>
               </>
             ) : (
-              <>
-                <Link
-                  to="/login"
-                  onClick={() => setOpen(false)}
-                  className="block text-white border border-[#1A1A1A] px-4 h-10 leading-10 text-center"
-                >
+              <div className="grid grid-cols-2 gap-2">
+                <Link to="/login" className="btn-secondary w-full">
                   Log in
                 </Link>
-                <Link
-                  to="/onboarding"
-                  onClick={() => setOpen(false)}
-                  className="block bg-[#D4AF37] text-black font-bold uppercase text-xs px-4 h-10 leading-10 text-center"
-                >
+                <Link to="/onboarding" className="btn-primary w-full">
                   Join
                 </Link>
-              </>
+              </div>
             )}
           </div>
         </div>
       )}
-    </header>
+    </>
   );
 }

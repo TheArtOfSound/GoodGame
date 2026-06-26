@@ -4,6 +4,7 @@ import { getJSON, postJSON } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { BACKEND_URL } from "../lib/config";
 import SEO from "../components/SEO";
+import { CharacterCount, ErrorState, InlineNotice, PageLoader } from "../components/UIState";
 
 export default function Forge() {
   const { slug } = useParams();
@@ -26,10 +27,10 @@ export default function Forge() {
       .catch(() => setErr("Not found"));
   }, [slug]);
 
-  if (authLoading) return null;
+  if (authLoading) return <PageLoader label="Checking creator account" />;
   if (!user) return <Navigate to="/login" replace />;
-  if (err) return <div className="px-8 py-16 text-[#A1A1AA]">{err}</div>;
-  if (!game) return <div className="px-8 py-16 text-[#52525B]">Loading&hellip;</div>;
+  if (err) return <div className="max-w-3xl mx-auto px-4 py-16"><ErrorState title="Forge draft unavailable" body={err} /></div>;
+  if (!game) return <PageLoader label="Loading Forge workspace" />;
   if (game.owner_id !== user.id)
     return <div className="px-8 py-16 text-[#A1A1AA]" data-testid="forge-not-owner">You don&apos;t own this draft.</div>;
 
@@ -133,10 +134,11 @@ export default function Forge() {
 
         <aside className="space-y-5">
           <form onSubmit={refine} className="border border-[#1A1A1A] p-4">
-            <div className="text-[#52525B] font-mono text-xs uppercase tracking-[0.2em] mb-2">
+            <label htmlFor="forge-refine-input" className="block text-[#71717A] font-mono text-xs uppercase tracking-[0.2em] mb-2">
               Refine with a prompt
-            </div>
+            </label>
             <textarea
+              id="forge-refine-input"
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               rows={3}
@@ -145,15 +147,16 @@ export default function Forge() {
               className="input w-full"
               data-testid="forge-refine-input"
             />
-            <div className="flex items-center gap-3 mt-3">
+            <div className="flex justify-end mt-1"><CharacterCount value={prompt} max={600} /></div>
+            <div className="flex items-center gap-3 mt-3 flex-wrap">
               <button
                 disabled={busy}
                 data-testid="forge-refine-btn"
-                className="bg-[#D4AF37] text-black font-bold uppercase tracking-wider text-sm px-5 h-11 disabled:opacity-50"
+                className="btn-primary"
               >
                 {busy ? "Editing…" : "Apply change"}
               </button>
-              {msg && <span className="text-sm font-mono text-[#A1A1AA]">{msg}</span>}
+              {msg && <InlineNotice tone={msg.includes("failed") || msg.includes("Tell") ? "error" : "success"}>{msg}</InlineNotice>}
             </div>
           </form>
 

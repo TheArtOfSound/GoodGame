@@ -4,6 +4,10 @@ import { getJSON, postJSON } from "../lib/api";
 import SEO from "../components/SEO";
 import GameCard from "../components/GameCard";
 import { useAuth } from "../context/AuthContext";
+import { Heart, MessageSquare, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import ConfirmDialog from "../components/ConfirmDialog";
+import { CharacterCount, EmptyState, ErrorState, PageHeader, PageLoader } from "../components/UIState";
 
 function stars(n) {
   const r = Math.max(0, Math.min(5, Math.round(n || 0)));
@@ -17,11 +21,18 @@ export default function Feed() {
   const [data, setData] = useState(null);
   const [text, setText] = useState("");
   const [posting, setPosting] = useState(false);
+  const [error, setError] = useState(false);
 
-  useEffect(() => {
+  const load = () => {
+    setError(false);
     getJSON("/feed")
       .then(setData)
-      .catch(() => setData({ personalized: false, items: [] }));
+      .catch(() => setError(true));
+  };
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const submitPost = async (e) => {
@@ -33,7 +44,7 @@ export default function Feed() {
       setText("");
       setData((d) => ({ ...d, items: [r.post, ...(d?.items || [])] }));
     } catch (_e) {
-      // ignore
+      toast.error("Your post could not be published.");
     } finally {
       setPosting(false);
     }
@@ -48,12 +59,11 @@ export default function Feed() {
   return (
     <div className="max-w-2xl mx-auto px-4 md:px-8 py-10" data-testid="feed-page">
       <SEO title="Your feed" path="/feed" noindex />
-      <div className="text-[#D4AF37] font-mono text-xs uppercase tracking-[0.3em]">
-        {personalized ? "Following" : "Discover"}
-      </div>
-      <h1 className="text-3xl font-bold uppercase text-white mt-1">
-        {personalized ? "Your feed" : "Latest on GoodGame"}
-      </h1>
+      <PageHeader
+        eyebrow={personalized ? "Following" : "Discover"}
+        title={personalized ? "Your feed" : "Latest on GoodGame"}
+        description={personalized ? "Updates from creators you follow." : "Fresh posts, games, clips, and reviews from across the network."}
+      />
 
       {welcome && user && (
         <div className="mt-6 border border-[#D4AF37]/40 bg-[#D4AF37]/5 p-5" data-testid="welcome-panel">
@@ -96,11 +106,12 @@ export default function Feed() {
             className="input w-full"
             data-testid="post-input"
           />
-          <div className="flex justify-end mt-2">
+          <div className="flex justify-between items-center gap-3 mt-2">
+            <CharacterCount value={text} max={600} />
             <button
               disabled={posting || !text.trim()}
               data-testid="post-submit"
-              className="bg-[#D4AF37] text-black font-bold uppercase tracking-wider text-sm px-5 h-10 disabled:opacity-50"
+              className="btn-primary h-10"
             >
               {posting ? "Posting…" : "Post"}
             </button>
@@ -115,9 +126,17 @@ export default function Feed() {
         </p>
       )}
 
-      {!data && <div className="text-[#52525B] mt-8 font-mono text-sm">Loading&hellip;</div>}
+      {!data && !error && <PageLoader label="Loading feed" />}
+      {error && (
+        <ErrorState
+          className="mt-8"
+          title="The feed could not load"
+          body="Your posts are safe. Retry the network request."
+          action={<button type="button" className="btn-secondary" onClick={load}>Retry</button>}
+        />
+      )}
       {data && items.length === 0 && (
-        <div className="text-[#A1A1AA] mt-8">Nothing here yet — be the first to post.</div>
+        <EmptyState className="mt-8" icon={MessageSquare} title="Nothing here yet" body="Publish the first update or follow creators to build your feed." />
       )}
 
       <div className="mt-6 space-y-4">
@@ -141,6 +160,7 @@ function PostCard({ it, user, onDelete }) {
   const [likes, setLikes] = useState(it.likes || 0);
   const [liked, setLiked] = useState(!!it.liked);
   const [busy, setBusy] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const like = async () => {
     if (!user || busy) return;
@@ -150,18 +170,23 @@ function PostCard({ it, user, onDelete }) {
       setLiked(r.liked);
       setLikes(r.count);
     } catch (_e) {
-      // ignore
+      toast.error("Like could not be updated.");
     } finally {
       setBusy(false);
     }
   };
 
   const del = async () => {
+    setBusy(true);
     try {
       await postJSON(`/posts/${it.id}/delete`, {});
       onDelete(it.id);
+      toast.success("Post deleted.");
     } catch (_e) {
-      // ignore
+      toast.error("Post could not be deleted.");
+    } finally {
+      setBusy(false);
+      setConfirmDelete(false);
     }
   };
 
@@ -171,11 +196,13 @@ function PostCard({ it, user, onDelete }) {
         <Actor actor={it.actor} />
         {it.post.mine && (
           <button
-            onClick={del}
-            className="text-[#52525B] hover:text-[#FF3B30] text-xs font-mono uppercase"
+            onClick={() => setConfirmDelete(true)}
+            className="icon-button w-8 h-8 hover:text-[#FF7A7A]"
             data-testid="post-delete"
+            aria-label="Delete post"
+            title="Delete post"
           >
-            Delete
+            <Trash2 className="w-4 h-4" />
           </button>
         )}
       </div>
@@ -188,8 +215,18 @@ function PostCard({ it, user, onDelete }) {
           liked ? "text-[#FF3B30]" : "text-[#52525B] hover:text-white"
         }`}
       >
-        {liked ? "♥" : "♡"} {likes > 0 ? likes : ""}
+        <Heart className={`w-4 h-4 ${liked ? "fill-current" : ""}`} />
+        <span>{likes > 0 ? likes : "Like"}</span>
       </button>
+      <ConfirmDialog
+        open={confirmDelete}
+        title="Delete this post?"
+        body="This removes the post from public feeds. This action cannot be undone."
+        confirmLabel="Delete post"
+        busy={busy}
+        onConfirm={del}
+        onClose={() => setConfirmDelete(false)}
+      />
     </div>
   );
 }

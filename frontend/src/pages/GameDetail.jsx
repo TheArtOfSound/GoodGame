@@ -6,6 +6,7 @@ import { Maximize2, Minimize2, Play, RotateCcw, Settings } from "lucide-react";
 import SEO from "../components/SEO";
 import LeaderboardTable from "../components/LeaderboardTable";
 import { BACKEND_URL } from "../lib/config";
+import { CharacterCount, ErrorState, InlineNotice, PageLoader } from "../components/UIState";
 
 export default function GameDetail() {
   const { slug } = useParams();
@@ -157,21 +158,23 @@ export default function GameDetail() {
 
   if (error)
     return (
-      <div className="max-w-3xl mx-auto px-4 py-20 text-center" data-testid="game-not-found">
-        <div className="text-[#D4AF37] font-mono text-xs uppercase tracking-[0.3em]">404</div>
-        <h1 className="text-3xl font-bold text-white mt-2">Game not found</h1>
-        <Link to="/games" className="text-[#A1A1AA] underline mt-4 inline-block">
-          Back to browse
-        </Link>
+      <div className="max-w-3xl mx-auto px-4 py-20" data-testid="game-not-found">
+        <ErrorState
+          title="Game not found"
+          body="This game may have been removed, renamed, or never published."
+          action={<Link to="/games" className="btn-secondary">Back to games</Link>}
+        />
       </div>
     );
 
-  if (!data) return <div className="px-8 py-10 text-[#52525B]">Loading...</div>;
+  if (!data) return <PageLoader label="Loading game" />;
 
   const { game, releases } = data;
   const isOwner = user && user.id === game.owner_id;
   const iframeSrc = `${BACKEND_URL}/api/ugc/${game.id}/${game.upload_entry}`;
-  const cover = game.cover_image ? `${BACKEND_URL}${game.cover_image}?v=${game.updated_at}` : null;
+  const cover = game.cover_image
+    ? `${BACKEND_URL}${game.cover_image}?v=${game.updated_at}`
+    : `${BACKEND_URL}/og/game/${game.slug}.svg`;
   const onPlay = () => {
     setPlaying(true);
   };
@@ -253,13 +256,12 @@ export default function GameDetail() {
               </>
             ) : (
               <div className="relative w-full aspect-video bg-[#080808] flex items-center justify-center">
-                {cover && (
-                  <img
-                    src={cover}
-                    alt={game.title}
-                    className="absolute inset-0 w-full h-full object-cover opacity-40"
-                  />
-                )}
+                <img
+                  src={cover}
+                  alt={`${game.title} gameplay cover`}
+                  className="absolute inset-0 w-full h-full object-cover opacity-55"
+                />
+                <div className="absolute inset-0 bg-black/35" />
                 <div className="relative z-10 flex flex-wrap items-center justify-center gap-3">
                   <button
                     onClick={onPlay}
@@ -312,9 +314,13 @@ export default function GameDetail() {
               </div>
             )}
             {scoreNotice && (
-              <div className="mt-5 border-l-2 border-[#D4AF37] pl-3 text-[#D4AF37] text-sm" data-testid="score-notice">
+              <InlineNotice
+                tone={scoreNotice.toLowerCase().includes("could") || scoreNotice.toLowerCase().includes("cannot") ? "error" : "success"}
+                className="mt-5"
+                testId="score-notice"
+              >
                 {scoreNotice}
-              </div>
+              </InlineNotice>
             )}
             {game.tags && game.tags.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-4">
@@ -490,6 +496,7 @@ function Reviews({ slug, user }) {
                 type="button"
                 onClick={() => setRating(n)}
                 aria-label={`${n} star${n === 1 ? "" : "s"}`}
+                aria-pressed={rating === n}
                 className={`text-2xl leading-none ${n <= rating ? "text-[#D4AF37]" : "text-[#3A3A3A]"} hover:text-[#E5C158]`}
               >
                 ★
@@ -505,19 +512,26 @@ function Reviews({ slug, user }) {
             className="input w-full"
             data-testid="review-body"
           />
-          <div className="flex items-center gap-3 mt-3">
+          <div className="flex justify-end mt-1">
+            <CharacterCount value={body} max={2000} />
+          </div>
+          <div className="flex items-center gap-3 mt-3 flex-wrap">
             <button
               disabled={busy}
               data-testid="review-submit"
-              className="bg-[#D4AF37] text-black font-bold uppercase tracking-wider text-sm px-5 h-11 disabled:opacity-50"
+              className="btn-primary"
             >
               {busy ? "Posting…" : "Post review"}
             </button>
-            {msg && <span className="text-sm font-mono text-[#A1A1AA]">{msg}</span>}
+            {msg && (
+              <InlineNotice tone={msg.includes("Could") || msg.includes("Pick") ? "error" : "success"}>
+                {msg}
+              </InlineNotice>
+            )}
           </div>
         </form>
       ) : (
-        <div className="text-[#A1A1AA] text-sm mb-8">
+        <div className="text-[#A1A1AA] text-sm mb-8 border-y border-[#1A1A1A] py-4">
           <Link to="/login" className="text-[#D4AF37] underline">
             Log in
           </Link>{" "}

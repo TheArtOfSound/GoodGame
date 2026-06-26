@@ -5,7 +5,7 @@ import { fmtCount, initials, csv, ld, siteLd, gameLd, breadcrumbLd } from './lib
 import { CSS } from './styles';
 import { page } from './components';
 import { ogCard, favicon } from './og';
-import { playDoc, TEMPLATE_IDS } from './play';
+import { playDoc } from './play';
 import { ingestZip } from './ingest';
 import { analyzeAndPrepare, type CompatReport } from './compat';
 import { submitScore, getLeaderboard, putSave, getSave } from './sdk';
@@ -21,7 +21,7 @@ import { Home } from './views/home';
 import { GamesDirectory, GamePage, PlayPage } from './views/games';
 import { CreatorsDirectory, CreatorPage, ClipsDirectory, ClipPage } from './views/people';
 import { CommunitiesDirectory, CommunityPage, ArenaPage, EventPage } from './views/community';
-import { NewsDirectory, ArticlePage, SearchPage, DocsPage, Shell, NotFound } from './views/news';
+import { NewsDirectory, ArticlePage, SearchPage, DocsPage, NotFound } from './views/news';
 import { CreatePage } from './views/create';
 
 const app = new Hono<{ Bindings: Env }>();
@@ -1569,9 +1569,7 @@ app.get('/search', async (c) => {
 app.get('/docs', (c) => c.redirect('/', 301));
 app.get('/docs/*', (c) => c.redirect('/', 301));
 
-// ---------- app placeholders (real pages, noindex) ----------
-const placeholder = (active: string | undefined, title: string, desc: string, path: string, body: any, noindex = true) =>
-  (c: any) => page(c, <Shell env={c.env} active={active} title={title} desc={desc} path={path} noindex={noindex}>{body}</Shell>);
+// ---------- legacy app aliases ----------
 
 // Wallet sign-in and crypto-payment routes were removed — the product is free
 // and no longer uses crypto identities. Password auth lives at /api/login,
@@ -1586,7 +1584,7 @@ app.post('/create', async (c) => {
   const description = clean(b.description, 1200);
   const tags = clean(b.tags, 80).split(',').map((t) => t.trim().toLowerCase().replace(/[^a-z0-9 -]/g, '')).filter(Boolean).slice(0, 6).join(',');
   const accent = /^#[0-9a-fA-F]{6}$/.test(String(b.accent)) ? String(b.accent) : '#6b93ff';
-  let template = TEMPLATE_IDS.includes(String(b.template)) ? String(b.template) : '';
+  let template = '';
   const values: Record<string, string> = { title, pitch, description, tags, accent, template };
   const fail = (msg: string) => page(c, <CreatePage env={c.env} error={msg} values={values} />);
   if (title.length < 2 || pitch.length < 4) return fail('Add a title (at least 2 characters) and a short pitch.');
@@ -1597,7 +1595,7 @@ app.post('/create', async (c) => {
   const id = 'gmu_' + Math.random().toString(36).slice(2, 10);
   const slug = (title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'game') + '-' + Math.random().toString(36).slice(2, 6);
 
-  // An uploaded build (real web/WebGL/Unity/Godot export) takes precedence over a template.
+  // New games must ship a real uploaded browser build through this legacy POST path.
   let uploadEntry: string | null = null, uploadBytes: number | null = null, engine = 'gg';
   const build = b.build;
   if (build instanceof File && build.size > 0) {
@@ -1613,6 +1611,8 @@ app.post('/create', async (c) => {
     uploadEntry = res.entry; uploadBytes = res.total; template = '';
     const paths = res.files.map((f) => f.path.toLowerCase()).join('\n');
     engine = paths.includes('.pck') ? 'godot' : (paths.includes('.data') || paths.includes('.unityweb') || paths.includes('.framework.js')) ? 'unity' : 'web';
+  } else {
+    return fail('Upload a zipped browser build with an index.html entrypoint.');
   }
 
   const ownerId = sessUser.id;
@@ -1625,16 +1625,9 @@ app.post('/create', async (c) => {
   ).bind('rel_' + id, id, uploadEntry ? 'Initial build uploaded to GoodGame.' : 'First release on GoodGame.').run();
   return c.redirect('/games/' + slug, 303);
 });
-app.get('/studio', placeholder('create', 'GG Studio', 'A serious creation suite: projects, scenes, assets, scripting, visual logic, and one-click publish into the same release pipeline.', '/studio',
-  <div class="notice">GG Studio is on the roadmap as a layered platform — web editor first, then native. See the build sequence in the product blueprint.</div>));
-app.get('/forge', placeholder('create', 'GG Forge', 'A UGC marketplace for mods, maps, templates, plugins, and assets — built for games that keep growing.', '/forge',
-  <div class="notice">GG Forge opens after the creator economy workstream. Items, manifests, dependencies, and compatibility are modeled now.</div>));
-app.get('/login', placeholder(undefined, 'Sign in', 'Sign in to GoodGame.center.', '/login',
-  <div class="panel" style="max-width:380px;padding:24px"><p class="muted" style="margin-bottom:14px">Email/password and OAuth (Google, Discord, Twitch, GitHub) land with the auth workstream. Sessions, 2FA, and device management are already in the schema.</p><a class="btn btn-primary btn-block" href="/">Continue browsing</a></div>));
-app.get('/signup', placeholder(undefined, 'Create your account', 'Join GoodGame.center.', '/signup',
-  <div class="panel" style="max-width:380px;padding:24px"><p class="muted" style="margin-bottom:14px">Account creation (email verification, username reservation, age declaration) is the first auth task. For now, explore the live catalog.</p><a class="btn btn-primary btn-block" href="/games">Explore games</a></div>));
-app.get('/dashboard', placeholder(undefined, 'Your dashboard', 'Profile, library, messages, and settings.', '/dashboard',
-  <div class="notice">This is a private surface (profile, library, messages, settings). It unlocks with auth.</div>));
+app.get('/studio', (c) => c.redirect('/create', 302));
+app.get('/signup', (c) => c.redirect('/onboarding', 302));
+app.get('/dashboard', (c) => c.redirect('/feed', 302));
 
 const SAFETY: Record<string, string> = {
   '': 'Read GoodGame.center community guidelines, browser-build isolation practices, reporting tools, content rules, and moderation policies.',

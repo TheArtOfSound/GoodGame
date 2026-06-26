@@ -6,18 +6,26 @@ import { Play, Trophy, Upload, Users } from "lucide-react";
 import SEO from "../components/SEO";
 import DonateButton from "../components/DonateButton";
 import ActivityFeed from "../components/ActivityFeed";
+import { EmptyState, ErrorState, GridSkeleton } from "../components/UIState";
 
-const HERO_BG = "https://images.unsplash.com/photo-1517241034903-9a4c3ab12f00?crop=entropy&cs=srgb&fm=jpg&w=1600&q=70";
+const HERO_GAMES = [
+  "/game-covers/voidline-survivor.webp",
+  "/game-covers/sum-forge-number-puzzle.webp",
+  "/game-covers/nightshift-lane-racer.webp",
+];
 
 export default function Home() {
   const [games, setGames] = useState([]);
   const [activity, setActivity] = useState([]);
   const [leaders, setLeaders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const location = useLocation();
   const donationState = new URLSearchParams(location.search).get("donation");
 
-  useEffect(() => {
+  const load = () => {
+    setLoading(true);
+    setError(false);
     Promise.all([
       getJSON("/games?limit=18&sort=new"),
       getJSON("/feed/global?limit=8"),
@@ -28,7 +36,13 @@ export default function Home() {
         setActivity(activityData.activity || []);
         setLeaders(leaderboardData.leaders || []);
       })
+      .catch(() => setError(true))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -44,44 +58,40 @@ export default function Home() {
           Donation checkout cancelled.
         </div>
       )}
-      <section className="relative overflow-hidden border-b border-[#1A1A1A]">
-        <div
-          className="absolute inset-0 opacity-20 bg-cover bg-center pointer-events-none"
-          style={{ backgroundImage: `url(${HERO_BG})` }}
-        />
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/40 to-black pointer-events-none" />
-        <div className="relative max-w-7xl mx-auto px-4 md:px-8 py-20 md:py-32">
-          <div className="text-[#D4AF37] font-mono text-xs uppercase tracking-[0.3em] mb-4">
-            Browser-first / Free to play / Free to upload
+      <section className="home-hero relative overflow-hidden border-b border-[#1A1A1A]">
+        <div className="home-hero-media pointer-events-none" aria-hidden="true">
+          {HERO_GAMES.map((src) => <img key={src} src={src} alt="" />)}
+        </div>
+        <div className="home-hero-scrim pointer-events-none" />
+        <div className="relative w-full max-w-7xl mx-auto px-4 md:px-8 py-12 md:py-16">
+          <div className="eyebrow mb-4">
+            Play. Ship. Be played.
           </div>
-          <h1 className="text-5xl md:text-7xl font-black uppercase tracking-tighter text-white max-w-3xl leading-[0.95]">
-            Play. Ship.
-            <br />
-            <span className="text-[#D4AF37]">Be played.</span>
+          <h1 className="text-5xl md:text-7xl font-black text-white max-w-3xl leading-[0.94]">
+            GoodGame<span className="block md:inline text-[#D4AF37]">.center</span>
           </h1>
           <p className="text-[#A1A1AA] mt-6 max-w-xl text-base md:text-lg leading-relaxed">
-            A real platform for indie browser games. No wallets, no tokens. Upload
-            an HTML5 build, drop a thumbnail, share patch notes &mdash; and let
-            anyone press play.
+            Play original and creator-made browser games instantly. Publish an HTML5 build,
+            share progress, and compete for persistent high scores.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link
               to="/games"
               data-testid="hero-browse-cta"
-              className="bg-[#D4AF37] text-black font-bold uppercase tracking-wider text-sm px-6 h-12 flex items-center gap-2 hover:bg-[#E5C158] transition-colors"
+              className="btn-primary h-12 px-6 text-sm"
             >
               <Play className="w-4 h-4" /> Browse Games
             </Link>
             <Link
               to="/create"
               data-testid="hero-upload-cta"
-              className="border border-[#1A1A1A] text-white font-bold uppercase tracking-wider text-sm px-6 h-12 flex items-center gap-2 hover:border-white transition-colors"
+              className="btn-secondary h-12 px-6 text-sm bg-black/40 backdrop-blur"
             >
               <Upload className="w-4 h-4" /> Upload your game
             </Link>
             <Link
               to="/communities"
-              className="border border-[#1A1A1A] text-white font-bold uppercase tracking-wider text-sm px-6 h-12 flex items-center gap-2 hover:border-white transition-colors"
+              className="btn-secondary h-12 px-6 text-sm bg-black/40 backdrop-blur"
             >
               <Users className="w-4 h-4" /> Communities
             </Link>
@@ -108,7 +118,13 @@ export default function Home() {
           </Link>
         </div>
         {loading ? (
-          <div className="text-[#52525B] font-mono text-sm">Loading...</div>
+          <GridSkeleton count={6} />
+        ) : error ? (
+          <ErrorState
+            title="The catalog could not load"
+            body="Your connection may have dropped. Existing games are still safe."
+            action={<button type="button" className="btn-secondary" onClick={load}>Try again</button>}
+          />
         ) : games.length === 0 ? (
           <EmptyCatalog />
         ) : (
@@ -173,23 +189,17 @@ export default function Home() {
 
 function EmptyCatalog() {
   return (
-    <div
-      data-testid="empty-catalog"
-      className="border border-dashed border-[#1A1A1A] p-10 text-center"
-    >
-      <div className="text-[#D4AF37] font-mono text-xs uppercase tracking-[0.3em] mb-2">
-        No games yet
-      </div>
-      <div className="text-white text-xl font-bold mb-2">Be the first to ship.</div>
-      <div className="text-[#A1A1AA] text-sm mb-6">
-        The catalog is empty. Upload your HTML5 game build and it shows up here.
-      </div>
-      <Link
-        to="/create"
-        className="inline-flex items-center gap-2 bg-[#D4AF37] text-black font-bold uppercase tracking-wider text-sm px-6 h-12"
-      >
-        <Upload className="w-4 h-4" /> Upload Game
-      </Link>
-    </div>
+    <EmptyState
+      testId="empty-catalog"
+      icon={Upload}
+      eyebrow="No games yet"
+      title="Be the first to ship"
+      body="Upload an HTML5 build and it will appear in the public catalog."
+      action={
+        <Link to="/create" className="btn-primary h-12 px-6">
+          <Upload className="w-4 h-4" /> Upload game
+        </Link>
+      }
+    />
   );
 }

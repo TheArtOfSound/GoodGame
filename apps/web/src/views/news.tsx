@@ -86,7 +86,7 @@ export function SearchPage(props: { env: Env; q: string; r: Awaited<ReturnType<t
   );
 }
 
-// ---- simple content + app placeholder pages (keep every nav/footer link real) ----
+// ---- simple content + support pages (keep every nav/footer link real) ----
 export function Shell(props: { env: Env; active?: string; title: string; desc: string; path: string; noindex?: boolean; children?: any }) {
   return (
     <Document env={props.env} active={props.active}

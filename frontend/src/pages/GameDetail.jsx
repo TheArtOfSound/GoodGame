@@ -171,7 +171,9 @@ export default function GameDetail() {
 
   const { game, releases } = data;
   const isOwner = user && user.id === game.owner_id;
-  const iframeSrc = `${BACKEND_URL}/api/ugc/${game.id}/${game.upload_entry}`;
+  const isEmbed = !!game.embed_url;
+  const embedHost = (() => { try { return new URL(game.embed_url).hostname; } catch { return game.embed_url || ""; } })();
+  const iframeSrc = isEmbed ? game.embed_url : `${BACKEND_URL}/api/ugc/${game.id}/${game.upload_entry}`;
   const cover = game.cover_image
     ? `${BACKEND_URL}${game.cover_image}?v=${game.updated_at}`
     : `${BACKEND_URL}/og/game/${game.slug}.svg`;
@@ -240,7 +242,10 @@ export default function GameDetail() {
                   ref={iframeRef}
                   title={game.title}
                   src={iframeSrc}
-                  sandbox="allow-scripts allow-pointer-lock allow-forms"
+                  sandbox={isEmbed
+                    ? "allow-scripts allow-same-origin allow-pointer-lock allow-fullscreen"
+                    : "allow-scripts allow-pointer-lock allow-forms"}
+                  referrerPolicy={isEmbed ? "no-referrer" : undefined}
                   allow="fullscreen; autoplay; gamepad"
                   allowFullScreen
                   className="game-player-frame w-full aspect-video bg-black"
@@ -366,12 +371,40 @@ export default function GameDetail() {
 
           <div className="border border-[#1A1A1A] p-4">
             <div className="text-[#52525B] font-mono text-xs uppercase tracking-[0.2em] mb-2">
-              Build
+              {isEmbed ? "Hosting" : "Build"}
             </div>
-            <div className="text-white text-sm font-mono">{game.engine}</div>
-            <div className="text-[#52525B] text-xs mt-1">
-              {game.play_template ? "GoodGame canvas runtime" : `${(game.upload_bytes / 1024 / 1024).toFixed(2)} MB`}
-            </div>
+            {isEmbed ? (
+              <>
+                <div className="text-white text-sm">Creator-hosted</div>
+                <a
+                  href={game.embed_url}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="text-[#A1A1AA] hover:text-[#D4AF37] text-xs font-mono break-all"
+                  data-testid="embed-host"
+                >
+                  {embedHost} ↗
+                </a>
+                <div className={`text-xs mt-2 font-mono ${game.embed_verified ? "text-[#34D399]" : "text-[#D4AF37]"}`} data-testid="embed-status">
+                  {game.embed_verified ? "✓ Domain verified" : "⚠ Domain unverified"}
+                </div>
+                <div className="text-[#52525B] text-[11px] mt-1 leading-relaxed">
+                  Runs on the creator&apos;s own server in a sandboxed frame. Not stored or scanned by GoodGame.
+                </div>
+                {isOwner && !game.embed_verified && (
+                  <Link to={`/console/${game.slug}`} className="text-[#D4AF37] text-xs underline mt-2 inline-block">
+                    Verify your domain &rarr;
+                  </Link>
+                )}
+              </>
+            ) : (
+              <>
+                <div className="text-white text-sm font-mono">{game.engine}</div>
+                <div className="text-[#52525B] text-xs mt-1">
+                  {game.play_template ? "GoodGame canvas runtime" : `${((game.upload_bytes || 0) / 1024 / 1024).toFixed(2)} MB`}
+                </div>
+              </>
+            )}
           </div>
 
           {!leaderboard.config?.enabled && sdkLeaderboard.length > 0 && (

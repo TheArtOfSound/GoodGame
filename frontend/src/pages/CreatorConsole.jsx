@@ -73,6 +73,8 @@ function GameConsole({ slug, user }) {
   const [buildMsg, setBuildMsg] = useState(null);
   const [runBusy, setRunBusy] = useState(false);
   const [runReport, setRunReport] = useState(null);
+  const [verifyBusy, setVerifyBusy] = useState(false);
+  const [verifyMsg, setVerifyMsg] = useState(null);
 
   useEffect(() => {
     getJSON(`/games/${slug}`)
@@ -162,6 +164,20 @@ function GameConsole({ slug, user }) {
     }
   };
 
+  const verifyEmbed = async () => {
+    setVerifyBusy(true);
+    setVerifyMsg(null);
+    try {
+      const r = await postJSON(`/games/${slug}/verify-embed`, {});
+      setVerifyMsg(r.detail || (r.verified ? "Verified." : "Not verified yet."));
+      setData({ ...data, game: { ...game, embed_verified: r.verified ? 1 : 0 } });
+    } catch (e) {
+      setVerifyMsg(e.response?.data?.detail || "Check failed.");
+    } finally {
+      setVerifyBusy(false);
+    }
+  };
+
   const cover = game.cover_image ? `${BACKEND_URL}${game.cover_image}?v=${game.updated_at}` : null;
 
   return (
@@ -172,6 +188,58 @@ function GameConsole({ slug, user }) {
         description="Update media and builds, publish release notes, and verify the live browser runtime."
         actions={<Link to={`/games/${slug}`} className="btn-secondary">View public page</Link>}
       />
+
+      {game.embed_url && (
+        <Section title="Domain verification">
+          <div className="max-w-lg space-y-3" data-testid="verify-embed-panel">
+            <div className="text-sm text-[#A1A1AA]">
+              This game is <span className="text-white">creator-hosted</span> — it runs live from{" "}
+              <a href={game.embed_url} target="_blank" rel="noreferrer noopener" className="text-[#D4AF37] break-all">
+                {game.embed_url}
+              </a>
+              . Prove you control the domain to earn a verified badge and drop the &ldquo;unverified&rdquo; label.
+            </div>
+            <div
+              className={`text-sm font-mono ${game.embed_verified ? "text-[#34D399]" : "text-[#D4AF37]"}`}
+              data-testid="console-embed-status"
+            >
+              {game.embed_verified ? "✓ Verified" : "⚠ Not verified yet"}
+            </div>
+            {!game.embed_verified && (
+              <div className="border border-[#1A1A1A] p-4 space-y-3 text-sm text-[#A1A1AA]">
+                <div>
+                  Do <span className="text-white">either</span>, then re-check:
+                </div>
+                <div>
+                  <div className="text-[#52525B] text-xs uppercase tracking-wider mb-1">
+                    1 &middot; Meta tag in your page&apos;s &lt;head&gt;
+                  </div>
+                  <code className="block bg-[#0A0A0A] border border-[#1A1A1A] p-2 text-[#D4AF37] text-xs break-all select-all">
+                    {`<meta name="goodgame-site-verification" content="${game.embed_token || ""}">`}
+                  </code>
+                </div>
+                <div>
+                  <div className="text-[#52525B] text-xs uppercase tracking-wider mb-1">
+                    2 &middot; or a file at /.well-known/goodgame-verify.txt containing
+                  </div>
+                  <code className="block bg-[#0A0A0A] border border-[#1A1A1A] p-2 text-[#D4AF37] text-xs break-all select-all">
+                    {game.embed_token || ""}
+                  </code>
+                </div>
+              </div>
+            )}
+            <button
+              onClick={verifyEmbed}
+              disabled={verifyBusy}
+              data-testid="verify-embed-btn"
+              className="bg-[#D4AF37] text-black font-bold uppercase tracking-wider text-sm px-5 h-11 disabled:opacity-50"
+            >
+              {verifyBusy ? "Checking..." : game.embed_verified ? "Re-check" : "Verify domain"}
+            </button>
+            {verifyMsg && <div className="text-sm font-mono text-[#A1A1AA]">{verifyMsg}</div>}
+          </div>
+        </Section>
+      )}
 
       <Section title="Thumbnail">
         <div className="flex items-start gap-6 flex-wrap">
@@ -208,6 +276,7 @@ function GameConsole({ slug, user }) {
         </div>
       </Section>
 
+      {!game.embed_url && (
       <Section title="Replace build">
         <form onSubmit={updateBuild} className="space-y-3 max-w-lg">
           <label htmlFor="build-input" className="block text-[#71717A] font-mono text-xs uppercase tracking-[0.2em]">Build zip</label>
@@ -236,6 +305,7 @@ function GameConsole({ slug, user }) {
           {buildMsg && <InlineNotice tone={buildMsg.includes("updated") ? "success" : "error"}>{buildMsg}</InlineNotice>}
         </form>
       </Section>
+      )}
 
       <Section title="Add patch note">
         <form onSubmit={addPatch} className="space-y-3 max-w-lg">
@@ -256,6 +326,7 @@ function GameConsole({ slug, user }) {
         </form>
       </Section>
 
+      {!game.embed_url && (
       <Section title="Runtime check">
         <p className="text-[#A1A1AA] text-sm mb-3 max-w-lg">
           Loads your game in a real headless browser and reports whether it renders and any console errors.
@@ -294,6 +365,7 @@ function GameConsole({ slug, user }) {
           </div>
         )}
       </Section>
+      )}
     </div>
   );
 }

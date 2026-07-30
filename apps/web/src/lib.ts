@@ -33,6 +33,7 @@ export type Game = {
   owner_id: string; owner_name?: string; owner_username?: string; updated_at?: string;
   play_template?: string | null;
   upload_entry?: string | null; upload_bytes?: number | null;
+  embed_url?: string | null; embed_verified?: number; embed_token?: string | null; embed_checked_at?: string | null;
   price_amount?: string | null; price_token?: string | null; pay_chain?: string | null; pay_to?: string | null;
   cover_image?: string | null;
   seo_title?: string | null; seo_description?: string | null; search_keywords?: string | null;

@@ -539,14 +539,16 @@ code, .font-mono, [class*="font-mono"] {
 }
 
 @media (max-width: 767px) {
+  /* Keep the hero to roughly half the screen so the first row of games is
+     visible without scrolling — mobile is where the play-now impulse lives. */
   .home-hero {
-    min-height: max(600px, calc(100svh - 96px));
+    min-height: min(400px, 52svh);
     align-items: flex-end;
   }
 
   .home-hero-media img {
     width: 110vw;
-    opacity: .62;
+    opacity: .78;
   }
 
   .home-hero-media img:nth-child(1) {
@@ -563,10 +565,12 @@ code, .font-mono, [class*="font-mono"] {
     display: none;
   }
 
+  /* Text sits at the bottom on mobile, so hold contrast there and let the art
+     read toward the top instead of flattening the whole panel to black. */
   .home-hero-scrim {
     background:
-      linear-gradient(0deg, #000 0%, rgba(0,0,0,.94) 52%, rgba(0,0,0,.52) 100%),
-      linear-gradient(90deg, rgba(0,0,0,.88), transparent);
+      linear-gradient(0deg, #000 0%, rgba(0,0,0,.86) 42%, rgba(0,0,0,.28) 100%),
+      linear-gradient(90deg, rgba(0,0,0,.62), transparent 70%);
   }
 
   .game-grid {

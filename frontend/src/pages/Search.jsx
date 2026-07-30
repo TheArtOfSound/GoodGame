@@ -3,6 +3,8 @@ import { useSearchParams, Link } from "react-router-dom";
 import { getJSON } from "../lib/api";
 import SEO from "../components/SEO";
 import GameCard from "../components/GameCard";
+import { Search as SearchIcon, X } from "lucide-react";
+import { EmptyState, ErrorState, GridSkeleton, PageHeader } from "../components/UIState";
 
 export default function Search() {
   const [params, setParams] = useSearchParams();
@@ -10,23 +12,32 @@ export default function Search() {
   const [input, setInput] = useState(q);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     setInput(q);
     if (!q.trim()) {
       setData(null);
+      setError(false);
       return;
     }
     setLoading(true);
+    setError(false);
     getJSON(`/search?q=${encodeURIComponent(q)}`)
       .then(setData)
-      .catch(() => setData({ games: [], creators: [], communities: [] }))
+      .catch(() => {
+        setData(null);
+        setError(true);
+      })
       .finally(() => setLoading(false));
   }, [q]);
 
+  const runSearch = () => {
+    setParams(input.trim() ? { q: input.trim() } : {});
+  };
   const submit = (e) => {
     e.preventDefault();
-    setParams(input.trim() ? { q: input.trim() } : {});
+    runSearch();
   };
 
   const games = data?.games || [];
@@ -37,24 +48,50 @@ export default function Search() {
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-8 py-10" data-testid="search-page">
       <SEO title="Search" path="/search" noindex />
-      <h1 className="text-3xl font-bold uppercase text-white">Search</h1>
+      <PageHeader eyebrow="Discover" title="Search" description="Find games, creators, and communities across GoodGame." />
       <form onSubmit={submit} className="mt-4 flex gap-2 max-w-xl">
-        <input
-          autoFocus
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Search games, creators, communities"
-          className="input flex-1"
-          data-testid="search-input"
-        />
-        <button className="bg-[#D4AF37] text-black font-bold uppercase tracking-wider text-sm px-5 h-11">
-          Search
+        <label className="relative flex-1">
+          <span className="sr-only">Search GoodGame</span>
+          <SearchIcon className="absolute left-3 top-4 w-4 h-4 text-[#52525B]" />
+          <input
+            autoFocus
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Games, creators, communities"
+            className="input pl-10 pr-11"
+            data-testid="search-input"
+          />
+          {input && (
+            <button type="button" onClick={() => setInput("")} className="absolute right-1 top-1 w-10 h-10 grid place-items-center text-[#71717A] hover:text-white" aria-label="Clear search">
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </label>
+        <button className="btn-primary h-12 px-5">
+          <SearchIcon className="w-4 h-4" /> Search
         </button>
       </form>
 
-      {loading && <div className="text-[#52525B] mt-8 font-mono text-sm">Searching&hellip;</div>}
+      {!q && !loading && (
+        <EmptyState
+          className="mt-8"
+          icon={SearchIcon}
+          title="Search the network"
+          body="Try a game title, creator username, genre, or community."
+        />
+      )}
 
-      {q && !loading && (
+      {loading && <div className="mt-8"><GridSkeleton count={6} /></div>}
+      {error && (
+        <ErrorState
+          className="mt-8"
+          title="Search is unavailable"
+          body="The query could not be completed. Submit it again in a moment."
+          action={<button type="button" className="btn-secondary" onClick={runSearch}>Retry</button>}
+        />
+      )}
+
+      {q && !loading && !error && (
         <div className="mt-8 space-y-10">
           <Section title={`Games (${games.length})`}>
             {games.length ? (
@@ -100,7 +137,13 @@ export default function Search() {
             </Section>
           )}
 
-          {nothing && <Empty>Nothing found for &ldquo;{q}&rdquo;.</Empty>}
+          {nothing && (
+            <EmptyState
+              icon={SearchIcon}
+              title={`No results for “${q}”`}
+              body="Try fewer words, a username, or a broader genre."
+            />
+          )}
         </div>
       )}
     </div>

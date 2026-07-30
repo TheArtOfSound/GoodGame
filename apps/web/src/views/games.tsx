@@ -44,7 +44,7 @@ function BrowserGamesDirectory(props: { env: Env; games: Game[]; heading: string
   const { env, games } = props;
   const featured = games[0];
   const uploaded = games.filter((g) => !!g.upload_entry).length;
-  const templates = games.filter((g) => !!g.play_template && !g.upload_entry).length;
+  const playable = games.filter((g) => !!g.upload_entry || !!g.play_template).length;
   const engineSet = Array.from(new Set(games.map((g) => g.engine || 'web'))).slice(0, 4);
   const stat = (n: string, l: string) => <div class="arcade-stat"><b>{n}</b><span>{l}</span></div>;
   return (
@@ -84,7 +84,7 @@ function BrowserGamesDirectory(props: { env: Env; games: Game[]; heading: string
             <div class="arcade-stats">
               {stat(String(games.length), 'browser games')}
               {stat(String(uploaded), 'uploaded builds')}
-              {stat(String(templates), 'built-in demos')}
+              {stat(String(playable), 'playable pages')}
             </div>
           </div>
         </section>
@@ -392,7 +392,7 @@ export function PlayPage(props: { env: Env; g: Game; locked?: boolean }) {
                 <span class="disc" style="width:96px;height:96px"><svg width="40" height="40" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z" /></svg></span>
                 <div class="center" style="max-width:46ch">
                   <b style="font-size:19px">{g.title}</b>
-                  <p class="muted" style="font-size:13px;margin-top:6px">This title ships a full {g.engine === 'unity' ? 'Unity' : g.engine === 'godot' ? 'Godot' : g.engine === 'unreal' ? 'Unreal' : 'native'} build through the creator console — the in-browser demo isn't wired into this seed yet.</p>
+                  <p class="muted" style="font-size:13px;margin-top:6px">This title is listed with a {g.engine === 'unity' ? 'Unity' : g.engine === 'godot' ? 'Godot' : g.engine === 'unreal' ? 'Unreal' : 'native'} build. Browser play appears here when the creator publishes a web export.</p>
                 </div>
               </div>
             </div>

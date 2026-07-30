@@ -2,6 +2,9 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { postJSON } from "../lib/api";
+import { Check } from "lucide-react";
+import { FormField, PasswordInput } from "../components/FormControls";
+import { InlineNotice, PageHeader } from "../components/UIState";
 
 export default function Onboarding() {
   const { refresh } = useAuth();
@@ -33,22 +36,28 @@ export default function Onboarding() {
   };
 
   return (
-    <div className="max-w-md mx-auto px-4 md:px-0 py-16" data-testid="onboarding-page">
-      <div className="text-[#D4AF37] font-mono text-xs uppercase tracking-[0.3em]">
-        Join GoodGame
-      </div>
-      <h1 className="text-3xl font-bold uppercase text-white mt-2">Create an account</h1>
-      <p className="text-[#A1A1AA] mt-2 text-sm">
-        Free. No wallet, no token. One account to play, post, follow, and ship games.
-      </p>
+    <div className="max-w-md mx-auto px-4 md:px-0 py-12 md:py-16" data-testid="onboarding-page">
+      <PageHeader
+        eyebrow="Join GoodGame"
+        title="Create an account"
+        description="Free. No wallet or token. One account for playing, creating, and joining the community."
+      />
       <ul className="mt-4 space-y-1.5 text-sm text-[#A1A1AA]" data-testid="onb-valueprops">
-        <li>&#9654; Play any game instantly in your browser</li>
-        <li>&#10022; Generate a game from a prompt with Forge — no code</li>
-        <li>&hearts; Post updates, follow creators, and build a following</li>
+        {[
+          "Play any game instantly in your browser",
+          "Generate a playable draft with Forge",
+          "Post updates, follow creators, and save scores",
+        ].map((item) => (
+          <li className="flex gap-2" key={item}>
+            <Check className="w-4 h-4 text-[#D4AF37] shrink-0 mt-0.5" aria-hidden="true" />
+            {item}
+          </li>
+        ))}
       </ul>
       <form onSubmit={submit} className="mt-8 space-y-4">
-        <Field label="Username (3-24, a-z 0-9 _)">
+        <FormField id="onb-username" label="Username" hint="3-24 letters, numbers, or underscores.">
           <input
+            id="onb-username"
             data-testid="onb-username"
             value={form.username}
             onChange={setField("username")}
@@ -56,52 +65,57 @@ export default function Onboarding() {
             required
             autoComplete="username"
             pattern="[a-zA-Z0-9_]{3,24}"
+            aria-describedby="onb-username-hint"
           />
-        </Field>
-        <Field label="Display name (optional)">
+        </FormField>
+        <FormField id="onb-display-name" label="Display name" hint="Optional. This is what other players see first.">
           <input
+            id="onb-display-name"
             data-testid="onb-display-name"
             value={form.display_name}
             onChange={setField("display_name")}
             className="input"
+            maxLength={60}
+            autoComplete="name"
+            aria-describedby="onb-display-name-hint"
           />
-        </Field>
-        <Field label="Password (min 8)">
-          <input
+        </FormField>
+        <FormField id="onb-password" label="Password" hint="Use at least 8 characters.">
+          <PasswordInput
+            id="onb-password"
             data-testid="onb-password"
             value={form.password}
             onChange={setField("password")}
-            type="password"
             minLength={8}
-            className="input"
             required
             autoComplete="new-password"
+            aria-describedby="onb-password-hint"
           />
-        </Field>
-        <Field label="PIN (4-8 digits)">
+        </FormField>
+        <FormField id="onb-pin" label="Confirmation PIN" hint="A separate 4-8 digit code used for quick confirmations.">
           <input
+            id="onb-pin"
             data-testid="onb-pin"
             value={form.pin}
             onChange={setField("pin")}
             inputMode="numeric"
             pattern="[0-9]{4,8}"
+            minLength={4}
+            maxLength={8}
+            autoComplete="off"
             className="input"
             required
+            aria-describedby="onb-pin-hint"
           />
-          <div className="text-[#52525B] text-xs mt-1.5">
-            A short numeric code for quick confirmations — separate from your password.
-          </div>
-        </Field>
+        </FormField>
         {err && (
-          <div className="text-[#FF3B30] text-sm font-mono" data-testid="onb-error">
-            {err}
-          </div>
+          <InlineNotice tone="error" testId="onb-error">{err}</InlineNotice>
         )}
         <button
           type="submit"
           disabled={loading}
           data-testid="onb-submit"
-          className="w-full h-12 bg-[#D4AF37] text-black font-bold uppercase tracking-wider hover:bg-[#E5C158] disabled:opacity-50"
+          className="btn-primary w-full h-12"
         >
           {loading ? "Creating..." : "Create account"}
         </button>
@@ -113,16 +127,5 @@ export default function Onboarding() {
         </Link>
       </div>
     </div>
-  );
-}
-
-function Field({ label, children }) {
-  return (
-    <label className="block">
-      <div className="text-[#52525B] font-mono text-xs uppercase tracking-[0.2em] mb-2">
-        {label}
-      </div>
-      {children}
-    </label>
   );
 }

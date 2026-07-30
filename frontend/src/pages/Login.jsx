@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { postJSON } from "../lib/api";
+import { FormField, PasswordInput } from "../components/FormControls";
+import { InlineNotice, PageHeader } from "../components/UIState";
 
 export default function Login() {
   const { refresh } = useAuth();
@@ -27,14 +29,16 @@ export default function Login() {
   };
 
   return (
-    <div className="max-w-md mx-auto px-4 md:px-0 py-16" data-testid="login-page">
-      <div className="text-[#D4AF37] font-mono text-xs uppercase tracking-[0.3em]">
-        Log in
-      </div>
-      <h1 className="text-3xl font-bold uppercase text-white mt-2">Welcome back</h1>
+    <div className="max-w-md mx-auto px-4 md:px-0 py-12 md:py-16" data-testid="login-page">
+      <PageHeader
+        eyebrow="Account"
+        title="Welcome back"
+        description="Log in to save scores, post updates, follow creators, and publish games."
+      />
       <form onSubmit={submit} className="mt-8 space-y-4">
-        <Field label="Username">
+        <FormField id="login-username" label="Username">
           <input
+            id="login-username"
             data-testid="login-username"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
@@ -42,49 +46,35 @@ export default function Login() {
             autoComplete="username"
             required
           />
-        </Field>
-        <Field label="Password">
-          <input
+        </FormField>
+        <FormField id="login-password" label="Password">
+          <PasswordInput
+            id="login-password"
             data-testid="login-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            type="password"
-            className="input"
             autoComplete="current-password"
             required
           />
-        </Field>
+        </FormField>
         {err && (
-          <div className="text-[#FF3B30] text-sm font-mono" data-testid="login-error">
-            {err}
-          </div>
+          <InlineNotice tone="error" testId="login-error">{err}</InlineNotice>
         )}
         <button
           type="submit"
           disabled={loading}
           data-testid="login-submit"
-          className="w-full h-12 bg-[#D4AF37] text-black font-bold uppercase tracking-wider hover:bg-[#E5C158] disabled:opacity-50"
+          className="btn-primary w-full h-12"
         >
           {loading ? "Logging in..." : "Log in"}
         </button>
       </form>
       <div className="text-[#A1A1AA] text-sm mt-6">
         New here?{" "}
-        <Link to="/onboarding" className="text-[#D4AF37] underline">
+        <Link to="/onboarding" className="text-[#D4AF37] hover:text-[#F1D77A] underline">
           Create an account
         </Link>
       </div>
     </div>
-  );
-}
-
-function Field({ label, children }) {
-  return (
-    <label className="block">
-      <div className="text-[#52525B] font-mono text-xs uppercase tracking-[0.2em] mb-2">
-        {label}
-      </div>
-      {children}
-    </label>
   );
 }

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Heart, LockKeyhole, Sparkles, X } from "lucide-react";
 import { postJSON } from "../lib/api";
 
@@ -9,9 +9,31 @@ export default function DonateButton({ variant = "nav", className = "" }) {
   const [amount, setAmount] = useState("15");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
+  const closeRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const previous = document.activeElement;
+    const onKey = (event) => {
+      if (event.key === "Escape" && !busy) setOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    document.body.style.overflow = "hidden";
+    window.setTimeout(() => closeRef.current?.focus(), 0);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = "";
+      previous?.focus?.();
+    };
+  }, [busy, open]);
 
   const submit = async (e) => {
     e.preventDefault();
+    const numericAmount = Number(amount);
+    if (!Number.isFinite(numericAmount) || numericAmount < 1 || numericAmount > 10000) {
+      setErr("Enter an amount from $1 to $10,000.");
+      return;
+    }
     setBusy(true);
     setErr(null);
     try {
@@ -36,7 +58,10 @@ export default function DonateButton({ variant = "nav", className = "" }) {
       <button
         type="button"
         data-testid={`donate-open-${variant}`}
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          setErr(null);
+          setOpen(true);
+        }}
         className={`${buttonClass} ${className}`}
       >
         <Heart className="w-4 h-4" /> {label}
@@ -48,9 +73,11 @@ export default function DonateButton({ variant = "nav", className = "" }) {
           aria-labelledby="donate-title"
           data-testid="donate-dialog"
           className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center px-4"
+          onMouseDown={() => !busy && setOpen(false)}
         >
-          <div className="relative w-full max-w-md border border-[#2A2410] bg-[#050505] shadow-2xl shadow-[#D4AF37]/10">
+          <div className="relative w-full max-w-md border border-[#2A2410] bg-[#050505] shadow-2xl shadow-[#D4AF37]/10" onMouseDown={(event) => event.stopPropagation()}>
             <button
+              ref={closeRef}
               type="button"
               aria-label="Close donation dialog"
               onClick={() => setOpen(false)}
@@ -91,6 +118,7 @@ export default function DonateButton({ variant = "nav", className = "" }) {
                     <span className="pl-4 text-[#D4AF37] font-bold">$</span>
                     <input
                       data-testid="donate-amount"
+                      type="number"
                       value={amount}
                       onChange={(e) => setAmount(e.target.value)}
                       inputMode="decimal"
@@ -98,6 +126,7 @@ export default function DonateButton({ variant = "nav", className = "" }) {
                       max="10000"
                       step="0.01"
                       required
+                      aria-invalid={!!err}
                       className="w-full bg-transparent px-2 h-12 text-white outline-none font-mono"
                     />
                   </div>

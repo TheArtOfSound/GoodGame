@@ -1,7 +1,14 @@
 // @ts-check
 import { defineConfig } from "@playwright/test";
+import { existsSync } from "node:fs";
 
 const BASE = process.env.PLAYWRIGHT_BASE_URL || "http://localhost:3000";
+const browserCandidates = [
+  process.env.PLAYWRIGHT_EXECUTABLE_PATH,
+  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  "/usr/bin/google-chrome",
+].filter(Boolean);
+const executablePath = browserCandidates.find((path) => existsSync(path));
 
 export default defineConfig({
   testDir: "./e2e",
@@ -26,10 +33,7 @@ export default defineConfig({
       name: "chromium",
       use: {
         channel: "chromium",
-        // Use system chrome to avoid downloading browsers in CI
-        launchOptions: {
-          executablePath: "/usr/bin/google-chrome",
-        },
+        launchOptions: executablePath ? { executablePath } : undefined,
       },
     },
   ],

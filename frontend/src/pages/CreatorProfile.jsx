@@ -5,8 +5,9 @@ import GameCard from "../components/GameCard";
 import FollowButton from "../components/FollowButton";
 import SEO from "../components/SEO";
 import { BACKEND_URL } from "../lib/config";
-const BANNER_FALLBACK =
-  "https://images.unsplash.com/photo-1718844054440-22acf5d5c8f0?crop=entropy&cs=srgb&fm=jpg&w=1600&q=70";
+import { Film, Gamepad2 } from "lucide-react";
+import { EmptyState, ErrorState, PageLoader } from "../components/UIState";
+import Avatar from "../components/Avatar";
 
 export default function CreatorProfile() {
   const { username } = useParams();
@@ -24,13 +25,23 @@ export default function CreatorProfile() {
 
   if (err)
     return (
-      <div className="px-8 py-20 text-center" data-testid="creator-not-found">
-        <h1 className="text-2xl font-bold uppercase text-white">Creator not found</h1>
+      <div className="max-w-3xl mx-auto px-4 py-20" data-testid="creator-not-found">
+        <ErrorState
+          title="Creator not found"
+          body="This profile may have been renamed or removed."
+          action={<Link to="/creators" className="btn-secondary">Browse creators</Link>}
+        />
       </div>
     );
-  if (!data) return <div className="px-8 py-10 text-[#52525B]">Loading...</div>;
+  if (!data) return <PageLoader label="Loading creator" />;
 
   const { creator, games, clips, is_self, is_following } = data;
+  const firstGameCover = games.find((game) => game.cover_image)?.cover_image;
+  const bannerSrc = creator.banner
+    ? `${BACKEND_URL}${creator.banner}`
+    : firstGameCover
+      ? `${BACKEND_URL}${firstGameCover}`
+      : "/game-covers/voidline-survivor.webp";
 
   return (
     <div data-testid="creator-profile">
@@ -43,23 +54,20 @@ export default function CreatorProfile() {
       />
       <div className="relative h-44 md:h-56 border-b border-[#1A1A1A] overflow-hidden">
         <img
-          src={creator.banner ? `${BACKEND_URL}${creator.banner}` : BANNER_FALLBACK}
+          src={bannerSrc}
           alt=""
-          className="w-full h-full object-cover opacity-50"
+          className="w-full h-full object-cover opacity-45"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black to-transparent" />
       </div>
       <div className="max-w-7xl mx-auto px-4 md:px-8 -mt-16 relative">
         <div className="flex items-end gap-5 flex-wrap">
-          <div className="w-28 h-28 bg-[#0A0A0A] border-2 border-[#D4AF37]">
-            {creator.avatar ? (
-              <img src={`${BACKEND_URL}${creator.avatar}`} alt="" className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-[#D4AF37] font-black text-3xl uppercase">
-                {creator.username[0]}
-              </div>
-            )}
-          </div>
+          <Avatar
+            value={creator.avatar}
+            name={creator.display_name || creator.username}
+            className="w-28 h-28 border-2 border-[#D4AF37]"
+            textClassName="text-3xl"
+          />
           <div className="flex-1 min-w-0">
             <h1 className="text-2xl md:text-3xl font-bold uppercase text-white tracking-tight">
               {creator.display_name}
@@ -99,12 +107,15 @@ export default function CreatorProfile() {
           <p className="text-[#A1A1AA] mt-4 max-w-2xl leading-relaxed">{creator.bio}</p>
         )}
 
-        <div className="mt-8 border-b border-[#1A1A1A] flex gap-6">
+        <div className="mt-8 border-b border-[#1A1A1A] flex gap-6" role="tablist" aria-label="Creator content">
           {["games", "clips"].map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
               data-testid={`creator-tab-${t}`}
+              role="tab"
+              aria-selected={tab === t}
+              aria-controls={`creator-panel-${t}`}
               className={`uppercase font-mono text-xs tracking-[0.2em] py-3 border-b-2 -mb-px ${
                 tab === t
                   ? "border-[#D4AF37] text-[#D4AF37]"
@@ -118,22 +129,32 @@ export default function CreatorProfile() {
 
         {tab === "games" ? (
           games.length === 0 ? (
-            <div className="text-[#A1A1AA] py-8" data-testid="creator-games-empty">
-              No games yet.
-            </div>
+            <EmptyState
+              className="mt-6"
+              icon={Gamepad2}
+              testId="creator-games-empty"
+              title="No published games"
+              body={is_self ? "Create or upload a game to start your public catalog." : "This creator has not published a game yet."}
+              action={is_self ? <Link to="/create" className="btn-primary">Create a game</Link> : null}
+            />
           ) : (
-            <div className="mt-6 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 md:gap-4">
+            <div id="creator-panel-games" role="tabpanel" className="mt-6 game-grid">
               {games.map((g) => (
                 <GameCard key={g.id} game={g} />
               ))}
             </div>
           )
         ) : clips.length === 0 ? (
-          <div className="text-[#A1A1AA] py-8" data-testid="creator-clips-empty">
-            No clips yet.
-          </div>
+          <EmptyState
+            className="mt-6"
+            icon={Film}
+            testId="creator-clips-empty"
+            title="No clips published"
+            body={is_self ? "Upload a gameplay moment to add it to your profile." : "This creator has not shared a clip yet."}
+            action={is_self ? <Link to="/clips" className="btn-secondary">Upload a clip</Link> : null}
+          />
         ) : (
-          <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div id="creator-panel-clips" role="tabpanel" className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
             {clips.map((c) => (
               <Link
                 key={c.id}

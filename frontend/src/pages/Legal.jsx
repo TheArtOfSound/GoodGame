@@ -12,9 +12,7 @@ const PAGES = {
 5. Sandboxing. Uploaded games run in a sandboxed iframe. Attempts to escape that sandbox, exfiltrate session cookies, fingerprint users, or run miners are prohibited.
 6. Termination. We may suspend or remove content and accounts that violate these terms.
 7. Disclaimer. The service is provided "as is" without warranty. We are not liable for indirect damages.
-8. Updates. We may update these terms. Continued use after an update constitutes acceptance.
-
-This page is a baseline policy. Production launches should be reviewed by counsel.`,
+8. Updates. We may update these terms. Continued use after an update constitutes acceptance.`,
   },
   privacy: {
     title: "Privacy Policy",
@@ -34,9 +32,7 @@ How content is served.
 - Cookies are HttpOnly, SameSite=Lax, Secure over HTTPS, and host-scoped.
 
 Your controls.
-- You can delete your uploads and request account deletion by contacting safety@goodgame.center.
-
-This page is a baseline policy. Production launches should be reviewed by counsel.`,
+- You can delete your uploads and request account deletion by contacting safety@goodgame.center.`,
   },
   dmca: {
     title: "DMCA & Copyright Policy",
@@ -51,9 +47,7 @@ Send notices to: copyright@goodgame.center.
 
 Counter notices. If your content was removed and you believe it was a mistake, you may submit a counter notice with the same elements above plus consent to jurisdiction.
 
-Repeat infringers. Accounts that receive multiple valid notices will be terminated.
-
-This page is a baseline policy. Production launches should be reviewed by counsel.`,
+Repeat infringers. Accounts that receive multiple valid notices will be terminated.`,
   },
   content: {
     title: "Content Policy & Community Guidelines",
@@ -72,9 +66,7 @@ Moderation.
 - Reports can be filed via the report button on most content.
 - Reported content may be reviewed and removed.
 
-Repeat infringer policy. Accounts that repeatedly violate this policy will be permanently removed.
-
-This page is a baseline policy. Production launches should be reviewed by counsel.`,
+Repeat infringer policy. Accounts that repeatedly violate this policy will be permanently removed.`,
   },
 };
 
@@ -100,7 +92,7 @@ export default function Legal() {
         {page.body}
       </div>
       <div className="mt-12 border-t border-[#1A1A1A] pt-6 text-[#52525B] font-mono text-xs uppercase tracking-[0.2em]">
-        Last updated: 2026
+        Last updated: June 25, 2026
       </div>
     </article>
   );

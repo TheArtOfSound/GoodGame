@@ -4,7 +4,7 @@ export type Env = {
   DB: D1Database;
   UGC: R2Bucket;
   KV: KVNamespace;
-  ASSETS?: { fetch: typeof fetch };
+  ASSETS: Fetcher;
   AI?: { run(model: string, input: any): Promise<any> };
   BROWSER?: any;
   SITE_URL: string;
@@ -36,6 +36,7 @@ export type Game = {
   embed_url?: string | null; embed_verified?: number; embed_token?: string | null; embed_checked_at?: string | null;
   price_amount?: string | null; price_token?: string | null; pay_chain?: string | null; pay_to?: string | null;
   cover_image?: string | null;
+  seo_title?: string | null; seo_description?: string | null; search_keywords?: string | null;
 };
 export type Clip = {
   id: string; slug: string; caption: string; tags: string; duration: number;
@@ -152,15 +153,18 @@ export const ld = (obj: unknown): string =>
 
 export const gameLd = (env: Env, g: Game) => ({
   '@context': 'https://schema.org',
-  '@type': 'SoftwareApplication',
+  '@type': 'VideoGame',
   name: g.title,
-  applicationCategory: 'GameApplication',
-  operatingSystem: csv(g.platforms).join(', ') || 'Web',
-  description: g.pitch || g.description,
+  description: g.seo_description || g.pitch || g.description,
   url: `${env.SITE_URL}/games/${g.slug}`,
   image: `${env.SITE_URL}/og/game/${g.slug}.svg`,
+  genre: csv(g.tags),
+  gamePlatform: csv(g.platforms).length ? csv(g.platforms) : ['Web Browser'],
+  playMode: 'SinglePlayer',
+  isAccessibleForFree: g.price_cents === 0,
   ...(g.owner_name ? {
     author: { '@type': 'Organization', name: g.owner_name, url: `${env.SITE_URL}/creators/${g.owner_username}` },
+    publisher: { '@type': 'Organization', name: g.owner_name, url: `${env.SITE_URL}/creators/${g.owner_username}` },
   } : {}),
   ...(g.rating_count > 0 ? {
     aggregateRating: { '@type': 'AggregateRating', ratingValue: g.rating_avg, ratingCount: g.rating_count, bestRating: 5 },

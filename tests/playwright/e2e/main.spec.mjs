@@ -65,7 +65,10 @@ async function signup(page, baseURL) {
   await page.getByTestId("onb-password").fill("test-password-123");
   await page.getByTestId("onb-pin").fill("1234");
   await page.getByTestId("onb-submit").click();
-  await page.waitForURL(new RegExp(`/creators/${username}`), { timeout: 15_000 });
+  await page.waitForURL(/\/feed\?welcome=1$/, { timeout: 15_000 });
+  await expect(page.getByTestId("welcome-panel")).toBeVisible();
+  await page.goto(`${baseURL}/creators/${username}`);
+  await expect(page.getByTestId("creator-profile")).toBeVisible();
   return username;
 }
 
@@ -98,7 +101,9 @@ test("e2e: signup → upload zip → thumbnail → clip → follow → community
   await page.getByTestId("create-tags").fill("e2e, test");
   await page.getByTestId("create-build").setInputFiles(zipPath);
   await page.getByTestId("create-submit").click();
-  // Lands on /console/<slug>
+  await expect(page.getByTestId("compat-report")).toBeVisible({ timeout: 20_000 });
+  await page.getByTestId("compat-continue").click();
+  // Lands on /console/<slug> after the compatibility report.
   await page.waitForURL(/\/console\/.+/, { timeout: 20_000 });
   const slug = new URL(page.url()).pathname.split("/").pop();
 
@@ -164,6 +169,8 @@ test("e2e: signup → upload zip → thumbnail → clip → follow → community
   await expect(page.getByTestId("community-moderation")).toBeVisible();
   await expect(page.getByTestId(`member-row-${userB}`)).toBeVisible();
   await page.getByTestId(`ban-${userB}`).click();
+  await expect(page.getByRole("alertdialog")).toBeVisible();
+  await page.getByRole("button", { name: "Ban member" }).click();
   await expect(page.getByTestId(`unban-${userB}`)).toBeVisible({ timeout: 8_000 });
   await page.getByTestId(`unban-${userB}`).click();
   await expect(page.getByTestId(`ban-${userB}`)).toBeVisible({ timeout: 8_000 });

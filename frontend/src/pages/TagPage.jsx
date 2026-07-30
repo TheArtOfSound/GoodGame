@@ -3,16 +3,21 @@ import { Link, useParams } from "react-router-dom";
 import { getJSON } from "../lib/api";
 import GameCard from "../components/GameCard";
 import SEO from "../components/SEO";
+import { Hash } from "lucide-react";
+import { EmptyState, ErrorState, GridSkeleton, PageHeader } from "../components/UIState";
 
 export default function TagPage() {
   const { tag } = useParams();
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     setLoading(true);
+    setError(false);
     getJSON(`/tags/${encodeURIComponent(tag)}`)
       .then((d) => setGames(d.games || []))
+      .catch(() => setError(true))
       .finally(() => setLoading(false));
   }, [tag]);
 
@@ -23,24 +28,21 @@ export default function TagPage() {
         description={`Browse browser games tagged #${tag} on GoodGame.center.`}
         path={`/tags/${tag}`}
       />
-      <div className="text-[#52525B] font-mono text-xs uppercase tracking-[0.2em]">
-        Tag
-      </div>
-      <h1 className="text-3xl md:text-4xl font-bold uppercase tracking-tight text-white">
-        #{tag}
-      </h1>
-      <Link to="/games" className="text-[#D4AF37] font-mono text-xs uppercase tracking-[0.2em] hover:underline mt-2 inline-block">
-        Browse all games &rarr;
-      </Link>
+      <PageHeader
+        eyebrow="Tag"
+        title={`#${tag}`}
+        description={`${games.length || "Browser"} game${games.length === 1 ? "" : "s"} connected to this topic.`}
+        actions={<Link to="/games" className="btn-secondary">Browse all games</Link>}
+      />
 
       {loading ? (
-        <div className="text-[#52525B] mt-8">Loading...</div>
+        <div className="mt-8"><GridSkeleton count={6} /></div>
+      ) : error ? (
+        <ErrorState className="mt-8" title="Tag could not load" body="Return to the full catalog and try again." />
       ) : games.length === 0 ? (
-        <div className="text-[#A1A1AA] border border-dashed border-[#1A1A1A] p-8 mt-8 text-center" data-testid="tag-empty">
-          No games tagged #{tag} yet.
-        </div>
+        <EmptyState className="mt-8" icon={Hash} testId="tag-empty" title={`No #${tag} games yet`} body="This tag will become browsable when creators publish matching games." />
       ) : (
-        <div className="mt-8 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 md:gap-4">
+        <div className="mt-8 game-grid">
           {games.map((g) => (
             <GameCard key={g.id} game={g} />
           ))}

@@ -5,7 +5,7 @@ import { fmtCount, initials, csv, ld, siteLd, gameLd, breadcrumbLd } from './lib
 import { CSS } from './styles';
 import { page } from './components';
 import { ogCard, favicon } from './og';
-import { playDoc, TEMPLATE_IDS } from './play';
+import { playDoc } from './play';
 import { ingestZip } from './ingest';
 import { analyzeAndPrepare, type CompatReport } from './compat';
 import { normalizeEmbedUrl, fetchForEmbed, wellKnownVerified, newEmbedToken } from './embed';
@@ -22,7 +22,7 @@ import { Home } from './views/home';
 import { GamesDirectory, GamePage, PlayPage } from './views/games';
 import { CreatorsDirectory, CreatorPage, ClipsDirectory, ClipPage } from './views/people';
 import { CommunitiesDirectory, CommunityPage, ArenaPage, EventPage } from './views/community';
-import { NewsDirectory, ArticlePage, SearchPage, DocsPage, Shell, NotFound } from './views/news';
+import { NewsDirectory, ArticlePage, SearchPage, DocsPage, NotFound } from './views/news';
 import { CreatePage } from './views/create';
 
 const app = new Hono<{ Bindings: Env }>();
@@ -107,6 +107,7 @@ const shouldNoindexHeader = (path: string) => {
 const FRONTEND_PATHS = [
   /^\/$/, /^\/games(?:\/.*)?$/, /^\/clips(?:\/.*)?$/, /^\/communities(?:\/.*)?$/,
   /^\/creators(?:\/.*)?$/, /^\/tags(?:\/.*)?$/, /^\/legal(?:\/.*)?$/,
+  /^\/activity$/, /^\/leaderboards$/,
   /^\/admin$/, /^\/login$/, /^\/onboarding$/, /^\/settings$/, /^\/create$/,
   /^\/console(?:\/.*)?$/, /^\/search$/, /^\/forge(?:\/.*)?$/, /^\/feed$/, /^\/news(?:\/.*)?$/,
 ];
@@ -129,19 +130,11 @@ const sitemapIndex = (env: Env) => {
 const sitemapUrlset = (urls: string[]) =>
   `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.join('')}</urlset>`;
 const indexNowKey = (env: Env) => env.INDEXNOW_KEY || INDEXNOW_FALLBACK_KEY;
-// Fallback only — the live hashes are read from /asset-manifest.json via the
-// ASSETS binding at request time. Kept current so a manifest read failure still
-// serves a valid bundle instead of a stale hash (which the SPA fallback would
-// answer with index.html, breaking the page).
-const DEFAULT_FRONTEND_ASSETS = {
-  js: '/static/js/main.3238cc37.js',
-  css: '/static/css/main.811a70d5.css',
-};
-
 type ShellMeta = {
   title: string;
   description: string;
   path: string;
+  heading?: string;
   image?: string;
   type?: string;
   noindex?: boolean;
@@ -152,7 +145,7 @@ const shellRobots = (meta: ShellMeta) => meta.noindex
   ? 'noindex,nofollow'
   : 'index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1';
 const publicShellMeta = async (env: Env, path: string): Promise<{ meta: ShellMeta; status?: number }> => {
-  const base = (title: string, description: string, route = path, noindex = false): ShellMeta => ({ title, description, path: route, noindex });
+  const base = (title: string, description: string, route = path, noindex = false, heading?: string): ShellMeta => ({ title, description, path: route, noindex, heading });
   if (path === '/') {
     return { meta: { ...base('GoodGame.center — Free Browser Games, Creators, Clips, and Communities', 'Play free browser games, discover indie creators, watch game clips, join communities, and publish your own HTML5 game on GoodGame.center.', '/'), jsonld: [siteLd(env)] } };
   }
@@ -161,6 +154,8 @@ const publicShellMeta = async (env: Env, path: string): Promise<{ meta: ShellMet
   if (path === '/clips') return { meta: base('GoodGame Clips — Gameplay Moments from Indie Browser Games', 'Watch short gameplay clips from GoodGame.center creators, including arcade runs, speed tech, scares, builds, and browser-game highlights.', '/clips') };
   if (path === '/communities') return { meta: base('GoodGame Communities — Indie Game Hubs and Creator Spaces', 'Join public communities around browser games, creators, game jams, genres, clips, and player-made worlds on GoodGame.center.', '/communities') };
   if (path === '/creators') return { meta: base('GoodGame Creators — Browser Games, Clips, and Communities', 'Discover indie creators publishing browser games, gameplay clips, updates, and communities on GoodGame.center.', '/creators') };
+  if (path === '/activity') return { meta: base('Global Gaming Activity — Scores, Releases, Clips, and Posts', 'Follow real-time public activity from GoodGame.center: new browser games, player posts, gameplay clips, and persistent leaderboard scores.', '/activity', false, 'Global gaming activity') };
+  if (path === '/leaderboards') return { meta: base('Browser Game Leaderboards — Global High Scores', 'View persistent player high scores and current champions across free browser games on GoodGame.center.', '/leaderboards', false, 'Browser game leaderboards') };
   if (path === '/admin') return { meta: base('Admin · GoodGame.center', 'Private moderation access for GoodGame.center operators.', '/admin', true) };
   if (path === '/search') return { meta: base('Search · GoodGame.center', 'Search games, creators, and communities on GoodGame.center.', '/search', true) };
   if (path === '/feed') return { meta: base('Your feed · GoodGame.center', 'Activity from the creators you follow on GoodGame.center.', '/feed', true) };
@@ -188,8 +183,18 @@ const publicShellMeta = async (env: Env, path: string): Promise<{ meta: ShellMet
     return { meta: base(`${label} · GoodGame.center`, `${label} for GoodGame.center players, creators, games, clips, and communities.`, path) };
   }
   if (path.startsWith('/tags/')) {
-    const tag = decodeURIComponent(path.slice('/tags/'.length));
-    return { meta: base(`#${tag} Browser Games · GoodGame.center`, `Browse real GoodGame.center games tagged ${tag}. Thin tag pages stay out of the sitemap until they have enough public content.`, path, true) };
+    const tag = decodeURIComponent(path.slice('/tags/'.length)).toLowerCase();
+    const matches = (await db.listGames(env, { limit: 120 })).filter((game) => csv(game.tags).includes(tag));
+    const noindex = matches.length < 5;
+    return {
+      meta: base(
+        `Play ${tag} Games Online · GoodGame.center`,
+        `Play ${matches.length} free browser games tagged ${tag}, with instant web play and creator pages on GoodGame.center.`,
+        path,
+        noindex,
+        `${tag} browser games`,
+      ),
+    };
   }
   const gameMatch = path.match(/^\/games\/([^/]+)(?:\/play)?$/);
   if (gameMatch && !['browser', 'godot', 'unity', 'unreal', 'windows'].includes(gameMatch[1])) {
@@ -198,9 +203,10 @@ const publicShellMeta = async (env: Env, path: string): Promise<{ meta: ShellMet
     const noindex = path.endsWith('/play');
     return {
       meta: {
-        title: `${g.title} — Play Free Browser Game on GoodGame.center`,
-        description: `Play ${g.title}${g.owner_name ? `, a browser game by ${g.owner_name}` : ''}. ${g.pitch || g.description || 'Launch instantly on GoodGame.center.'}`,
+        title: g.seo_title || `${g.title} — Play Free Browser Game on GoodGame.center`,
+        description: g.seo_description || `Play ${g.title}${g.owner_name ? `, a browser game by ${g.owner_name}` : ''}. ${g.pitch || g.description || 'Launch instantly on GoodGame.center.'}`,
         path: `/games/${g.slug}`,
+        heading: g.title,
         type: 'game',
         image: g.cover_image || `/og/game/${g.slug}.svg`,
         noindex,
@@ -254,42 +260,17 @@ const injectShellMeta = (html: string, env: Env, meta: ShellMeta) => {
     .replace(/<meta\s+name=["']description["'][^>]*>/i, '')
     .replace(/<head>/i, `<head>${head}`);
 };
-async function frontendAssets(c: any) {
-  try {
-    const url = new URL('/asset-manifest.json', c.req.url);
-    // Read through the assets binding (reliable) — a self-fetch can re-enter the
-    // Worker and miss the real manifest, which is what stranded the shell on a
-    // stale hash.
-    const res = c.env.ASSETS
-      ? await c.env.ASSETS.fetch(url)
-      : await fetch(url.toString(), { headers: { accept: 'application/json' } });
-    if (!res.ok) return DEFAULT_FRONTEND_ASSETS;
-    const manifest: any = await res.json();
-    return {
-      js: manifest?.files?.['main.js'] || DEFAULT_FRONTEND_ASSETS.js,
-      css: manifest?.files?.['main.css'] || DEFAULT_FRONTEND_ASSETS.css,
-    };
-  } catch {
-    return DEFAULT_FRONTEND_ASSETS;
-  }
-}
 async function reactShellDocument(c: any, meta: ShellMeta) {
-  // Prefer the real built index.html (always carries the correct hashed asset
-  // tags + inline runtime) and just inject SEO meta into it. This is immune to
-  // asset-hash changes between builds. Fall back to a constructed shell only if
-  // the assets binding is unavailable.
-  try {
-    if (c.env.ASSETS) {
-      const res = await c.env.ASSETS.fetch(new URL('/index.html', c.req.url));
-      if (res.ok) {
-        const real = await res.text();
-        if (real.includes('<div id="root">')) return injectShellMeta(real, c.env, meta);
-      }
-    }
-  } catch { /* fall through to the constructed shell */ }
-  const assets = await frontendAssets(c);
+  const fallbackHeading = meta.heading || meta.title.replace(/\s+[—·-]\s+.*$/, '');
+  const assetResponse = await c.env.ASSETS.fetch(new Request('https://assets.local/index.html'));
+  if (!assetResponse.ok) throw new Error(`React asset shell unavailable: ${assetResponse.status}`);
+  const assetHtml = await assetResponse.text();
+  const htmlWithFallback = assetHtml.replace(
+    '<div id="root"></div>',
+    `<div id="root"><main><h1>${escapeXml(fallbackHeading)}</h1><p>${escapeXml(meta.description)}</p></main></div>`,
+  );
   return injectShellMeta(
-    `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#000000"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@600&display=swap" rel="stylesheet"><link href="${escapeXml(assets.css)}" rel="stylesheet"><script defer src="${escapeXml(assets.js)}"></script></head><body><noscript>You need to enable JavaScript to run this app.</noscript><div id="root"></div></body></html>`,
+    htmlWithFallback,
     c.env,
     meta,
   );
@@ -461,6 +442,14 @@ const cleanTags = (s: unknown) => String(s ?? '').split(',').map((t) => t.trim()
 const cleanText = (s: unknown, max: number) => String(s ?? '').trim().slice(0, max);
 const cleanSlugWithSuffix = (s: string) => `${cleanSlug(s)}-${Math.random().toString(36).slice(2, 6)}`;
 const safeId = () => crypto.randomUUID().replace(/-/g, '').slice(0, 12);
+const rateGate = async (env: Env, key: string, limit: number, windowSeconds: number) => {
+  const bucket = Math.floor(Date.now() / 1000 / windowSeconds);
+  const kvKey = `rl:${key}:${bucket}`;
+  const current = Number(await env.KV.get(kvKey) || '0');
+  if (current >= limit) return false;
+  await env.KV.put(kvKey, String(current + 1), { expirationTtl: windowSeconds + 30 });
+  return true;
+};
 const mediaExt = (f: File, fallback = 'bin') => {
   const ct = (f.type || '').toLowerCase();
   if (ct === 'image/png') return 'png';
@@ -592,6 +581,33 @@ app.post('/api/logout', async (c) => {
 app.post('/api/login', async (c) => authJson(await loginPassword(c, await c.req.json().catch(() => ({}))), c));
 app.post('/api/onboarding', async (c) => authJson(await onboardPassword(c, await c.req.json().catch(() => ({}))), c));
 
+app.get('/api/feed/global', async (c) => {
+  const limit = Math.min(Math.max(Number(c.req.query('limit') || 40) || 40, 1), 80);
+  return c.json({ activity: await db.globalActivity(c.env, limit) });
+});
+
+app.post('/api/feed/posts', async (c) => {
+  const user = await getSession(c);
+  if (!user) return c.json({ detail: 'Log in before posting.' }, 401);
+  if (!(await rateGate(c.env, `global-post:${user.id}`, 8, 600))) return c.json({ detail: 'Posting too quickly. Try again shortly.' }, 429);
+  const body = await c.req.json().catch(() => ({}));
+  const textBody = cleanText(body.body, 800);
+  if (!textBody) return c.json({ detail: 'Post body is required.' }, 400);
+  const gameSlug = cleanText(body.game_slug, 80);
+  const game = gameSlug ? await db.getGame(c.env, gameSlug) : null;
+  const id = 'post_' + safeId();
+  await c.env.DB.prepare(
+    `INSERT INTO posts (id, author_id, game_id, type, body, visibility, moderation_status)
+     VALUES (?, ?, ?, 'status', ?, 'public', 'clear')`
+  ).bind(id, user.id, game?.id || null, textBody).run();
+  return c.json({ ok: true, id });
+});
+
+app.get('/api/leaderboards', async (c) => {
+  const limit = Math.min(Math.max(Number(c.req.query('limit') || 18) || 18, 1), 60);
+  return c.json({ leaders: await db.globalLeaderboard(c.env, limit) });
+});
+
 app.get('/api/games', async (c) => {
   const limit = Math.min(Number(c.req.query('limit') || 60) || 60, 120);
   const games = await db.listGames(c.env, { sort: c.req.query('sort') || undefined, limit });
@@ -658,8 +674,15 @@ app.post('/api/games', async (c) => {
 app.get('/api/games/:slug', async (c) => {
   const g = await db.getGame(c.env, c.req.param('slug'));
   if (!g) return c.json({ detail: 'Game not found' }, 404);
-  const releases = await db.gameReleases(c.env, g.id);
-  return c.json({ game: apiGame(g), releases: releases.map(apiRelease) });
+  const user = await getSession(c);
+  const [releases, leaderboard] = await Promise.all([
+    db.gameReleases(c.env, g.id),
+    db.gameLeaderboard(c.env, g.id, 25),
+  ]);
+  const personalBest = user
+    ? leaderboard.entries.find((entry: any) => entry.user_id === user.id) || null
+    : null;
+  return c.json({ game: apiGame(g), releases: releases.map(apiRelease), leaderboard, personal_best: personalBest });
 });
 app.post('/api/games/:slug/play', async (c) => {
   const g = await db.getGame(c.env, c.req.param('slug'));
@@ -698,6 +721,80 @@ app.post('/api/games/:slug/reviews', async (c) => {
   const avg = Math.round((agg?.avg || 0) * 10) / 10;
   await c.env.DB.prepare(`UPDATE games SET rating_avg=?, rating_count=? WHERE id=?`).bind(avg, agg?.count || 0, g.id).run();
   return c.json({ ok: true, summary: { avg, count: agg?.count || 0 } });
+});
+
+app.get('/api/games/:slug/leaderboard', async (c) => {
+  const g = await db.getGame(c.env, c.req.param('slug'));
+  if (!g || g.status !== 'published') return c.json({ detail: 'Game not found.' }, 404);
+  const limit = Math.min(Math.max(Number(c.req.query('limit') || 25) || 25, 1), 100);
+  const leaderboard = await db.gameLeaderboard(c.env, g.id, limit);
+  return c.json({ game: { id: g.id, slug: g.slug, title: g.title }, ...leaderboard });
+});
+
+app.post('/api/games/:slug/runs', async (c) => {
+  const user = await getSession(c);
+  if (!user) return c.json({ detail: 'Log in to submit leaderboard scores.' }, 401);
+  if (!(await rateGate(c.env, `game-run:${user.id}`, 80, 3600))) return c.json({ detail: 'Too many game runs. Try again later.' }, 429);
+  const g = await db.getGame(c.env, c.req.param('slug'));
+  if (!g || g.status !== 'published') return c.json({ detail: 'Game not found.' }, 404);
+  const config = await c.env.DB.prepare(
+    `SELECT enabled, max_run_ms FROM game_leaderboard_config WHERE game_id=?`
+  ).bind(g.id).first<{ enabled: number; max_run_ms: number }>();
+  if (!config?.enabled) return c.json({ detail: 'Leaderboard is not enabled for this game.' }, 404);
+  const body = await c.req.json().catch(() => ({}));
+  const runId = 'run_' + safeId() + safeId();
+  const maxRunMs = Math.min(Math.max(config.max_run_ms || 7200000, 60_000), 7_200_000);
+  const expiresAt = new Date(Date.now() + maxRunMs).toISOString();
+  await c.env.DB.prepare(
+    `INSERT INTO game_runs (id, game_id, user_id, status, started_at, expires_at, client_build)
+     VALUES (?, ?, ?, 'active', datetime('now'), ?, ?)`
+  ).bind(runId, g.id, user.id, expiresAt, cleanText(body.client_build, 40) || null).run();
+  return c.json({ ok: true, run_id: runId, expires_at: expiresAt });
+});
+
+app.post('/api/games/:slug/scores', async (c) => {
+  const user = await getSession(c);
+  if (!user) return c.json({ detail: 'Log in to submit leaderboard scores.' }, 401);
+  if (!(await rateGate(c.env, `game-score:${user.id}`, 120, 3600))) return c.json({ detail: 'Too many score submissions. Try again later.' }, 429);
+  const body = await c.req.json().catch(() => ({}));
+  const runId = cleanText(body.run_id, 80);
+  const score = Number(body.score);
+  if (!runId || !Number.isSafeInteger(score) || score < 0) return c.json({ detail: 'A valid run and non-negative integer score are required.' }, 400);
+  const g = await db.getGame(c.env, c.req.param('slug'));
+  if (!g || g.status !== 'published') return c.json({ detail: 'Game not found.' }, 404);
+  const run = await c.env.DB.prepare(
+    `SELECT r.*, cfg.min_run_ms, cfg.max_run_ms, cfg.max_score_per_run, cfg.score_mode
+     FROM game_runs r JOIN game_leaderboard_config cfg ON cfg.game_id=r.game_id AND cfg.enabled=1
+     WHERE r.id=? AND r.game_id=? AND r.user_id=?`
+  ).bind(runId, g.id, user.id).first<any>();
+  if (!run || run.status !== 'active') return c.json({ detail: 'This run is not active.' }, 409);
+  const startedAt = Date.parse(String(run.started_at).replace(' ', 'T') + 'Z');
+  const expiresAt = Date.parse(run.expires_at);
+  const elapsedMs = Date.now() - startedAt;
+  if (!Number.isFinite(startedAt) || !Number.isFinite(expiresAt) || Date.now() > expiresAt) {
+    await c.env.DB.prepare(`UPDATE game_runs SET status='expired' WHERE id=? AND status='active'`).bind(runId).run();
+    return c.json({ detail: 'This run expired.' }, 409);
+  }
+  if (elapsedMs < Number(run.min_run_ms || 0)) return c.json({ detail: 'Run ended too quickly to rank.' }, 422);
+  if (elapsedMs > Number(run.max_run_ms || 7200000)) return c.json({ detail: 'Run exceeded the ranking window.' }, 422);
+  if (score > Number(run.max_score_per_run || 1000000000)) return c.json({ detail: 'Score exceeds this game’s ranking limit.' }, 422);
+  const scoreId = 'score_' + safeId() + safeId();
+  const details = JSON.stringify({ duration_ms: Math.round(elapsedMs), client_duration_ms: Math.max(0, Math.round(Number(body.duration_ms) || 0)) });
+  try {
+    await c.env.DB.batch([
+      c.env.DB.prepare(
+        `INSERT INTO game_scores (id, game_id, user_id, run_id, score, details) VALUES (?, ?, ?, ?, ?, ?)`
+      ).bind(scoreId, g.id, user.id, runId, score, details),
+      c.env.DB.prepare(
+        `UPDATE game_runs SET status='submitted', submitted_at=datetime('now'), score=? WHERE id=? AND status='active'`
+      ).bind(score, runId),
+    ]);
+  } catch {
+    return c.json({ detail: 'This run was already submitted.' }, 409);
+  }
+  const leaderboard = await db.gameLeaderboard(c.env, g.id, 100);
+  const entry = leaderboard.entries.find((row: any) => row.user_id === user.id) || null;
+  return c.json({ ok: true, score, personal_best: entry, leaderboard: leaderboard.entries.slice(0, 25) });
 });
 app.post('/api/games/:slug/build', async (c) => {
   const owned = await requireGameOwner(c, c.req.param('slug'));
@@ -1512,9 +1609,7 @@ app.get('/search', async (c) => {
 app.get('/docs', (c) => c.redirect('/', 301));
 app.get('/docs/*', (c) => c.redirect('/', 301));
 
-// ---------- app placeholders (real pages, noindex) ----------
-const placeholder = (active: string | undefined, title: string, desc: string, path: string, body: any, noindex = true) =>
-  (c: any) => page(c, <Shell env={c.env} active={active} title={title} desc={desc} path={path} noindex={noindex}>{body}</Shell>);
+// ---------- legacy app aliases ----------
 
 // Wallet sign-in and crypto-payment routes were removed — the product is free
 // and no longer uses crypto identities. Password auth lives at /api/login,
@@ -1529,7 +1624,7 @@ app.post('/create', async (c) => {
   const description = clean(b.description, 1200);
   const tags = clean(b.tags, 80).split(',').map((t) => t.trim().toLowerCase().replace(/[^a-z0-9 -]/g, '')).filter(Boolean).slice(0, 6).join(',');
   const accent = /^#[0-9a-fA-F]{6}$/.test(String(b.accent)) ? String(b.accent) : '#6b93ff';
-  let template = TEMPLATE_IDS.includes(String(b.template)) ? String(b.template) : '';
+  let template = '';
   const values: Record<string, string> = { title, pitch, description, tags, accent, template };
   const fail = (msg: string) => page(c, <CreatePage env={c.env} error={msg} values={values} />);
   if (title.length < 2 || pitch.length < 4) return fail('Add a title (at least 2 characters) and a short pitch.');
@@ -1540,7 +1635,7 @@ app.post('/create', async (c) => {
   const id = 'gmu_' + Math.random().toString(36).slice(2, 10);
   const slug = (title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'game') + '-' + Math.random().toString(36).slice(2, 6);
 
-  // An uploaded build (real web/WebGL/Unity/Godot export) takes precedence over a template.
+  // New games must ship a real uploaded browser build through this legacy POST path.
   let uploadEntry: string | null = null, uploadBytes: number | null = null, engine = 'gg';
   const build = b.build;
   if (build instanceof File && build.size > 0) {
@@ -1556,6 +1651,8 @@ app.post('/create', async (c) => {
     uploadEntry = res.entry; uploadBytes = res.total; template = '';
     const paths = res.files.map((f) => f.path.toLowerCase()).join('\n');
     engine = paths.includes('.pck') ? 'godot' : (paths.includes('.data') || paths.includes('.unityweb') || paths.includes('.framework.js')) ? 'unity' : 'web';
+  } else {
+    return fail('Upload a zipped browser build with an index.html entrypoint.');
   }
 
   const ownerId = sessUser.id;
@@ -1568,23 +1665,16 @@ app.post('/create', async (c) => {
   ).bind('rel_' + id, id, uploadEntry ? 'Initial build uploaded to GoodGame.' : 'First release on GoodGame.').run();
   return c.redirect('/games/' + slug, 303);
 });
-app.get('/studio', placeholder('create', 'GG Studio', 'A serious creation suite: projects, scenes, assets, scripting, visual logic, and one-click publish into the same release pipeline.', '/studio',
-  <div class="notice">GG Studio is on the roadmap as a layered platform — web editor first, then native. See the build sequence in the product blueprint.</div>));
-app.get('/forge', placeholder('create', 'GG Forge', 'A UGC marketplace for mods, maps, templates, plugins, and assets — built for games that keep growing.', '/forge',
-  <div class="notice">GG Forge opens after the creator economy workstream. Items, manifests, dependencies, and compatibility are modeled now.</div>));
-app.get('/login', placeholder(undefined, 'Sign in', 'Sign in to GoodGame.center.', '/login',
-  <div class="panel" style="max-width:380px;padding:24px"><p class="muted" style="margin-bottom:14px">Email/password and OAuth (Google, Discord, Twitch, GitHub) land with the auth workstream. Sessions, 2FA, and device management are already in the schema.</p><a class="btn btn-primary btn-block" href="/">Continue browsing</a></div>));
-app.get('/signup', placeholder(undefined, 'Create your account', 'Join GoodGame.center.', '/signup',
-  <div class="panel" style="max-width:380px;padding:24px"><p class="muted" style="margin-bottom:14px">Account creation (email verification, username reservation, age declaration) is the first auth task. For now, explore the live catalog.</p><a class="btn btn-primary btn-block" href="/games">Explore games</a></div>));
-app.get('/dashboard', placeholder(undefined, 'Your dashboard', 'Profile, library, messages, and settings.', '/dashboard',
-  <div class="notice">This is a private surface (profile, library, messages, settings). It unlocks with auth.</div>));
+app.get('/studio', (c) => c.redirect('/create', 302));
+app.get('/signup', (c) => c.redirect('/onboarding', 302));
+app.get('/dashboard', (c) => c.redirect('/feed', 302));
 
 const SAFETY: Record<string, string> = {
-  '': 'Community guidelines, content policy, and how moderation works on GoodGame.center.',
-  dmca: 'Copyright, takedown, counter-notice, and repeat-infringer policy.',
-  ratings: 'Age and content ratings, mature filters, and how we gate prize and economy flows.',
-  privacy: 'What we collect, why, and your export/delete controls.',
-  terms: 'The rules of the road for using GoodGame.center.',
+  '': 'Read GoodGame.center community guidelines, browser-build isolation practices, reporting tools, content rules, and moderation policies.',
+  dmca: 'Read the GoodGame.center copyright policy, including takedown requests, counter-notices, repeat-infringer handling, and contact expectations.',
+  ratings: 'Learn how GoodGame.center labels game maturity, handles creator-provided content information, and applies age-sensitive community rules.',
+  privacy: 'Review what GoodGame.center stores for accounts, profiles, uploaded games, posts, clips, sessions, and scores, plus available account controls.',
+  terms: 'Review the rules for using GoodGame.center as a player or creator, including acceptable uploads, public content, accounts, moderation, and platform access.',
 };
 // Legacy trust/safety SSR pages → the React /legal pages.
 app.get('/safety', (c) => c.redirect('/legal/terms', 301));
@@ -1656,7 +1746,8 @@ Sitemap: ${c.env.SITE_URL}/sitemap-index.xml
 
 const staticSitemapPaths = [
   '/', '/games', '/games/browser', '/clips', '/communities', '/creators', '/news',
-  '/legal/terms', '/legal/privacy', '/legal/dmca',
+  '/activity', '/leaderboards',
+  '/legal/terms', '/legal/privacy', '/legal/dmca', '/legal/content',
   ...newsSlugs().map((s) => `/news/${s}`),
 ];
 
@@ -1693,25 +1784,25 @@ app.get(`/${INDEXNOW_FALLBACK_KEY}.txt`, (c) => text(indexNowKey(c.env), 'text/p
 app.get('/llms.txt', (c) => text(
 `# GoodGame.center
 
-> An instant browser arcade and creator upload lab: play web games immediately, publish zipped web builds, and layer clips, communities, events, wallet features, and creator tools around the playable core.
+> A browser-game platform where players can play instantly and creators can publish zipped HTML5 builds.
 
 ## What this site is
-GoodGame.center is a web-native arcade layer where the first loop is simple: open a game, play it in the browser, and share it. Creator uploads turn a zipped web export into a hosted playable page, with clips, communities, events, and monetization layered on top.
+GoodGame.center hosts first-party and creator-published browser games with public creator profiles, clips, communities, social posts, reviews, and persistent leaderboards.
 
 ## Public content
-- /games — game catalog (browser, native, cloud-streamed). Canonical game pages at /games/{slug}
+- /games — browser-game catalog. Canonical game pages at /games/{slug}
 - /creators — creator profiles at /creators/{username}
 - /clips — shareable gameplay clips at /clips/{id}-{slug}
-- /community — public community hubs at /community/{slug}
-- /arena — tournaments, jams, leagues; events at /arena/events/{slug}
+- /communities — public community hubs at /communities/{slug}
+- /activity — public game, post, clip, and leaderboard activity
+- /leaderboards — current authenticated high scores across ranked games
 - /news — newsroom, guides, and creator spotlights at /news/{slug}
-- /docs — creator and SDK documentation
 
 ## For creators
-Publish browser-first games by uploading a zipped web build that contains index.html. Every release is versioned and designed to expose trust surfaces such as scan status, report tools, structured metadata, and a shareable URL.
+Publish browser-first games by uploading a zipped web build that contains index.html. Public releases receive a playable page, version notes, reviews, creator attribution, and a shareable URL.
 
 ## Crawling
-Public entity pages are server-rendered with canonical URLs and schema.org structured data. Private surfaces (/dashboard, /create, /admin, /login, /search) are not indexed. See /robots.txt and /sitemap.xml.
+Public pages provide crawlable fallback content, canonical URLs, metadata, and structured data where applicable. Private surfaces (/create, /admin, /login, /search, /console) are not indexed. See /robots.txt and /sitemap.xml.
 
 ## Not available to crawlers
 User dashboards, the creator console, admin tools, auth flows, search result pages, internal APIs, and isolated game-play runtimes.

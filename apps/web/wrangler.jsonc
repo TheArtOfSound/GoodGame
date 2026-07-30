@@ -2,7 +2,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "goodgame-web",
   "main": "src/index.tsx",
-  "compatibility_date": "2026-06-01",
+  "compatibility_date": "2026-06-25",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
   "assets": {
@@ -13,6 +13,7 @@
       "/api/*",
       "/",
       "/admin",
+      "/activity",
       "/clips",
       "/clips/*",
       "/communities",
@@ -24,6 +25,7 @@
       "/creators/*",
       "/games",
       "/games/*",
+      "/leaderboards",
       "/healthz",
       "/legal/*",
       "/login",
@@ -59,7 +61,8 @@
     { "pattern": "www.goodgame.center/*", "zone_name": "goodgame.center" }
   ],
   "observability": {
-    "enabled": true
+    "enabled": true,
+    "head_sampling_rate": 0.1
   },
   "d1_databases": [
     {

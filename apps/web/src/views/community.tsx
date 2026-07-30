@@ -47,7 +47,7 @@ export function CommunityPage(props: { env: Env; c: Community; events: EventRow[
               <div class="row" style="gap:10px"><Avatar name={c.owner_name} accent={c.accent} size={32} /><b>{c.owner_name}</b><span class="badge">owner</span></div>
               <p class="muted" style="margin-top:12px">Welcome to {c.name}. {c.rules}</p>
             </div>
-            <div class="empty" style="margin-top:18px">Posts and discussions appear here once the social workstream is live — the structure, roles, and moderation are already in the data model.</div>
+            <div class="empty" style="margin-top:18px">No public posts yet. Join the community to start the conversation.</div>
           </div>
           <aside class="gp-aside">
             <div class="panel" style="padding:18px"><b>Community rules</b><p class="muted" style="font-size:13.5px;margin-top:8px">{c.rules}</p></div>
@@ -132,7 +132,7 @@ export function EventPage(props: { env: Env; e: EventRow }) {
           <div>
             <section style="margin-top:0"><h2 style="font-size:21px;margin-bottom:12px">About this event</h2><div class="prose"><p>{e.description}</p></div></section>
             <section class="block"><h2 style="font-size:21px;margin-bottom:12px">Rules & eligibility</h2><div class="panel" style="padding:20px"><p class="muted">{e.rules}</p><div class="kv" style="margin-top:12px"><span class="k">Eligibility</span><span class="v">{e.eligibility}</span></div></div></section>
-            <section class="block"><h2 style="font-size:21px;margin-bottom:12px">Bracket & matches</h2><div class="empty">The live bracket, check-ins, and match reporting render here when the Arena workstream goes live. Anti-cheat and dispute flows are in the data model.</div></section>
+            <section class="block"><h2 style="font-size:21px;margin-bottom:12px">Bracket & matches</h2><div class="empty">No bracket has been published for this event yet. Match details appear here when organizers add them.</div></section>
           </div>
           <aside class="gp-aside">
             <div class="panel" style="padding:6px 18px">

@@ -12,6 +12,7 @@ export default function GamePicker({ value, onChange, placeholder = "Search a ga
   const [open, setOpen] = useState(false);
   const [highlight, setHighlight] = useState(0);
   const tRef = useRef(null);
+  const listId = "game-picker-results";
 
   useEffect(() => {
     if (!query.trim()) {
@@ -54,19 +55,31 @@ export default function GamePicker({ value, onChange, placeholder = "Search a ga
           } else if (e.key === "Enter" && open && results[highlight]) {
             e.preventDefault();
             select(results[highlight]);
+          } else if (e.key === "Escape") {
+            setOpen(false);
           }
         }}
         placeholder={placeholder}
         className="input"
         data-testid="game-picker-input"
+        role="combobox"
+        aria-autocomplete="list"
+        aria-expanded={open && results.length > 0}
+        aria-controls={listId}
+        aria-activedescendant={open && results[highlight] ? `game-picker-option-${results[highlight].id}` : undefined}
       />
       {open && results.length > 0 && (
         <ul
+          id={listId}
+          role="listbox"
           className="absolute z-30 left-0 right-0 mt-1 max-h-72 overflow-auto bg-[#0A0A0A] border border-[#1A1A1A] shadow-xl"
           data-testid="game-picker-results"
         >
           {results.map((g, i) => (
             <li
+              id={`game-picker-option-${g.id}`}
+              role="option"
+              aria-selected={i === highlight}
               key={g.id}
               onMouseDown={() => select(g)}
               onMouseEnter={() => setHighlight(i)}

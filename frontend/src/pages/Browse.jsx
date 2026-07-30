@@ -2,52 +2,88 @@ import { useEffect, useState } from "react";
 import { getJSON } from "../lib/api";
 import GameCard from "../components/GameCard";
 import SEO from "../components/SEO";
+import { Search, X } from "lucide-react";
+import { EmptyState, ErrorState, GridSkeleton, PageHeader } from "../components/UIState";
 
 export default function Browse() {
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [q, setQ] = useState("");
 
-  useEffect(() => {
+  const load = () => {
+    setLoading(true);
+    setError(false);
     getJSON("/games?limit=120")
       .then((d) => setGames(d.games || []))
+      .catch(() => setError(true))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const filtered = q
+  const normalizedQuery = q.trim().toLowerCase();
+  const filtered = normalizedQuery
     ? games.filter(
         (g) =>
-          g.title.toLowerCase().includes(q.toLowerCase()) ||
-          (g.tags || []).some((t) => t.includes(q.toLowerCase()))
+          g.title.toLowerCase().includes(normalizedQuery) ||
+          (g.owner_username || "").toLowerCase().includes(normalizedQuery) ||
+          (g.tags || []).some((t) => t.toLowerCase().includes(normalizedQuery))
       )
     : games;
 
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-8 py-10" data-testid="browse-page">
       <SEO title="Browse all games" path="/games" />
-      <div className="text-[#52525B] font-mono text-xs uppercase tracking-[0.2em]">
-        Browse
-      </div>
-      <h1 className="text-3xl md:text-4xl font-bold uppercase tracking-tight text-white">
-        All games
-      </h1>
-      <div className="mt-6 mb-8">
+      <PageHeader
+        eyebrow="Catalog"
+        title="All games"
+        description="Original and creator-published browser games, ready to play without a download."
+      />
+      <div className="mt-6 mb-5 flex items-center justify-between gap-4 flex-wrap">
+        <label className="relative w-full md:w-96">
+          <span className="sr-only">Filter games</span>
+          <Search className="absolute left-3 top-4 w-4 h-4 text-[#52525B]" aria-hidden="true" />
         <input
           data-testid="browse-search"
-          placeholder="Search by title or tag..."
+          placeholder="Filter by title, creator, or tag"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          className="w-full md:w-96 h-12 bg-[#0A0A0A] border border-[#1A1A1A] focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37] outline-none px-4 text-white font-mono text-sm"
+            className="input pl-10 pr-11"
         />
+          {q && (
+            <button type="button" onClick={() => setQ("")} className="absolute right-1 top-1 w-10 h-10 grid place-items-center text-[#71717A] hover:text-white" aria-label="Clear filter">
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </label>
+        {!loading && !error && (
+          <div className="text-[#52525B] font-mono text-[10px] uppercase tracking-[0.18em]">
+            {filtered.length} game{filtered.length === 1 ? "" : "s"}
+          </div>
+        )}
       </div>
       {loading ? (
-        <div className="text-[#52525B]">Loading...</div>
+        <GridSkeleton count={12} />
+      ) : error ? (
+        <ErrorState
+          title="Games could not load"
+          body="Try the catalog request again."
+          action={<button type="button" className="btn-secondary" onClick={load}>Retry</button>}
+        />
       ) : filtered.length === 0 ? (
-        <div className="text-[#A1A1AA] border border-dashed border-[#1A1A1A] p-8 text-center" data-testid="browse-empty">
-          No games match your search yet.
-        </div>
+        <EmptyState
+          icon={Search}
+          testId="browse-empty"
+          title={games.length ? "No matching games" : "No games published yet"}
+          body={games.length ? `Nothing matches “${q.trim()}”. Try a shorter title, creator, or tag.` : "The public catalog is ready for its first creator release."}
+          action={games.length ? <button type="button" className="btn-secondary" onClick={() => setQ("")}>Clear filter</button> : null}
+        />
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 md:gap-4">
+        <div className="game-grid">
           {filtered.map((g) => (
             <GameCard key={g.id} game={g} />
           ))}

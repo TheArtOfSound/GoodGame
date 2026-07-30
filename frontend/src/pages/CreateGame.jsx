@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { postForm, postJSON } from "../lib/api";
-import { FileArchive, Sparkles, Upload } from "lucide-react";
+import { FileArchive, Link2 as LinkIcon, Sparkles, Upload } from "lucide-react";
 import { CharacterCount, InlineNotice, PageHeader, PageLoader } from "../components/UIState";
 
 export default function CreateGame() {
@@ -75,7 +75,7 @@ export default function CreateGame() {
       <PageHeader
         eyebrow="Creator tools"
         title="Create a browser game"
-        description="Generate a draft with Forge or publish your own HTML5 zip with index.html at the root."
+        description="Three ways in: generate a draft with Forge, upload an HTML5 zip, or just link a game you already host."
       />
 
       {report ? (
@@ -165,48 +165,85 @@ export default function CreateGame() {
               placeholder="action, puzzle, retro"
             />
           </Field>
-          <Field id="create-build" label="Build zip">
-            <div className="border border-dashed border-[#27272A] bg-[#080808] p-5">
-              <label className="flex items-center gap-3 cursor-pointer">
+          {/* Two ways to publish. They're mutually exclusive, so present them as a
+              real either/or with one visibly active — a flat stack of both fields
+              left people wondering whether they had to fill in both. */}
+          <fieldset className="space-y-3">
+            <legend className="text-[#71717A] font-mono text-xs uppercase tracking-[0.2em] mb-3">
+              How should we host it?
+            </legend>
+
+            <label
+              className={`block cursor-pointer border p-4 transition-colors ${
+                !embedUrl.trim() ? "border-[#D4AF37]/60 bg-[#0C0D10]" : "border-[#242428] hover:border-white/30"
+              }`}
+            >
+              <span className="flex items-center gap-3">
                 <span className="w-10 h-10 border border-[#27272A] grid place-items-center text-[#D4AF37] shrink-0">
                   <FileArchive className="w-5 h-5" />
                 </span>
-                <span className="min-w-0">
-                  <span className="block text-white text-sm font-semibold truncate">{file?.name || "Choose a zip build"}</span>
-                  <span className="block text-[#52525B] text-xs mt-0.5">{file ? `${(file.size / 1024 / 1024).toFixed(2)} MB selected` : "Maximum 90 MB"}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-white text-sm font-semibold">Upload a zip build</span>
+                  <span className="block meta-text text-xs mt-0.5 truncate">
+                    {file
+                      ? `${file.name} · ${(file.size / 1024 / 1024).toFixed(2)} MB`
+                      : "HTML5 export with index.html at the root · up to 90 MB"}
+                  </span>
                 </span>
-                <input
-                  id="create-build"
-                  data-testid="create-build"
-                  type="file"
-                  accept=".zip,application/zip"
-                  onChange={(e) => setFile(e.target.files?.[0] || null)}
-                  className="sr-only"
-                />
-              </label>
+                <span className="btn-secondary h-9 px-3 shrink-0 pointer-events-none">
+                  {file ? "Change" : "Choose"}
+                </span>
+              </span>
+              <input
+                id="create-build"
+                data-testid="create-build"
+                type="file"
+                accept=".zip,application/zip"
+                onChange={(e) => setFile(e.target.files?.[0] || null)}
+                className="sr-only"
+              />
+            </label>
+
+            <div className="flex items-center gap-3 meta-text font-mono text-[10px] uppercase tracking-[0.2em]">
+              <span className="h-px bg-[#1A1A1A] flex-1" /> or <span className="h-px bg-[#1A1A1A] flex-1" />
             </div>
-          </Field>
 
-          <div className="flex items-center gap-3 text-[#52525B] font-mono text-[10px] uppercase tracking-[0.2em]">
-            <span className="h-px bg-[#1A1A1A] flex-1" /> or link a game you already host <span className="h-px bg-[#1A1A1A] flex-1" />
-          </div>
-
-          <Field label="Hosted game URL">
-            <input
-              data-testid="create-embed-url"
-              type="url"
-              inputMode="url"
-              maxLength={512}
-              value={embedUrl}
-              onChange={(e) => setEmbedUrl(e.target.value)}
-              placeholder="https://yourgame.example.com"
-              className="input"
-              disabled={!!file}
-            />
-            <p className="text-[#52525B] text-xs mt-2 leading-relaxed">
-              Already hosting on itch, Firebase, GitHub Pages, or your own domain? Paste the URL and we embed it live — no upload. Must be https and allow embedding. After publishing you&apos;ll get a one-step check to verify you own the domain.
-            </p>
-          </Field>
+            <div
+              className={`border p-4 transition-colors ${
+                embedUrl.trim() ? "border-[#D4AF37]/60 bg-[#0C0D10]" : "border-[#242428]"
+              }`}
+            >
+              <span className="flex items-center gap-3 mb-3">
+                <span className="w-10 h-10 border border-[#27272A] grid place-items-center text-[#D4AF37] shrink-0">
+                  <LinkIcon className="w-5 h-5" />
+                </span>
+                <span className="min-w-0">
+                  <label htmlFor="create-embed-url" className="block text-white text-sm font-semibold cursor-pointer">
+                    Link a game you already host
+                  </label>
+                  <span className="block meta-text text-xs mt-0.5">
+                    itch.io, Firebase, GitHub Pages, your own domain — no upload
+                  </span>
+                </span>
+              </span>
+              <input
+                id="create-embed-url"
+                data-testid="create-embed-url"
+                type="url"
+                inputMode="url"
+                maxLength={512}
+                value={embedUrl}
+                onChange={(e) => setEmbedUrl(e.target.value)}
+                placeholder="https://yourgame.example.com"
+                className="input"
+                disabled={!!file}
+              />
+              <p className="meta-text text-xs mt-2 leading-relaxed">
+                We embed it live, so it always shows your latest build. Must be https and allow
+                embedding. After publishing you&apos;ll get a one-step check to verify you own the domain.
+              </p>
+            </div>
+          </fieldset>
           {err && (
             <InlineNotice tone="error" testId="create-error">{err}</InlineNotice>
           )}

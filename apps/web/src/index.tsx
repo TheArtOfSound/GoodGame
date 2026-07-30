@@ -8,6 +8,7 @@ import { ogCard, favicon } from './og';
 import { playDoc, TEMPLATE_IDS } from './play';
 import { ingestZip } from './ingest';
 import { analyzeAndPrepare, type CompatReport } from './compat';
+import { normalizeEmbedUrl, fetchForEmbed, wellKnownVerified, newEmbedToken } from './embed';
 import { submitScore, getLeaderboard, putSave, getSave } from './sdk';
 import { generateGameHtml, refineGameHtml } from './forge';
 import { runtimeCheck } from './runtime';
@@ -42,7 +43,9 @@ const SECURITY_CSP = [
   "img-src 'self' data: blob: https://images.unsplash.com",
   "media-src 'self' blob:",
   "connect-src 'self'",
-  "frame-src 'self'",
+  // 'self' for our own sandboxed builds; https: so creator-hosted games (linked by
+  // URL, embedded live) can be framed. Framing is not script execution in our origin.
+  "frame-src 'self' https:",
   "worker-src 'self' blob:",
   "frame-ancestors 'self'",
   "base-uri 'self'",
@@ -609,9 +612,13 @@ app.post('/api/games', async (c) => {
   const slug = `${cleanSlug(title)}-${Math.random().toString(36).slice(2, 6)}`;
   let uploadEntry: string | null = null;
   let uploadBytes: number | null = null;
+  let embedUrl: string | null = null;
+  let embedToken: string | null = null;
+  let embedCheckedAt: string | null = null;
   let engine = 'web';
   let compat: CompatReport | null = null;
   const build = b.build;
+  const embedRaw = cleanText(b.embed_url, 512);
   if (build instanceof File && build.size > 0) {
     if (build.size > 95 * 1024 * 1024) return c.json({ detail: 'That build is over 90 MB.' }, 400);
     const res = ingestZip(new Uint8Array(await build.arrayBuffer()));
@@ -625,17 +632,26 @@ app.post('/api/games', async (c) => {
     uploadBytes = res.total;
     const paths = res.files.map((f) => f.path.toLowerCase()).join('\n');
     engine = paths.includes('.pck') ? 'godot' : (paths.includes('.data') || paths.includes('.unityweb') || paths.includes('.framework.js')) ? 'unity' : 'web';
+  } else if (embedRaw) {
+    // Creator-hosted: link a game the creator already hosts, embedded live.
+    const norm = normalizeEmbedUrl(embedRaw);
+    if (!norm.ok) return c.json({ detail: norm.error }, 400);
+    const chk = await fetchForEmbed(norm.url, c.env.SITE_URL);
+    if (!chk.ok) return c.json({ detail: chk.error }, 400);
+    embedUrl = chk.finalUrl;
+    embedToken = newEmbedToken();       // creator places this, then re-checks to verify ownership
+    embedCheckedAt = nowIso();
   } else {
-    return c.json({ detail: 'Build zip is required.' }, 400);
+    return c.json({ detail: 'Upload a build zip or paste the URL of a game you already host.' }, 400);
   }
 
   await c.env.DB.prepare(
-    `INSERT INTO games (id, owner_id, slug, title, pitch, description, engine, tags, platforms, build_class, status, maturity, content_rating, official, verified, accent, upload_entry, upload_bytes, play_count, follow_count, rating_avg, rating_count)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'web', 'browser', 'published', 'everyone', 'Everyone', 0, 0, '#d4af37', ?, ?, 0, 0, 0, 0)`
-  ).bind(id, user.id, slug, title, pitch, description || pitch, engine, tags, uploadEntry, uploadBytes).run();
+    `INSERT INTO games (id, owner_id, slug, title, pitch, description, engine, tags, platforms, build_class, status, maturity, content_rating, official, verified, accent, upload_entry, upload_bytes, embed_url, embed_token, embed_verified, embed_checked_at, play_count, follow_count, rating_avg, rating_count)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'web', 'browser', 'published', 'everyone', 'Everyone', 0, 0, '#d4af37', ?, ?, ?, ?, 0, ?, 0, 0, 0, 0)`
+  ).bind(id, user.id, slug, title, pitch, description || pitch, engine, tags, uploadEntry, uploadBytes, embedUrl, embedToken, embedCheckedAt).run();
   await c.env.DB.prepare(
-    `INSERT INTO releases (id, game_id, version, changelog, channel, status, is_current, release_date) VALUES (?, ?, '1.0.0', 'Initial build uploaded to GoodGame.', 'public', 'published', 1, datetime('now'))`
-  ).bind('rel_' + id, id).run();
+    `INSERT INTO releases (id, game_id, version, changelog, channel, status, is_current, release_date) VALUES (?, ?, '1.0.0', ?, 'public', 'published', 1, datetime('now'))`
+  ).bind('rel_' + id, id, embedUrl ? 'Linked a creator-hosted build.' : 'Initial build uploaded to GoodGame.').run();
   const game = await db.getGame(c.env, slug);
   return c.json({ game: game ? apiGame(game) : { id, slug, title }, compat });
 });
@@ -703,13 +719,37 @@ app.post('/api/games/:slug/build', async (c) => {
   const paths = res.files.map((f) => f.path.toLowerCase()).join('\n');
   const engine = paths.includes('.pck') ? 'godot' : (paths.includes('.data') || paths.includes('.unityweb') || paths.includes('.framework.js')) ? 'unity' : 'web';
   await c.env.DB.batch([
-    c.env.DB.prepare(`UPDATE games SET upload_entry=?, upload_bytes=?, engine=?, play_template=NULL, updated_at=datetime('now') WHERE id=?`)
+    c.env.DB.prepare(`UPDATE games SET upload_entry=?, upload_bytes=?, engine=?, play_template=NULL, embed_url=NULL, embed_token=NULL, embed_verified=0, updated_at=datetime('now') WHERE id=?`)
       .bind(res.entry, res.total, engine, game.id),
     c.env.DB.prepare(`UPDATE releases SET is_current=0 WHERE game_id=?`).bind(game.id),
     c.env.DB.prepare(`INSERT INTO releases (id, game_id, version, changelog, release_notes, channel, status, is_current, release_date) VALUES (?, ?, ?, ?, ?, 'public', 'published', 1, datetime('now'))`)
       .bind('rel_' + game.id + '_' + safeId(), game.id, version, notes || 'Build replaced.', notes || 'Build replaced.'),
   ]);
   return c.json({ ok: true, upload_entry: res.entry, upload_bytes: res.total, compat: prepared.report });
+});
+// Prove ownership of a creator-hosted (linked) game's domain, then flip it verified.
+// Owner-only. Re-checks the verification meta tag and the /.well-known file.
+app.post('/api/games/:slug/verify-embed', async (c) => {
+  const owned = await requireGameOwner(c, c.req.param('slug'));
+  if ('error' in owned) return owned.error;
+  const { game } = owned;
+  if (!game.embed_url || !game.embed_token) return c.json({ detail: 'This game is not creator-hosted.' }, 400);
+  const rl = await tooMany(c, 'verify-embed', 30, 3600); if (rl) return rl;
+  const origin = new URL(game.embed_url).origin;
+  const chk = await fetchForEmbed(game.embed_url, c.env.SITE_URL, game.embed_token);
+  let verified = chk.ok ? chk.verified : false;
+  if (!verified) verified = await wellKnownVerified(origin, game.embed_token);
+  await c.env.DB.prepare(`UPDATE games SET embed_verified=?, embed_checked_at=?, updated_at=datetime('now') WHERE id=?`)
+    .bind(verified ? 1 : 0, nowIso(), game.id).run();
+  return c.json({
+    ok: true,
+    verified,
+    detail: verified
+      ? 'Verified — your domain ownership is confirmed.'
+      : chk.ok
+        ? 'We reached your page but didn’t find the verification token yet. Add it and re-check.'
+        : 'We couldn’t reach your page to verify. Make sure it’s live over https, then re-check.',
+  });
 });
 app.post('/api/games/:slug/thumbnail', async (c) => {
   const owned = await requireGameOwner(c, c.req.param('slug'));

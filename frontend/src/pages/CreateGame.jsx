@@ -11,6 +11,7 @@ export default function CreateGame() {
   const [description, setDescription] = useState("");
   const [tags, setTags] = useState("");
   const [file, setFile] = useState(null);
+  const [embedUrl, setEmbedUrl] = useState("");
   const [err, setErr] = useState(null);
   const [busy, setBusy] = useState(false);
   const [report, setReport] = useState(null);
@@ -24,8 +25,8 @@ export default function CreateGame() {
   const submit = async (e) => {
     e.preventDefault();
     setErr(null);
-    if (!file) {
-      setErr("Choose a .zip build first");
+    if (!file && !embedUrl.trim()) {
+      setErr("Upload a .zip build or paste the URL of a game you already host.");
       return;
     }
     setBusy(true);
@@ -34,7 +35,8 @@ export default function CreateGame() {
     fd.append("pitch", pitch);
     fd.append("description", description);
     fd.append("tags", tags);
-    fd.append("build", file);
+    if (file) fd.append("build", file);
+    else fd.append("embed_url", embedUrl.trim());
     try {
       const res = await postForm("/games", fd);
       if (res.compat) {
@@ -162,8 +164,28 @@ export default function CreateGame() {
               accept=".zip,application/zip"
               onChange={(e) => setFile(e.target.files?.[0] || null)}
               className="text-white font-mono text-sm"
-              required
             />
+          </Field>
+
+          <div className="flex items-center gap-3 text-[#52525B] font-mono text-[10px] uppercase tracking-[0.2em]">
+            <span className="h-px bg-[#1A1A1A] flex-1" /> or link a game you already host <span className="h-px bg-[#1A1A1A] flex-1" />
+          </div>
+
+          <Field label="Hosted game URL">
+            <input
+              data-testid="create-embed-url"
+              type="url"
+              inputMode="url"
+              maxLength={512}
+              value={embedUrl}
+              onChange={(e) => setEmbedUrl(e.target.value)}
+              placeholder="https://yourgame.example.com"
+              className="input"
+              disabled={!!file}
+            />
+            <p className="text-[#52525B] text-xs mt-2 leading-relaxed">
+              Already hosting on itch, Firebase, GitHub Pages, or your own domain? Paste the URL and we embed it live — no upload. Must be https and allow embedding. After publishing you&apos;ll get a one-step check to verify you own the domain.
+            </p>
           </Field>
           {err && (
             <div className="text-[#FF3B30] text-sm font-mono" data-testid="create-error">

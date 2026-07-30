@@ -2,9 +2,8 @@ import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { getJSON } from "../lib/api";
 import GameCard from "../components/GameCard";
-import { Play, Trophy, Upload, Users } from "lucide-react";
+import { Play, Trophy, Upload } from "lucide-react";
 import SEO from "../components/SEO";
-import DonateButton from "../components/DonateButton";
 import ActivityFeed from "../components/ActivityFeed";
 import { EmptyState, ErrorState, GridSkeleton } from "../components/UIState";
 
@@ -67,35 +66,32 @@ export default function Home() {
           <div className="eyebrow mb-4">
             Play. Ship. Be played.
           </div>
-          <h1 className="text-5xl md:text-7xl font-black text-white max-w-3xl leading-[0.94]">
-            GoodGame<span className="block md:inline text-[#D4AF37]">.center</span>
+          <h1 className="text-4xl md:text-6xl font-black text-white max-w-3xl leading-[0.96]">
+            Free browser games,
+            <span className="block text-[#D4AF37]">playable in one click.</span>
           </h1>
-          <p className="text-[#A1A1AA] mt-6 max-w-xl text-base md:text-lg leading-relaxed">
-            Play original and creator-made browser games instantly. Publish an HTML5 build,
-            share progress, and compete for persistent high scores.
+          <p className="text-[#C9C9D1] mt-5 max-w-lg text-base md:text-lg leading-relaxed">
+            No installs, no accounts to start. Play games from indie creators — or publish
+            your own in minutes.
           </p>
-          <div className="mt-8 flex flex-wrap gap-3">
+          {/* One primary action. Four co-equal buttons made the first decision
+              harder than it needed to be; Communities and Donate already live in
+              the nav and footer. */}
+          <div className="mt-7 flex flex-wrap items-center gap-3">
             <Link
               to="/games"
               data-testid="hero-browse-cta"
-              className="btn-primary h-12 px-6 text-sm"
+              className="btn-primary h-12 px-7 text-sm"
             >
-              <Play className="w-4 h-4" /> Browse Games
+              <Play className="w-4 h-4 fill-current" /> Play now
             </Link>
             <Link
               to="/create"
               data-testid="hero-upload-cta"
               className="btn-secondary h-12 px-6 text-sm bg-black/40 backdrop-blur"
             >
-              <Upload className="w-4 h-4" /> Upload your game
+              <Upload className="w-4 h-4" /> Publish your game
             </Link>
-            <Link
-              to="/communities"
-              className="btn-secondary h-12 px-6 text-sm bg-black/40 backdrop-blur"
-            >
-              <Users className="w-4 h-4" /> Communities
-            </Link>
-            <DonateButton variant="hero" />
           </div>
         </div>
       </section>
@@ -103,12 +99,10 @@ export default function Home() {
       <section className="max-w-7xl mx-auto px-4 md:px-8 py-12">
         <div className="flex items-end justify-between mb-6">
           <div>
-            <div className="text-[#52525B] font-mono text-xs uppercase tracking-[0.2em]">
-              Latest
-            </div>
-            <h2 className="text-2xl md:text-3xl font-bold uppercase text-white tracking-tight">
-              Recently uploaded
+            <h2 className="text-2xl md:text-3xl font-bold text-white tracking-tight">
+              New games
             </h2>
+            <p className="meta-text text-sm mt-1">Freshly published by creators</p>
           </div>
           <Link
             to="/games"
@@ -141,8 +135,8 @@ export default function Home() {
           <div>
             <div className="flex items-end justify-between gap-4 mb-2">
               <div>
-                <div className="text-[#52525B] font-mono text-xs uppercase tracking-[0.2em]">Across GoodGame</div>
-                <h2 className="text-2xl md:text-3xl font-bold uppercase text-white tracking-tight">Global activity</h2>
+                <h2 className="text-2xl md:text-3xl font-bold text-white tracking-tight">Activity</h2>
+                <p className="meta-text text-sm mt-1">What players and creators are doing right now</p>
               </div>
               <Link to="/activity" className="text-[#D4AF37] font-mono text-xs uppercase tracking-[0.2em] hover:underline">
                 Open feed &rarr;
@@ -154,8 +148,8 @@ export default function Home() {
           <div>
             <div className="flex items-end justify-between gap-4 mb-4">
               <div>
-                <div className="text-[#52525B] font-mono text-xs uppercase tracking-[0.2em]">Current holders</div>
-                <h2 className="text-2xl font-bold uppercase text-white tracking-tight">Champions</h2>
+                <h2 className="text-2xl font-bold text-white tracking-tight">Champions</h2>
+                <p className="meta-text text-sm mt-1">Current high-score holders</p>
               </div>
               <Link to="/leaderboards" aria-label="All leaderboards" className="text-[#D4AF37]">
                 <Trophy className="w-5 h-5" />

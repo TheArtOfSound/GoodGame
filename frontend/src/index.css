@@ -145,6 +145,29 @@ code, .font-mono, [class*="font-mono"] {
   .game-grid {
     @apply grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 md:gap-4;
   }
+  /* Secondary/metadata text. Replaces raw #52525B, which sits at ~3.1:1 on
+     black and fails WCAG AA for small copy; #8B8B95 clears 4.5:1. */
+  .meta-text {
+    @apply text-[#8B8B95];
+  }
+  /* Elevated surface. Pure #000 panels on a #000 page have no readable edge —
+     a lifted fill plus a visible hairline makes cards read as objects. */
+  .surface {
+    @apply bg-[#0C0D10] border border-[#242428];
+  }
+  /* Interactive card: gains elevation + a gold edge on hover/focus so the whole
+     tile reads as one click target. */
+  .card-lift {
+    @apply transition-[transform,border-color,box-shadow] duration-150 ease-out
+           hover:-translate-y-0.5 hover:border-[#D4AF37]/70
+           hover:shadow-[0_10px_30px_-12px_rgba(0,0,0,.9)]
+           focus-visible:-translate-y-0.5 focus-visible:border-[#D4AF37];
+  }
+  /* Small player-facing tag (genre, "Instant play") — quiet, not shouty. */
+  .chip {
+    @apply inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium
+           tracking-wide text-[#C9C9D1] bg-white/[0.06] border border-white/10;
+  }
 }
 
 .skip-link {
@@ -302,8 +325,10 @@ code, .font-mono, [class*="font-mono"] {
   color: #fff;
 }
 
+/* Hero is deliberately shorter than the viewport so the game grid peeks above
+   the fold — on a games site the games are the hook, not the wordmark. */
 .home-hero {
-  min-height: max(560px, calc(100svh - 112px));
+  min-height: min(460px, calc(100svh - 200px));
   display: flex;
   align-items: center;
 }
@@ -312,16 +337,18 @@ code, .font-mono, [class*="font-mono"] {
   position: absolute;
   inset: 0;
   overflow: hidden;
-  background: #030303;
+  background: #050506;
 }
 
+/* Let the art actually read: no desaturation, a touch more brightness. The
+   scrim below carries text contrast, so the images don't need to be crushed. */
 .home-hero-media img {
   position: absolute;
-  width: min(58vw, 920px);
+  width: min(52vw, 860px);
   aspect-ratio: 16 / 9;
   object-fit: cover;
-  border: 1px solid rgba(255,255,255,.08);
-  filter: saturate(.82) contrast(1.05);
+  border: 1px solid rgba(255,255,255,.10);
+  filter: saturate(1.02) contrast(1.04) brightness(1.06);
 }
 
 .home-hero-media img:nth-child(1) {
@@ -339,12 +366,14 @@ code, .font-mono, [class*="font-mono"] {
   top: 70%;
 }
 
+/* Opaque enough behind the headline to hold AA contrast, then falls away fast
+   so the game art on the right stays visible instead of being crushed to black. */
 .home-hero-scrim {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(90deg, #000 0%, rgba(0,0,0,.94) 38%, rgba(0,0,0,.54) 68%, rgba(0,0,0,.78) 100%),
-    linear-gradient(0deg, #000 0%, transparent 28%, rgba(0,0,0,.18) 100%);
+    linear-gradient(90deg, #000 0%, rgba(0,0,0,.90) 30%, rgba(0,0,0,.42) 58%, rgba(0,0,0,.20) 100%),
+    linear-gradient(0deg, #000 0%, transparent 34%);
 }
 
 .nav-drawer {

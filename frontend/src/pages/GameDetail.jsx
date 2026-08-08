@@ -7,6 +7,7 @@ import SEO from "../components/SEO";
 import LeaderboardTable from "../components/LeaderboardTable";
 import { BACKEND_URL } from "../lib/config";
 import { CharacterCount, ErrorState, InlineNotice, PageLoader } from "../components/UIState";
+import ShareActions from "../components/ShareActions";
 
 export default function GameDetail() {
   const { slug } = useParams();
@@ -300,15 +301,18 @@ export default function GameDetail() {
                   by @{game.owner_username}
                 </Link>
               </div>
-              {isOwner && (
-                <Link
-                  to={`/console/${game.slug}`}
-                  data-testid="manage-game-link"
-                  className="border border-[#1A1A1A] hover:border-white text-white px-4 h-10 flex items-center gap-2 text-sm uppercase tracking-wider font-bold"
-                >
-                  <Settings className="w-4 h-4" /> Manage
-                </Link>
-              )}
+              <div className="flex items-center gap-2 flex-wrap">
+                <ShareActions game={game} user={user} compact />
+                {isOwner && (
+                  <Link
+                    to={`/console/${game.slug}`}
+                    data-testid="manage-game-link"
+                    className="btn-secondary h-10 px-3"
+                  >
+                    <Settings className="w-4 h-4" /> Manage
+                  </Link>
+                )}
+              </div>
             </div>
             {game.pitch && (
               <p className="text-[#A1A1AA] mt-4 text-lg leading-relaxed">{game.pitch}</p>

@@ -73,6 +73,15 @@ async function signup(page, baseURL) {
 }
 
 // --- The test -----------------------------------------------------------------
+test("creator intent survives authentication", async ({ page, baseURL }) => {
+  await page.goto(baseURL + "/create?method=link");
+  await expect(page).toHaveURL(/\/login\?next=%2Fcreate%3Fmethod%3Dlink$/);
+  await expect(page.getByRole("link", { name: "Create an account" })).toHaveAttribute(
+    "href",
+    "/onboarding?next=%2Fcreate%3Fmethod%3Dlink",
+  );
+});
+
 test("e2e: signup → upload zip → thumbnail → clip → follow → community moderate", async ({
   page,
   context,
@@ -95,9 +104,12 @@ test("e2e: signup → upload zip → thumbnail → clip → follow → community
 
   // 2. Upload a game
   await page.goto(baseURL + "/create");
+  await expect(page.getByTestId("create-method-upload")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByTestId("create-dropzone")).toBeVisible();
   const title = `E2E ${uid()}`;
   await page.getByTestId("create-title").fill(title);
   await page.getByTestId("create-pitch").fill("an e2e game pitch");
+  await page.getByText("Add description and tags").click();
   await page.getByTestId("create-tags").fill("e2e, test");
   await page.getByTestId("create-build").setInputFiles(zipPath);
   await page.getByTestId("create-submit").click();
@@ -116,6 +128,8 @@ test("e2e: signup → upload zip → thumbnail → clip → follow → community
   await page.goto(`${baseURL}/games/${slug}`);
   await expect(page.getByTestId("game-detail-page")).toBeVisible();
   await expect(page.getByTestId("play-game-button")).toBeVisible();
+  await expect(page.getByTestId("share-game-button")).toBeVisible();
+  await expect(page.getByTestId("share-to-feed-link")).toHaveAttribute("href", /\/feed\?share=/);
 
   // 4. Upload a clip
   await page.goto(baseURL + "/clips");

@@ -1,13 +1,16 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { postJSON } from "../lib/api";
 import { FormField, PasswordInput } from "../components/FormControls";
 import { InlineNotice, PageHeader } from "../components/UIState";
+import { authPath, safeNext } from "../lib/navigation";
 
 export default function Login() {
   const { refresh } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const next = safeNext(location.search);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [err, setErr] = useState(null);
@@ -20,7 +23,7 @@ export default function Login() {
     try {
       await postJSON("/login", { username, password });
       await refresh();
-      navigate("/");
+      navigate(next);
     } catch (e) {
       setErr(e.response?.data?.detail || "Login failed");
     } finally {
@@ -71,7 +74,7 @@ export default function Login() {
       </form>
       <div className="text-[#A1A1AA] text-sm mt-6">
         New here?{" "}
-        <Link to="/onboarding" className="text-[#D4AF37] hover:text-[#F1D77A] underline">
+        <Link to={authPath("/onboarding", next)} className="text-[#D4AF37] hover:text-[#F1D77A] underline">
           Create an account
         </Link>
       </div>

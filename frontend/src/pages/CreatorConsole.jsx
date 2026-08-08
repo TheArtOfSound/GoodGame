@@ -7,6 +7,7 @@ import { BACKEND_URL } from "../lib/config";
 import { Upload } from "lucide-react";
 import { EmptyState, ErrorState, InlineNotice, PageHeader, PageLoader } from "../components/UIState";
 import { FormField } from "../components/FormControls";
+import ShareActions from "../components/ShareActions";
 
 export default function CreatorConsole() {
   const { slug } = useParams();
@@ -186,7 +187,12 @@ function GameConsole({ slug, user }) {
         eyebrow="Manage"
         title={game.title}
         description="Update media and builds, publish release notes, and verify the live browser runtime."
-        actions={<Link to={`/games/${slug}`} className="btn-secondary">View public page</Link>}
+        actions={(
+          <div className="flex items-center gap-2 flex-wrap">
+            <Link to={`/games/${slug}`} className="btn-secondary">View public page</Link>
+            <ShareActions game={game} user={user} compact />
+          </div>
+        )}
       />
 
       {game.embed_url && (

@@ -124,8 +124,8 @@ export default function Nav() {
           <DonateButton />
           {user ? (
             <>
-              <Link to="/create" data-testid="upload-game-cta" className="btn-primary h-10 px-4">
-                <Upload className="w-4 h-4" /> Upload
+              <Link to="/create?method=upload" data-testid="upload-game-cta" className="btn-primary h-10 px-4">
+                <Upload className="w-4 h-4" /> Publish
               </Link>
               <Link
                 to={`/creators/${user.username}`}
@@ -197,8 +197,8 @@ export default function Nav() {
             <DonateButton variant="footer" className="w-full justify-center" />
             {user ? (
               <>
-                <Link to="/create" className="btn-primary w-full">
-                  <Upload className="w-4 h-4" /> Upload game
+                <Link to="/create?method=upload" className="btn-primary w-full">
+                  <Upload className="w-4 h-4" /> Publish game
                 </Link>
                 <Link to={`/creators/${user.username}`} className="btn-secondary w-full">
                   @{user.username}

@@ -1,14 +1,17 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { postJSON } from "../lib/api";
 import { Check } from "lucide-react";
 import { FormField, PasswordInput } from "../components/FormControls";
 import { InlineNotice, PageHeader } from "../components/UIState";
+import { authPath, safeNext } from "../lib/navigation";
 
 export default function Onboarding() {
   const { refresh } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const next = safeNext(location.search, "");
   const [form, setForm] = useState({
     username: "",
     display_name: "",
@@ -27,7 +30,7 @@ export default function Onboarding() {
     try {
       await postJSON("/onboarding", form);
       await refresh();
-      navigate("/feed?welcome=1");
+      navigate(next || "/feed?welcome=1");
     } catch (e) {
       setErr(e.response?.data?.detail || "Could not create account");
     } finally {
@@ -122,7 +125,7 @@ export default function Onboarding() {
       </form>
       <div className="text-[#A1A1AA] text-sm mt-6">
         Already on GoodGame?{" "}
-        <Link to="/login" className="text-[#D4AF37] underline">
+        <Link to={authPath("/login", next || "/feed")} className="text-[#D4AF37] underline">
           Log in
         </Link>
       </div>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { getJSON, postJSON } from "../lib/api";
 import SEO from "../components/SEO";
 import GameCard from "../components/GameCard";
@@ -17,9 +17,11 @@ function stars(n) {
 export default function Feed() {
   const { user } = useAuth();
   const [params] = useSearchParams();
+  const navigate = useNavigate();
   const welcome = params.get("welcome");
+  const shareDraft = params.get("share") || "";
   const [data, setData] = useState(null);
-  const [text, setText] = useState("");
+  const [text, setText] = useState(shareDraft);
   const [posting, setPosting] = useState(false);
   const [error, setError] = useState(false);
 
@@ -43,6 +45,7 @@ export default function Feed() {
       const r = await postJSON("/posts", { body: text });
       setText("");
       setData((d) => ({ ...d, items: [r.post, ...(d?.items || [])] }));
+      if (shareDraft) navigate("/feed", { replace: true });
     } catch (_e) {
       toast.error("Your post could not be published.");
     } finally {
@@ -96,7 +99,10 @@ export default function Feed() {
       )}
 
       {user ? (
-        <form onSubmit={submitPost} className="mt-6 border border-[#1A1A1A] p-4" data-testid="post-composer">
+        <form onSubmit={submitPost} className={`mt-6 border p-4 ${shareDraft ? "border-[#D4AF37]/60 bg-[#D4AF37]/5" : "border-[#1A1A1A]"}`} data-testid="post-composer">
+          {shareDraft && (
+            <div className="eyebrow mb-3" data-testid="share-draft-notice">Ready to share · edit anything before posting</div>
+          )}
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
@@ -206,7 +212,7 @@ function PostCard({ it, user, onDelete }) {
           </button>
         )}
       </div>
-      <p className="text-[#C7C7CC] mt-2 whitespace-pre-wrap">{it.post.body}</p>
+      <p className="text-[#C7C7CC] mt-2 whitespace-pre-wrap">{linkifyPost(it.post.body)}</p>
       <button
         onClick={like}
         disabled={busy || !user}
@@ -229,6 +235,21 @@ function PostCard({ it, user, onDelete }) {
       />
     </div>
   );
+}
+
+function linkifyPost(body) {
+  return String(body || "").split(/(https?:\/\/[^\s]+)/g).map((part, index) => {
+    if (!/^https?:\/\//.test(part)) return part;
+    const match = part.match(/^(.*?)([.,!?)]*)$/);
+    const url = match?.[1] || part;
+    const trailing = match?.[2] || "";
+    return (
+      <span key={`${url}-${index}`}>
+        <a href={url} target="_blank" rel="noreferrer noopener" className="text-[#D4AF37] underline break-all">{url}</a>
+        {trailing}
+      </span>
+    );
+  });
 }
 
 function FeedItem({ it, user, onDelete }) {

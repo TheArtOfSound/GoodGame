@@ -86,7 +86,7 @@ export default function Home() {
               <Play className="w-4 h-4 fill-current" /> Play now
             </Link>
             <Link
-              to="/create"
+              to="/create?method=upload"
               data-testid="hero-upload-cta"
               className="btn-secondary h-12 px-6 text-sm bg-black/40 backdrop-blur"
             >

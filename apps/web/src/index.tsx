@@ -201,10 +201,14 @@ const publicShellMeta = async (env: Env, path: string): Promise<{ meta: ShellMet
     const g = await db.getGame(env, decodeURIComponent(gameMatch[1]));
     if (!g || g.status !== 'published') return { status: 404, meta: base('Game not found · GoodGame.center', 'This game is not available on GoodGame.center.', path, true) };
     const noindex = path.endsWith('/play');
+    const rawDescription = g.seo_description || `Play ${g.title}${g.owner_name ? `, a browser game by ${g.owner_name}` : ''}. ${g.pitch || g.description || 'Launch instantly on GoodGame.center.'}`;
+    const description = rawDescription.length < 90
+      ? `${rawDescription.replace(/[.\s]+$/, '')}. Play instantly in your browser on GoodGame.center.`
+      : rawDescription;
     return {
       meta: {
         title: g.seo_title || `${g.title} — Play Free Browser Game on GoodGame.center`,
-        description: g.seo_description || `Play ${g.title}${g.owner_name ? `, a browser game by ${g.owner_name}` : ''}. ${g.pitch || g.description || 'Launch instantly on GoodGame.center.'}`,
+        description,
         path: `/games/${g.slug}`,
         heading: g.title,
         type: 'game',

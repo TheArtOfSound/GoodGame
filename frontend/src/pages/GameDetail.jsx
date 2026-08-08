@@ -178,6 +178,10 @@ export default function GameDetail() {
   const cover = game.cover_image
     ? `${BACKEND_URL}${game.cover_image}?v=${game.updated_at}`
     : `${BACKEND_URL}/og/game/${game.slug}.svg`;
+  const rawSeoDescription = game.seo_description || game.pitch || game.description?.slice(0, 200) || `Play ${game.title} in your browser.`;
+  const seoDescription = rawSeoDescription.length < 90
+    ? `${rawSeoDescription.replace(/[.\s]+$/, "")}. Play instantly in your browser on GoodGame.center.`
+    : rawSeoDescription;
   const onPlay = () => {
     setPlaying(true);
   };
@@ -203,7 +207,7 @@ export default function GameDetail() {
     <div className="max-w-7xl mx-auto px-4 md:px-8 py-8" data-testid="game-detail-page">
       <SEO
         title={game.seo_title || game.title}
-        description={game.seo_description || game.pitch || game.description?.slice(0, 200) || "Play this browser game on GoodGame.center"}
+        description={seoDescription}
         image={cover}
         type="game"
         path={`/games/${game.slug}`}

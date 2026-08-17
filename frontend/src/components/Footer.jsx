@@ -3,43 +3,42 @@ import DonateButton from "./DonateButton";
 
 export default function Footer() {
   return (
-    <footer
-      data-testid="site-footer"
-      className="border-t border-[#1A1A1A] mt-24 bg-black"
-    >
-      <div className="max-w-7xl mx-auto px-4 md:px-8 py-10 grid gap-8 md:grid-cols-4">
+    <footer data-testid="site-footer" className="alley-pavement">
+      <div className="alley-pavement-inner">
         <div>
-          <div className="text-white font-black uppercase tracking-tight">
-            GoodGame<span className="text-[#D4AF37]">.center</span>
+          <div className="alley-pavement-brand">
+            <img src="/brand/alley/mark.webp" alt="" width={36} height={36} />
+            <span>
+              GOODGAME<i>.center</i>
+            </span>
           </div>
-          <p className="text-[#52525B] text-sm mt-3 leading-relaxed">
-            A free, browser-first platform for indie game creators and players.
+          <p>
+            A night street of browser cabinets. Play indie HTML5 games, or wheel your own machine into the alley.
           </p>
           <div className="mt-5">
             <DonateButton variant="footer" />
           </div>
         </div>
         <FooterCol
-          title="Platform"
+          title="Walk"
           links={[
-            ["Browse Games", "/games"],
+            ["The cabinets", "/games"],
             ["Feed", "/feed"],
-            ["Global Activity", "/activity"],
-            ["Leaderboards", "/leaderboards"],
+            ["High scores", "/leaderboards"],
             ["Clips", "/clips"],
           ]}
         />
         <FooterCol
-          title="Create"
+          title="Plug in"
           links={[
+            ["Host a game", "/create"],
             ["Creators", "/creators"],
-            ["Upload Game", "/create"],
-            ["Creator Console", "/console"],
-            ["News & Guides", "/news"],
+            ["News", "/news"],
+            ["Communities", "/communities"],
           ]}
         />
         <FooterCol
-          title="Trust & Safety"
+          title="House rules"
           links={[
             ["Terms", "/legal/terms"],
             ["Privacy", "/legal/privacy"],
@@ -48,8 +47,8 @@ export default function Footer() {
           ]}
         />
       </div>
-      <div className="border-t border-[#1A1A1A] py-6 text-center text-[#52525B] font-mono text-xs uppercase tracking-[0.2em]">
-        &copy; {new Date().getFullYear()} GoodGame.center
+      <div className="alley-pavement-grate">
+        © {new Date().getFullYear()} GoodGame.center — the alley is open
       </div>
     </footer>
   );
@@ -58,18 +57,11 @@ export default function Footer() {
 function FooterCol({ title, links }) {
   return (
     <div>
-      <div className="text-[#52525B] uppercase font-mono text-xs tracking-[0.2em] mb-3">
-        {title}
-      </div>
-      <ul className="space-y-2">
+      <div className="alley-pavement-col">{title}</div>
+      <ul>
         {links.map(([label, to]) => (
           <li key={to}>
-            <Link
-              to={to}
-              className="text-[#A1A1AA] hover:text-[#D4AF37] text-sm transition-colors"
-            >
-              {label}
-            </Link>
+            <Link to={to}>{label}</Link>
           </li>
         ))}
       </ul>

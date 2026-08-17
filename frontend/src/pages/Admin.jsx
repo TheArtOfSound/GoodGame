@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, LogOut, RotateCcw, Search, Shield, Trash2 } from "lucide-react";
+import { AlertTriangle, Link2, LogOut, RotateCcw, Search, Shield, Trash2 } from "lucide-react";
 import { getJSON, postJSON } from "../lib/api";
 import SEO from "../components/SEO";
 import { toast } from "sonner";
@@ -25,6 +25,16 @@ export default function Admin() {
   const [moderationTarget, setModerationTarget] = useState(null);
   const [reason, setReason] = useState("bad_faith_or_policy_violation");
   const [actionBusy, setActionBusy] = useState(false);
+  const [importForm, setImportForm] = useState({
+    title: "",
+    embed_url: "",
+    pitch: "",
+    tags: "",
+    owner_username: "",
+    description: "",
+  });
+  const [importBusy, setImportBusy] = useState(false);
+  const [importResult, setImportResult] = useState(null);
 
   const load = async (nextState = state) => {
     const data = await getJSON(`/admin/games?state=${nextState}`);
@@ -111,6 +121,31 @@ export default function Admin() {
     }
   };
 
+  const runImport = async (event) => {
+    event.preventDefault();
+    setImportBusy(true);
+    setImportResult(null);
+    try {
+      const data = await postJSON("/admin/games/import", {
+        title: importForm.title.trim(),
+        embed_url: importForm.embed_url.trim(),
+        pitch: importForm.pitch.trim(),
+        tags: importForm.tags.trim(),
+        owner_username: importForm.owner_username.trim(),
+        description: importForm.description.trim(),
+      });
+      setImportResult(data);
+      toast.success(`${data.game?.title || "Game"} listed · /games/${data.game?.slug}`);
+      setImportForm({ title: "", embed_url: "", pitch: "", tags: "", owner_username: "", description: "" });
+      await load("active");
+      setState("active");
+    } catch (error) {
+      toast.error(error.response?.data?.detail || "Import failed.");
+    } finally {
+      setImportBusy(false);
+    }
+  };
+
   if (loggedIn === null) return <PageLoader label="Checking admin session" />;
 
   if (!loggedIn) {
@@ -168,6 +203,100 @@ export default function Admin() {
           <LogOut className="w-4 h-4" /> Log out
         </button>
       </div>
+
+      {/* Operator one-off listing for Reddit / outreach */}
+      <form
+        onSubmit={runImport}
+        className="mt-8 surface p-5 grid md:grid-cols-2 gap-4"
+        data-testid="admin-import-form"
+      >
+        <div className="md:col-span-2 flex items-center gap-2">
+          <Link2 className="w-4 h-4 text-[#D4AF37]" />
+          <div>
+            <div className="text-white font-bold">Import browser game (operator)</div>
+            <p className="text-[#8B8B95] text-xs mt-0.5">
+              List a creator-hosted <strong className="text-[#C9C9D1]">browser</strong> URL without them signing up first.
+              Not for Play Store links — use a playable web page.
+            </p>
+          </div>
+        </div>
+        <FormField id="import-title" label="Title">
+          <input
+            id="import-title"
+            data-testid="admin-import-title"
+            className="input"
+            required
+            maxLength={80}
+            value={importForm.title}
+            onChange={(e) => setImportForm((f) => ({ ...f, title: e.target.value }))}
+            placeholder="Work Rush"
+          />
+        </FormField>
+        <FormField id="import-url" label="Browser play URL (https)">
+          <input
+            id="import-url"
+            data-testid="admin-import-url"
+            className="input"
+            type="url"
+            required
+            maxLength={512}
+            value={importForm.embed_url}
+            onChange={(e) => setImportForm((f) => ({ ...f, embed_url: e.target.value }))}
+            placeholder="https://… (not play.google.com)"
+          />
+        </FormField>
+        <FormField id="import-pitch" label="Pitch">
+          <input
+            id="import-pitch"
+            className="input"
+            maxLength={180}
+            value={importForm.pitch}
+            onChange={(e) => setImportForm((f) => ({ ...f, pitch: e.target.value }))}
+            placeholder="One-line pitch"
+          />
+        </FormField>
+        <FormField id="import-tags" label="Tags">
+          <input
+            id="import-tags"
+            className="input"
+            value={importForm.tags}
+            onChange={(e) => setImportForm((f) => ({ ...f, tags: e.target.value }))}
+            placeholder="typing, survival, mobile-friendly"
+          />
+        </FormField>
+        <FormField id="import-owner" label="Owner username (optional)">
+          <input
+            id="import-owner"
+            className="input"
+            value={importForm.owner_username}
+            onChange={(e) => setImportForm((f) => ({ ...f, owner_username: e.target.value }))}
+            placeholder="their_username or leave blank for goodgamelabs"
+          />
+        </FormField>
+        <FormField id="import-desc" label="Description (optional)">
+          <input
+            id="import-desc"
+            className="input"
+            maxLength={2000}
+            value={importForm.description}
+            onChange={(e) => setImportForm((f) => ({ ...f, description: e.target.value }))}
+          />
+        </FormField>
+        <div className="md:col-span-2 flex flex-wrap items-center gap-3">
+          <button type="submit" disabled={importBusy} className="btn-primary h-11 px-5" data-testid="admin-import-submit">
+            {importBusy ? "Importing…" : "Import & publish"}
+          </button>
+          {importResult?.play_url && (
+            <a
+              href={importResult.play_url.replace(/^https?:\/\/[^/]+/, "") || `/games/${importResult.game?.slug}`}
+              className="text-[#D4AF37] font-mono text-xs uppercase tracking-wider hover:underline"
+              data-testid="admin-import-result"
+            >
+              Open /games/{importResult.game?.slug} →
+            </a>
+          )}
+        </div>
+      </form>
 
       <div className="mt-6 flex items-center justify-between gap-3 flex-wrap">
         <div className="flex gap-2">

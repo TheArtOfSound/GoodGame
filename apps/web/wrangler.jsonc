@@ -1,5 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
+  // Production worker for goodgame.center. The sibling repo TheArtOfSound/gg
+  // must not reuse this name or these routes.
   "name": "goodgame-web",
   "main": "src/index.tsx",
   "compatibility_date": "2026-06-25",
@@ -49,7 +51,13 @@
       "/sitemap.xml",
       "/sitemap-index.xml",
       "/sitemaps/*",
+      "/feed",
+      "/feed/*",
+      "/search",
+      "/forge",
+      "/forge/*",
       "/feed.xml",
+      "/rss.xml",
       "/llms.txt",
       "/indexnow-key.txt",
       "/*.txt",
@@ -60,6 +68,9 @@
     { "pattern": "goodgame.center/*", "zone_name": "goodgame.center" },
     { "pattern": "www.goodgame.center/*", "zone_name": "goodgame.center" }
   ],
+  "triggers": {
+    "crons": ["20 */4 * * *"]
+  },
   "observability": {
     "enabled": true,
     "head_sampling_rate": 0.1

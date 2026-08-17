@@ -46,9 +46,9 @@ export default function Search() {
   const nothing = q && !loading && !games.length && !creators.length && !communities.length;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 md:px-8 py-10" data-testid="search-page">
+    <div className="alley-clerk" data-testid="search-page">
       <SEO title="Search" path="/search" noindex />
-      <PageHeader eyebrow="Discover" title="Search" description="Find games, creators, and communities across GoodGame." />
+      <PageHeader eyebrow="Ask the clerk" title="What’s on tonight" description="Name a cabinet, a handle, or a side room. We’ll check the board." />
       <form onSubmit={submit} className="mt-4 flex gap-2 max-w-xl">
         <label className="relative flex-1">
           <span className="sr-only">Search GoodGame</span>

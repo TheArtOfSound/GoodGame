@@ -151,25 +151,73 @@ export const playClass = (g: Game): { label: string; kind: string } => {
 export const ld = (obj: unknown): string =>
   JSON.stringify(obj).replace(/</g, '\\u003c');
 
+const abs = (env: Env, path?: string | null) => {
+  if (!path) return `${env.SITE_URL}/og/default.svg`;
+  return path.startsWith('http') ? path : `${env.SITE_URL}${path.startsWith('/') ? path : `/${path}`}`;
+};
+
+export const orgLd = (env: Env) => ({
+  '@context': 'https://schema.org',
+  '@type': 'Organization',
+  name: env.SITE_NAME,
+  url: env.SITE_URL,
+  logo: `${env.SITE_URL}/logo.svg`,
+  description: 'Free browser-game alley: play indie HTML5 games instantly or publish your own zip.',
+  email: 'hello@goodgame.center',
+  sameAs: ['https://goodgame.center'],
+});
+
 export const gameLd = (env: Env, g: Game) => ({
   '@context': 'https://schema.org',
   '@type': 'VideoGame',
   name: g.title,
   description: g.seo_description || g.pitch || g.description,
   url: `${env.SITE_URL}/games/${g.slug}`,
-  image: `${env.SITE_URL}/og/game/${g.slug}.svg`,
+  image: abs(env, g.cover_image || `/og/game/${g.slug}.svg`),
+  screenshot: abs(env, g.cover_image || `/og/game/${g.slug}.svg`),
   genre: csv(g.tags),
+  applicationCategory: 'Game',
+  operatingSystem: 'Web Browser',
   gamePlatform: csv(g.platforms).length ? csv(g.platforms) : ['Web Browser'],
   playMode: 'SinglePlayer',
-  isAccessibleForFree: g.price_cents === 0,
+  isAccessibleForFree: true,
+  inLanguage: 'en',
   ...(g.owner_name ? {
-    author: { '@type': 'Organization', name: g.owner_name, url: `${env.SITE_URL}/creators/${g.owner_username}` },
+    author: { '@type': 'Person', name: g.owner_name, url: `${env.SITE_URL}/creators/${g.owner_username}` },
     publisher: { '@type': 'Organization', name: g.owner_name, url: `${env.SITE_URL}/creators/${g.owner_username}` },
-  } : {}),
+  } : { publisher: orgLd(env) }),
   ...(g.rating_count > 0 ? {
-    aggregateRating: { '@type': 'AggregateRating', ratingValue: g.rating_avg, ratingCount: g.rating_count, bestRating: 5 },
+    aggregateRating: { '@type': 'AggregateRating', ratingValue: Number(g.rating_avg).toFixed(1), ratingCount: g.rating_count, bestRating: 5, worstRating: 1 },
   } : {}),
-  offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD', availability: 'https://schema.org/InStock' },
+  offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD', availability: 'https://schema.org/InStock', url: `${env.SITE_URL}/games/${g.slug}` },
+});
+
+export const itemListLd = (env: Env, name: string, path: string, items: { name: string; path: string }[]) => ({
+  '@context': 'https://schema.org',
+  '@type': 'CollectionPage',
+  name,
+  url: `${env.SITE_URL}${path}`,
+  mainEntity: {
+    '@type': 'ItemList',
+    numberOfItems: items.length,
+    itemListElement: items.map((it, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      url: `${env.SITE_URL}${it.path}`,
+      name: it.name,
+    })),
+  },
+});
+
+export const personLd = (env: Env, username: string, displayName: string) => ({
+  '@context': 'https://schema.org',
+  '@type': 'ProfilePage',
+  url: `${env.SITE_URL}/creators/${username}`,
+  mainEntity: {
+    '@type': 'Person',
+    name: displayName,
+    url: `${env.SITE_URL}/creators/${username}`,
+  },
 });
 
 export const articleLd = (env: Env, a: Article) => ({
@@ -209,9 +257,12 @@ export const siteLd = (env: Env) => ({
   '@type': 'WebSite',
   name: env.SITE_NAME,
   url: env.SITE_URL,
+  inLanguage: 'en',
+  description: 'Play free indie browser games instantly, or publish your own HTML5 build. No download, no wallet.',
+  publisher: orgLd(env),
   potentialAction: {
     '@type': 'SearchAction',
-    target: `${env.SITE_URL}/search?q={query}`,
-    'query-input': 'required name=query',
+    target: `${env.SITE_URL}/search?q={search_term_string}`,
+    'query-input': 'required name=search_term_string',
   },
 });

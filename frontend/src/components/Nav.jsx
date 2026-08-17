@@ -1,24 +1,15 @@
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import {
-  ChevronRight,
-  Gamepad2,
-  LogOut,
-  Menu,
-  Search,
-  Settings,
-  Upload,
-  X,
-} from "lucide-react";
+import { LogOut, Menu, Search, Settings, Upload, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import DonateButton from "./DonateButton";
 
 const navItems = [
-  { to: "/games", label: "Games" },
+  { to: "/games", label: "Games", icon: "/brand/alley/icon-games.webp" },
   { to: "/feed", label: "Feed" },
-  { to: "/clips", label: "Clips" },
-  { to: "/communities", label: "Communities" },
-  { to: "/creators", label: "Creators" },
+  { to: "/clips", label: "Clips", icon: "/brand/alley/icon-clips.webp" },
+  { to: "/communities", label: "Communities", icon: "/brand/alley/icon-creators.webp" },
+  { to: "/creators", label: "Creators", icon: "/brand/alley/icon-creators.webp" },
   { to: "/news", label: "News" },
 ];
 
@@ -26,6 +17,9 @@ const secondaryItems = [
   { to: "/activity", label: "Global activity" },
   { to: "/leaderboards", label: "Leaderboards" },
 ];
+
+const TICKER =
+  "FREE BROWSER GAMES  ·  NO DOWNLOAD  ·  HOST YOUR HTML5 ZIP  ·  PLAY IN THE ALLEY  ·  INSTANT CABINETS  ·  ";
 
 export default function Nav() {
   const { user, logout } = useAuth();
@@ -67,108 +61,108 @@ export default function Nav() {
 
   return (
     <>
-      <header
-        data-testid="site-header"
-        className="sticky top-0 z-50 bg-black/95 backdrop-blur-xl border-b border-[#1A1A1A]"
-      >
-        <div className="max-w-[1440px] mx-auto px-4 md:px-6 h-16 flex items-center gap-5">
-        <Link
-          to="/"
-          data-testid="brand-link"
-          className="flex items-center gap-2 text-white shrink-0"
-          aria-label="GoodGame.center home"
-        >
-          <Gamepad2 className="w-6 h-6 text-[#D4AF37]" />
-          <span className="font-black uppercase text-lg whitespace-nowrap">
-            GoodGame<span className="text-[#D4AF37]">.center</span>
+      <div className="alley-marquee" aria-hidden="true">
+        <div className="alley-marquee-track">
+          <span>{TICKER}</span>
+          <span>{TICKER}</span>
+          <span>{TICKER}</span>
+        </div>
+      </div>
+
+      <aside className="alley-spine" data-testid="site-header">
+        <Link to="/" className="alley-spine-brand" data-testid="brand-link" aria-label="GoodGame.center home">
+          <img src="/brand/alley/mark.webp" alt="" width={44} height={44} className="alley-spine-mark" />
+          <span className="alley-spine-word">
+            GOODGAME
+            <i>.center</i>
           </span>
         </Link>
 
-        <nav className="hidden xl:flex items-center gap-4 text-sm ml-2" aria-label="Primary">
+        <nav className="alley-spine-nav" aria-label="Primary">
           {navItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
               data-testid={`nav-${item.label.toLowerCase()}`}
-              className={({ isActive }) =>
-                `uppercase tracking-[0.14em] font-mono text-[11px] transition-colors ${
-                  isActive ? "text-[#D4AF37]" : "text-[#A1A1AA] hover:text-white"
-                }`
-              }
+              className={({ isActive }) => `alley-spine-link ${isActive ? "is-on" : ""}`}
+              title={item.label}
             >
-              {item.label}
+              {item.icon ? <img src={item.icon} alt="" /> : <span className="alley-spine-dot" />}
+              <em>{item.label}</em>
             </NavLink>
           ))}
         </nav>
 
-        <div className="hidden xl:flex items-center gap-2 ml-auto">
-          <Link
-            to="/search"
-            className="icon-button hidden xl:inline-grid 2xl:hidden"
-            aria-label="Search"
-            title="Search"
-          >
+        <div className="alley-spine-end">
+          <Link to="/search" className="alley-spine-tool" aria-label="Search" title="Search">
             <Search className="w-4 h-4" />
           </Link>
-          <form onSubmit={submitSearch} className="relative hidden 2xl:block">
-            <Search className="absolute left-3 top-3 w-4 h-4 text-[#52525B]" aria-hidden="true" />
-            <input
-              value={q}
-              onChange={(event) => setQ(event.target.value)}
-              placeholder="Search"
-              aria-label="Search"
-              data-testid="nav-search"
-              className="bg-[#0A0A0A] border border-[#27272A] focus:border-[#D4AF37] text-white text-sm pl-9 pr-3 h-10 w-44 outline-none transition-colors"
-            />
-          </form>
-          <DonateButton />
           {user ? (
             <>
-              <Link to="/create?method=upload" data-testid="upload-game-cta" className="btn-primary h-10 px-4">
-                <Upload className="w-4 h-4" /> Publish
+              <Link to="/create?method=upload" className="alley-spine-join" data-testid="upload-game-cta" title="Host a game">
+                Host
               </Link>
-              <Link
-                to={`/creators/${user.username}`}
-                data-testid="account-link"
-                className="h-10 max-w-36 border border-[#27272A] hover:border-white px-3 flex items-center text-white font-mono text-xs truncate"
-                title={`@${user.username}`}
-              >
+              <Link to={`/creators/${user.username}`} className="alley-spine-user" data-testid="account-link" title={`@${user.username}`}>
                 @{user.username}
               </Link>
-              <Link to="/settings" data-testid="settings-link" className="icon-button" aria-label="Settings" title="Settings">
+              <Link to="/settings" className="alley-spine-tool" data-testid="settings-link" aria-label="Settings">
                 <Settings className="w-4 h-4" />
               </Link>
-              <button onClick={handleLogout} data-testid="logout-button" className="icon-button" aria-label="Log out" title="Log out">
+              <button onClick={handleLogout} className="alley-spine-tool" data-testid="logout-button" aria-label="Log out">
                 <LogOut className="w-4 h-4" />
               </button>
             </>
           ) : (
             <>
-              <Link to="/login" data-testid="login-link" className="btn-secondary h-10 px-4">
-                Log in
+              <Link to="/login" className="alley-spine-tool" data-testid="login-link">
+                In
               </Link>
-              <Link to="/onboarding" data-testid="join-link" className="btn-primary h-10 px-4">
+              <Link to="/onboarding" className="alley-spine-join" data-testid="join-link">
                 Join
               </Link>
             </>
           )}
         </div>
+      </aside>
 
-        <button
-          className="xl:hidden icon-button ml-auto"
-          onClick={() => setOpen((value) => !value)}
-          data-testid="mobile-menu-toggle"
-          aria-label={open ? "Close menu" : "Open menu"}
-          aria-expanded={open}
-          aria-controls="mobile-navigation"
-        >
-          {open ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-        </button>
+      <header className="alley-topbar">
+        <Link to="/" className="alley-topbar-brand" aria-label="GoodGame.center home">
+          <img src="/brand/alley/mark.webp" alt="" width={32} height={32} />
+          <span>
+            GOODGAME<i>.center</i>
+          </span>
+        </Link>
+        <div className="alley-topbar-actions">
+          <DonateButton />
+          {user ? (
+            <Link to="/create?method=upload" data-testid="upload-game-cta" className="btn-primary h-10 px-3">
+              <Upload className="w-4 h-4" /> Host
+            </Link>
+          ) : (
+            <>
+              <Link to="/login" data-testid="login-link" className="btn-secondary h-10 px-3">
+                Log in
+              </Link>
+              <Link to="/create" data-testid="nav-host-cta" className="btn-primary h-10 px-3 hidden sm:inline-flex">
+                Host free
+              </Link>
+            </>
+          )}
+          <button
+            className="icon-button"
+            onClick={() => setOpen((value) => !value)}
+            data-testid="mobile-menu-toggle"
+            aria-label={open ? "Close menu" : "Open menu"}
+            aria-expanded={open}
+            aria-controls="mobile-navigation"
+          >
+            {open ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          </button>
         </div>
       </header>
 
       {open && (
-        <div id="mobile-navigation" className="nav-drawer xl:hidden" data-testid="mobile-menu">
+        <div id="mobile-navigation" className="nav-drawer alley-drawer" data-testid="mobile-menu">
           <form onSubmit={submitSearch} className="relative mb-4">
             <Search className="absolute left-3 top-3.5 w-4 h-4 text-[#52525B]" aria-hidden="true" />
             <input
@@ -177,9 +171,9 @@ export default function Nav() {
               placeholder="Search games, creators, communities"
               aria-label="Search"
               className="input pl-10"
+              data-testid="nav-search"
             />
           </form>
-
           <nav aria-label="Mobile primary">
             {[...navItems, ...secondaryItems].map((item) => (
               <NavLink
@@ -188,17 +182,14 @@ export default function Nav() {
                 className={({ isActive }) => `nav-drawer-link ${isActive ? "is-active" : ""}`}
               >
                 {item.label}
-                <ChevronRight className="w-4 h-4" aria-hidden="true" />
               </NavLink>
             ))}
           </nav>
-
           <div className="mt-6 grid gap-2">
-            <DonateButton variant="footer" className="w-full justify-center" />
             {user ? (
               <>
                 <Link to="/create?method=upload" className="btn-primary w-full">
-                  <Upload className="w-4 h-4" /> Publish game
+                  <Upload className="w-4 h-4" /> Host game free
                 </Link>
                 <Link to={`/creators/${user.username}`} className="btn-secondary w-full">
                   @{user.username}

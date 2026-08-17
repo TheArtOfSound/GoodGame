@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { getJSON } from "../lib/api";
 import SEO from "../components/SEO";
@@ -17,44 +17,76 @@ export default function News() {
       });
   }, []);
 
+  const wire = useMemo(
+    () => (articles || []).filter((a) => a.kind === "wire" || a.kind === "desk" || a.category === "wire" || a.category === "desk"),
+    [articles],
+  );
+  const guides = useMemo(
+    () => (articles || []).filter((a) => a.kind === "guide" || (!a.kind && a.category !== "wire" && a.category !== "desk")),
+    [articles],
+  );
+
   return (
-    <div className="max-w-4xl mx-auto px-4 md:px-8 py-10" data-testid="news-page">
+    <div className="alley-zine" data-testid="news-page">
       <SEO
-        title="News & Guides"
-        description="Browser-game news, creator guides, and how-tos from GoodGame.center: make a game with AI, publish HTML5 games, and find the best free browser games."
+        title="Game News Desk — Daily Browser & Indie Coverage on GoodGame.center"
+        description="A constantly updated game desk: original GoodGame write-ups of indie and browser-game news, plus evergreen publish guides. New URL every day."
         path="/news"
       />
+      <div className="alley-zine-inner">
       <PageHeader
-        eyebrow="Newsroom"
-        title="News & Guides"
-        description="Practical guides and updates on playing, making, and publishing browser games."
+        eyebrow="Wheatpaste"
+        title="Tonight’s paper"
+        description="Feeds come in around the clock. We write the alley take — original copy, source cited — so Google and players can find a fresh page each day."
       />
 
-      {!articles && <PageLoader label="Loading articles" />}
-      {error && <ErrorState className="mt-8" title="News could not load" body="The article index is temporarily unavailable." />}
+      {!articles && <PageLoader label="Loading the desk" />}
+      {error && <ErrorState className="mt-8" title="News could not load" body="The desk is temporarily dark." />}
       {!error && articles?.length === 0 && (
-        <EmptyState className="mt-8" icon={Newspaper} title="No articles yet" body="Guides and platform updates will appear here." />
+        <EmptyState className="mt-8" icon={Newspaper} title="No articles yet" body="The first ingest will land here." />
       )}
 
-      <div className="mt-8 grid md:grid-cols-2 gap-4">
-        {(articles || []).map((a) => (
-          <Link
-            key={a.slug}
-            to={`/news/${a.slug}`}
-            className="border border-[#1A1A1A] hover:border-[#D4AF37]/60 p-5 block transition-colors group"
-            data-testid="news-card"
-          >
-            <div className="font-mono text-[10px] uppercase tracking-[0.2em]" style={{ color: a.accent }}>
-              {a.category}
-            </div>
-            <h2 className="text-white group-hover:text-[#F1D77A] text-lg font-bold mt-2 leading-snug">{a.title}</h2>
-            <p className="text-[#A1A1AA] text-sm mt-2">{a.excerpt}</p>
-            <div className="text-[#52525B] font-mono text-[10px] mt-3">
-              {new Date(a.date).toLocaleDateString()}
-            </div>
-          </Link>
-        ))}
+      {wire.length > 0 && (
+        <section className="mt-10">
+          <div className="eyebrow mb-3">On the wire</div>
+          <div className="grid md:grid-cols-2 gap-5">
+            {wire.map((a, i) => (
+              <ArticleCard key={a.slug} a={a} tilt={((i * 17) % 7) - 3} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {guides.length > 0 && (
+        <section className="mt-12">
+          <div className="eyebrow mb-3">Evergreen guides</div>
+          <div className="grid md:grid-cols-2 gap-5">
+            {guides.map((a, i) => (
+              <ArticleCard key={a.slug} a={a} tilt={((i * 13) % 7) - 3} />
+            ))}
+          </div>
+        </section>
+      )}
       </div>
     </div>
+  );
+}
+
+function ArticleCard({ a, tilt = -1 }) {
+  return (
+    <Link
+      to={`/news/${a.slug}`}
+      className="wheatpaste"
+      style={{ "--tilt": `${tilt}deg` }}
+      data-testid="news-card"
+    >
+      <span>
+        {a.category}
+        {a.source_name ? ` · via ${a.source_name}` : ""}
+      </span>
+      <h2>{a.title}</h2>
+      <p>{a.excerpt}</p>
+      <small>{a.date ? new Date(a.date).toLocaleDateString() : ""}</small>
+    </Link>
   );
 }

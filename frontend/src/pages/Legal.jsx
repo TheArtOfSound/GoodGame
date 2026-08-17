@@ -83,8 +83,8 @@ export default function Legal() {
       </div>
     );
   return (
-    <article className="max-w-3xl mx-auto px-4 md:px-0 py-16" data-testid={`legal-${topic}`}>
-      <div className="text-[#D4AF37] font-mono text-xs uppercase tracking-[0.3em]">Trust & Safety</div>
+    <article className="alley-rules" data-testid={`legal-${topic}`}>
+      <div className="eyebrow">House rules</div>
       <h1 className="text-3xl md:text-4xl font-bold uppercase text-white mt-2 tracking-tight">
         {page.title}
       </h1>

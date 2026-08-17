@@ -30,15 +30,9 @@ export function PageLoader({ label = "Loading", compact = false }) {
 
 export function GridSkeleton({ count = 6, className = "" }) {
   return (
-    <div className={`game-grid ${className}`} role="status" aria-label="Loading games">
+    <div className={className || "game-grid"} role="status" aria-label="Loading games">
       {Array.from({ length: count }).map((_, index) => (
-        <div className="skeleton-card" key={index} aria-hidden="true">
-          <div className="skeleton-block aspect-video" />
-          <div className="p-3 space-y-2">
-            <div className="skeleton-line w-3/4" />
-            <div className="skeleton-line w-1/2 is-small" />
-          </div>
-        </div>
+        <div className="cabinet is-ghost" key={index} aria-hidden="true" />
       ))}
     </div>
   );

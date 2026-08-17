@@ -3,7 +3,9 @@ import { useParams, useNavigate, Navigate } from "react-router-dom";
 import { getJSON, postJSON } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { BACKEND_URL } from "../lib/config";
+import { ugcUrl } from "../lib/games";
 import SEO from "../components/SEO";
+import ForgeLoader from "../components/ForgeLoader";
 import { CharacterCount, ErrorState, InlineNotice, PageLoader } from "../components/UIState";
 
 export default function Forge() {
@@ -14,6 +16,7 @@ export default function Forge() {
   const [err, setErr] = useState(null);
   const [prompt, setPrompt] = useState("");
   const [busy, setBusy] = useState(false);
+  const [refineDone, setRefineDone] = useState(false);
   const [msg, setMsg] = useState(null);
   const [runReport, setRunReport] = useState(null);
   const [runBusy, setRunBusy] = useState(false);
@@ -35,7 +38,7 @@ export default function Forge() {
     return <div className="px-8 py-16 text-[#A1A1AA]" data-testid="forge-not-owner">You don&apos;t own this draft.</div>;
 
   const published = game.status === "published";
-  const src = `${BACKEND_URL}/api/ugc/${game.id}/${game.upload_entry}?v=${v}`;
+  const src = ugcUrl(game, `v=${v}`) || `${BACKEND_URL}/api/ugc/${game.id}/index.html?v=${v}`;
 
   const refine = async (e) => {
     if (e) e.preventDefault();
@@ -44,16 +47,19 @@ export default function Forge() {
       return;
     }
     setBusy(true);
+    setRefineDone(false);
     setMsg(null);
     try {
       await postJSON(`/games/${slug}/forge-refine`, { prompt });
       setPrompt("");
+      setRefineDone(true);
       setMsg("Updated — preview reloaded.");
       setV((n) => n + 1);
     } catch (e) {
       setMsg(e.response?.data?.detail || "Edit failed.");
     } finally {
       setBusy(false);
+      setRefineDone(false);
     }
   };
 
@@ -83,6 +89,7 @@ export default function Forge() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-8 py-8" data-testid="forge-workspace">
+      <ForgeLoader active={busy} done={refineDone} prompt={prompt} />
       <SEO title={`Forge · ${game.title}`} path={`/forge/${slug}`} noindex />
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
@@ -119,7 +126,7 @@ export default function Forge() {
               ref={frameRef}
               title={game.title}
               src={src}
-              sandbox="allow-scripts allow-pointer-lock allow-forms"
+              sandbox="allow-scripts allow-pointer-lock allow-forms allow-same-origin"
               allow="fullscreen; autoplay; gamepad"
               className="w-full aspect-video bg-black"
               data-testid="forge-preview"

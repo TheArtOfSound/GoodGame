@@ -94,9 +94,11 @@ ${o.sub ? `<text x="84" y="${subY}" font-size="27" fill="#b3bed5" font-family="I
 
 export const favicon = (): string =>
   `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
-<defs><linearGradient id="a" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6b93ff"/><stop offset="1" stop-color="#9d6bff"/></linearGradient></defs>
-<rect width="32" height="32" rx="9" fill="url(#a)"/>
-<text x="16" y="23" font-size="19" font-weight="900" fill="#fff" text-anchor="middle" font-family="system-ui,sans-serif">G</text>
+<defs><linearGradient id="a" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#E5C158"/><stop offset="1" stop-color="#D4AF37"/></linearGradient></defs>
+<rect width="32" height="32" rx="8" fill="#000000"/>
+<rect x="1" y="1" width="30" height="30" rx="7" fill="none" stroke="url(#a)" stroke-width="1.25"/>
+<path d="M11.5 9.2 a6.2 6.2 0 1 0 0.15 12 h2.9 v-3.5 h-3.9 a3.1 3.1 0 1 1 0.05-6.2 c0.75 0 1.45 0.25 2 0.7 l1.85-2.1 a6.2 6.2 0 0 0-3.05-0.9z" fill="url(#a)"/>
+<path d="M19.6 9.2 a6.2 6.2 0 1 0 0.15 12 h2.7 v-2.9 h-3.7 a3.1 3.1 0 1 1 0.05-6.2 c0.75 0 1.45 0.25 2 0.7 l1.8-2.1 a6.2 6.2 0 0 0-3-0.9z" fill="url(#a)" opacity="0.95"/>
 </svg>`;
 
 export { x as xmlEscape };

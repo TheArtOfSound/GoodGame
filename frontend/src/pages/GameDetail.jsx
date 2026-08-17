@@ -5,9 +5,9 @@ import { useAuth } from "../context/AuthContext";
 import { Maximize2, Minimize2, Play, RotateCcw, Settings } from "lucide-react";
 import SEO from "../components/SEO";
 import LeaderboardTable from "../components/LeaderboardTable";
-import { BACKEND_URL } from "../lib/config";
 import { CharacterCount, ErrorState, InlineNotice, PageLoader } from "../components/UIState";
 import ShareActions from "../components/ShareActions";
+import { coverFallbackUrl, coverUrl, isExternalGame, playIframeSrc } from "../lib/games";
 
 export default function GameDetail() {
   const { slug } = useParams();
@@ -31,7 +31,7 @@ export default function GameDetail() {
   useEffect(() => {
     setData(null);
     setError(null);
-    setPlaying(isPlayRoute);
+    setPlaying(false);
     setImmersive(false);
     setForceInline(false);
     setCounted(false);
@@ -40,13 +40,11 @@ export default function GameDetail() {
       .then((next) => {
         setData(next);
         setLeaderboard(next.leaderboard || { config: null, entries: [] });
+        const game = next.game;
+        if (isPlayRoute && game && playIframeSrc(game)) setPlaying(true);
       })
       .catch(() => setError("Game not found"));
   }, [slug, isPlayRoute]);
-
-  useEffect(() => {
-    if (data && isPlayRoute) setPlaying(true);
-  }, [data, isPlayRoute]);
 
   useEffect(() => {
     if (!playing || counted) return;
@@ -173,16 +171,23 @@ export default function GameDetail() {
   const { game, releases } = data;
   const isOwner = user && user.id === game.owner_id;
   const isEmbed = !!game.embed_url;
+  const isExternal = isExternalGame(game);
   const embedHost = (() => { try { return new URL(game.embed_url).hostname; } catch { return game.embed_url || ""; } })();
-  const iframeSrc = isEmbed ? game.embed_url : `${BACKEND_URL}/api/ugc/${game.id}/${game.upload_entry}`;
-  const cover = game.cover_image
-    ? `${BACKEND_URL}${game.cover_image}?v=${game.updated_at}`
-    : `${BACKEND_URL}/og/game/${game.slug}.svg`;
+  const iframeSrc = playIframeSrc(game);
+  const cover = coverUrl(game);
   const rawSeoDescription = game.seo_description || game.pitch || game.description?.slice(0, 200) || `Play ${game.title} in your browser.`;
   const seoDescription = rawSeoDescription.length < 90
     ? `${rawSeoDescription.replace(/[.\s]+$/, "")}. Play instantly in your browser on GoodGame.center.`
     : rawSeoDescription;
   const onPlay = () => {
+    if (isExternal && game.embed_url) {
+      window.open(game.embed_url, "_blank", "noopener,noreferrer");
+      if (!counted) {
+        setCounted(true);
+        postJSON(`/games/${slug}/play`, {}).catch(() => {});
+      }
+      return;
+    }
     setPlaying(true);
   };
 
@@ -203,8 +208,10 @@ export default function GameDetail() {
     } catch (_e) {}
   };
 
+  const listedExternal = new URLSearchParams(location.search).get("listed") === "external";
+
   return (
-    <div className="max-w-7xl mx-auto px-4 md:px-8 py-8" data-testid="game-detail-page">
+    <div className="cabinet-room" data-testid="game-detail-page">
       <SEO
         title={game.seo_title || game.title}
         description={seoDescription}
@@ -212,14 +219,24 @@ export default function GameDetail() {
         type="game"
         path={`/games/${game.slug}`}
       />
+      <div className="cabinet-room-inner">
+      {listedExternal && (
+        <div className="mb-6 alley-notice is-gold" data-testid="external-listed-notice">
+          <strong>Listed.</strong> That host blocks embedding, so Play opens on the original site.
+          Want it on this glass? Upload an HTML5 .zip from the creator console.
+        </div>
+      )}
       <div className="grid lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
+          <div className="cabinet-marquee-bar" aria-hidden="true">
+            {game.title}
+          </div>
           <div
             ref={playerRef}
-            className={`game-player-shell bg-black border border-[#1A1A1A] ${playing ? "is-playing" : ""} ${fullScreenLayout ? "is-immersive" : ""}`}
+            className={`game-player-shell cabinet-glass ${playing ? "is-playing" : ""} ${fullScreenLayout ? "is-immersive" : ""}`}
             data-testid="play-iframe-container"
           >
-            {playing ? (
+            {playing && iframeSrc ? (
               <>
                 <div className="game-player-toolbar">
                   <button
@@ -270,16 +287,22 @@ export default function GameDetail() {
                   src={cover}
                   alt={`${game.title} gameplay cover`}
                   className="absolute inset-0 w-full h-full object-cover opacity-55"
+                  onError={(event) => {
+                    const fallback = coverFallbackUrl(game);
+                    if (event.currentTarget.src !== fallback) event.currentTarget.src = fallback;
+                  }}
                 />
                 <div className="absolute inset-0 bg-black/35" />
                 <div className="relative z-10 flex flex-wrap items-center justify-center gap-3">
                   <button
                     onClick={onPlay}
                     data-testid="play-game-button"
-                    className="bg-[#D4AF37] text-black font-bold uppercase tracking-wider text-sm px-8 h-14 flex items-center gap-3 hover:bg-[#E5C158]"
+                    className="btn-primary btn-coin h-14 px-8 text-sm"
                   >
-                    <Play className="w-5 h-5" /> Play
+                    {isExternal ? <Play className="w-5 h-5" /> : <img src="/brand/alley/token.webp" alt="" className="coin-icon" />}
+                    {isExternal ? "Play on original site" : "Drop a coin"}
                   </button>
+                  {!isExternal && (
                   <button
                     onClick={enterFullscreen}
                     data-testid="play-fullscreen-button"
@@ -287,6 +310,12 @@ export default function GameDetail() {
                   >
                     <Maximize2 className="w-5 h-5" /> Fullscreen
                   </button>
+                  )}
+                  {isExternal && (
+                    <p className="w-full text-center text-[#C9C9D1] text-xs max-w-sm mt-1">
+                      This host blocks embedding (X-Frame-Options). Play opens on {embedHost || "the original site"}.
+                    </p>
+                  )}
                 </div>
               </div>
             )}
@@ -295,12 +324,12 @@ export default function GameDetail() {
           <div>
             <div className="flex items-center justify-between gap-4 flex-wrap">
               <div>
-                <h1 className="text-3xl md:text-4xl font-bold uppercase text-white tracking-tight">
+                <h1 className="text-3xl md:text-4xl font-bold text-white tracking-tight">
                   {game.title}
                 </h1>
                 <Link
                   to={`/creators/${game.owner_username}`}
-                  className="text-[#A1A1AA] hover:text-[#D4AF37] font-mono text-xs uppercase tracking-[0.2em]"
+                  className="text-[#A1A1AA] hover:text-[#7EF0FF] font-mono text-xs uppercase tracking-[0.2em]"
                 >
                   by @{game.owner_username}
                 </Link>
@@ -354,7 +383,7 @@ export default function GameDetail() {
         </div>
 
         <aside className="space-y-5">
-          <section id="leaderboard" className="scroll-mt-24">
+          <section id="leaderboard" className="scroll-mt-24 glass-case">
             <div className="flex items-end justify-between gap-3 mb-2">
               <div>
                 <div className="text-[#52525B] font-mono text-xs uppercase tracking-[0.2em]">Ranked runs</div>
@@ -460,6 +489,7 @@ export default function GameDetail() {
             </div>
           </div>
         </aside>
+      </div>
       </div>
     </div>
   );

@@ -60,12 +60,12 @@ export default function Feed() {
   const personalized = data?.personalized;
 
   return (
-    <div className="max-w-2xl mx-auto px-4 md:px-8 py-10" data-testid="feed-page">
+    <div className="alley-tape" data-testid="feed-page">
       <SEO title="Your feed" path="/feed" noindex />
       <PageHeader
-        eyebrow={personalized ? "Following" : "Discover"}
-        title={personalized ? "Your feed" : "Latest on GoodGame"}
-        description={personalized ? "Updates from creators you follow." : "Fresh posts, games, clips, and reviews from across the network."}
+        eyebrow={personalized ? "Your brick" : "The wall"}
+        title={personalized ? "Tape from people you follow" : "Tonight’s tape"}
+        description={personalized ? "Notes from creators you follow." : "Fresh posts, cabinets, clips, and reviews stuck to the wall."}
       />
 
       {welcome && user && (

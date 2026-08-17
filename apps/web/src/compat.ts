@@ -22,9 +22,11 @@ const encoder = new TextEncoder();
 const ALLOWED_HOSTS = new Set(['fonts.googleapis.com', 'fonts.gstatic.com']);
 
 // The GoodGame adapter: additive only. Captures runtime errors and exposes a
-// score/save bridge over postMessage. Cannot change a game's own behaviour.
-const ADAPTER = `<script>(function(){var P={},N=0;function s(t,d){try{if(parent&&parent!==window)parent.postMessage(Object.assign({source:'goodgame',type:t},d||{}),'*')}catch(e){}}function r(t,d,cb){var id=++N;P[id]=cb;s(t,Object.assign({reqId:id},d||{}))}window.addEventListener('message',function(e){var m=e.data;if(!m||m.source!=='goodgame-host')return;var cb=P[m.reqId];if(cb){delete P[m.reqId];try{cb(m.data)}catch(x){}}});window.GoodGame=window.GoodGame||{ready:function(){s('GG_READY')},submitScore:function(b,v){s('GG_SCORE',{board:b,score:v})},achievement:function(i){s('GG_ACHIEVEMENT',{id:i})},save:function(d){s('GG_SAVE',{data:d})},loadSave:function(cb){r('GG_LOAD',{},cb)},leaderboard:function(b,cb){r('GG_LEADERBOARD',{board:b},cb)}};window.addEventListener('error',function(e){s('GG_ERROR',{message:String(e&&e.message||''),source:String(e&&e.filename||''),line:e&&e.lineno||0})});window.addEventListener('unhandledrejection',function(e){s('GG_ERROR',{message:'Unhandled rejection: '+String(e&&e.reason)})});})();</script>`;
+// score/save bridge over postMessage. Also polyfills storage for opaque-origin
+// sandboxed iframes (localStorage throws without allow-same-origin and kills AI drafts).
+const ADAPTER = `<script data-gg-adapter="1">(function(){if(window.__GG_ADAPTER__)return;window.__GG_ADAPTER__=1;try{var _ls=window.localStorage;_ls.getItem('__gg_probe');}catch(_e){var store=function(){var m={};return{getItem:function(k){return Object.prototype.hasOwnProperty.call(m,k)?m[k]:null},setItem:function(k,v){m[String(k)]=String(v)},removeItem:function(k){delete m[k]},clear:function(){m={}},key:function(i){return Object.keys(m)[i]||null},get length(){return Object.keys(m).length}};};var mem=store();try{Object.defineProperty(window,'localStorage',{value:mem,configurable:true})}catch(x){window.localStorage=mem}try{Object.defineProperty(window,'sessionStorage',{value:store(),configurable:true})}catch(x){window.sessionStorage=store()}}var P={},N=0;function s(t,d){try{if(parent&&parent!==window)parent.postMessage(Object.assign({source:'goodgame',type:t},d||{}),'*')}catch(e){}}function r(t,d,cb){var id=++N;P[id]=cb;s(t,Object.assign({reqId:id},d||{}))}window.addEventListener('message',function(e){var m=e.data;if(!m||m.source!=='goodgame-host')return;var cb=P[m.reqId];if(cb){delete P[m.reqId];try{cb(m.data)}catch(x){}}});window.GoodGame=window.GoodGame||{ready:function(){s('GG_READY')},submitScore:function(b,v){s('GG_SCORE',{board:b,score:v})},achievement:function(i){s('GG_ACHIEVEMENT',{id:i})},save:function(d){s('GG_SAVE',{data:d})},loadSave:function(cb){r('GG_LOAD',{},cb)},leaderboard:function(b,cb){r('GG_LEADERBOARD',{board:b},cb)}};window.addEventListener('error',function(e){s('GG_ERROR',{message:String(e&&e.message||''),source:String(e&&e.filename||''),line:e&&e.lineno||0})});window.addEventListener('unhandledrejection',function(e){s('GG_ERROR',{message:'Unhandled rejection: '+String(e&&e.reason)})});})();</script>`;
 const VIEWPORT = `<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">`;
+const hasGgAdapter = (html: string) => /data-gg-adapter\s*=\s*["']1["']|__GG_ADAPTER__|source:'goodgame'/.test(html);
 
 const normalize = (path: string): string => {
   const out: string[] = [];
@@ -120,7 +122,11 @@ export function analyzeAndPrepare(files: IngestFile[], entry: string): { report:
   if (canEditEntry) {
     let next = html;
     if (!hasViewport) { next = injectIntoHead(next, VIEWPORT); applied.push('Added a mobile viewport meta tag.'); }
-    next = injectIntoHead(next, ADAPTER); applied.push('Injected the GoodGame adapter (runtime error capture + score/save bridge).');
+    // Never double-inject — re-saves (Forge refine) used to stack adapters.
+    if (!hasGgAdapter(next)) {
+      next = injectIntoHead(next, ADAPTER);
+      applied.push('Injected the GoodGame adapter (storage polyfill + error capture + score bridge).');
+    }
     if (next !== html) {
       html = next;
       const idx = files.findIndex((f) => f.path === entry);

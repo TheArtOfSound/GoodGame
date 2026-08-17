@@ -94,9 +94,9 @@ export default function Settings() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto px-4 md:px-8 py-10" data-testid="settings-page">
+    <div className="alley-office" data-testid="settings-page">
       <SEO title="Settings" path="/settings" />
-      <PageHeader eyebrow="Account" title="Settings" description="Manage your public creator profile and profile media." />
+      <PageHeader eyebrow="Back office" title="Your locker" description="Name on the pass, portrait, and the banner over your stall." />
 
       <Section title="Profile">
         <form onSubmit={saveProfile} className="space-y-3 max-w-lg">

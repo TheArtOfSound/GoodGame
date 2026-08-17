@@ -32,15 +32,17 @@ import "@/App.css";
 
 function NotFound() {
   return (
-    <div className="max-w-3xl mx-auto px-4 py-20 text-center" data-testid="not-found">
-      <div className="text-[#D4AF37] font-mono text-xs uppercase tracking-[0.3em]">404</div>
-      <h1 className="text-4xl font-bold uppercase text-white mt-2 tracking-tight">
-        Off the grid
-      </h1>
-      <p className="text-[#A1A1AA] mt-4">That page doesn&apos;t exist.</p>
-      <div className="mt-6 flex justify-center gap-2 flex-wrap">
-        <Link to="/games" className="btn-primary">Browse games</Link>
-        <Link to="/" className="btn-secondary">Go home</Link>
+    <div className="alley-deadend" data-testid="not-found">
+      <div>
+        <div className="alley-stamp">DEAD END</div>
+        <h1 className="text-4xl md:text-6xl font-bold text-white mt-4 tracking-tight">
+          This street goes nowhere.
+        </h1>
+        <p className="text-[#A1A1AA] mt-4">That door was bricked over.</p>
+        <div className="mt-6 flex justify-center gap-2 flex-wrap">
+          <Link to="/games" className="btn-primary">Walk the cabinets</Link>
+          <Link to="/" className="btn-secondary">Back to the mouth</Link>
+        </div>
       </div>
     </div>
   );

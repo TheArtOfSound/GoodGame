@@ -41,7 +41,7 @@ export default function CreatorProfile() {
     ? `${BACKEND_URL}${creator.banner}`
     : firstGameCover
       ? `${BACKEND_URL}${firstGameCover}`
-      : "/game-covers/voidline-survivor.webp";
+      : "/brand/banners/profile-banner.jpg";
 
   return (
     <div data-testid="creator-profile">

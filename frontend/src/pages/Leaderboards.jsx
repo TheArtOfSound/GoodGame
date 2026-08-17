@@ -30,15 +30,15 @@ export default function Leaderboards() {
     : leaders;
 
   return (
-    <div className="max-w-6xl mx-auto px-4 md:px-8 py-10" data-testid="leaderboards-page">
+    <div className="alley-glass-case" data-testid="leaderboards-page">
       <SEO
         title="Browser game leaderboards"
         description="See persistent global high scores and current champions across free browser games on GoodGame.center."
         path="/leaderboards"
       />
       <PageHeader
-        eyebrow="Persistent scores"
-        title="Global champions"
+        eyebrow="Glass case"
+        title="High scores"
         description="Each row is the current best authenticated run for that game. Scores are never prefilled."
       />
 
@@ -68,12 +68,12 @@ export default function Leaderboards() {
           {visible.length === 0 ? (
             <EmptyState className="mt-6" icon={Search} title="No matching boards" body={`Nothing matches “${query.trim()}”.`} action={<button type="button" className="btn-secondary" onClick={() => setQuery("")}>Clear filter</button>} />
           ) : (
-          <div className="mt-6 border border-[#1A1A1A] divide-y divide-[#1A1A1A]">
+          <div className="mt-6">
           {visible.map((leader) => (
             <Link
               key={leader.game_id}
               to={`/games/${leader.game_slug}#leaderboard`}
-              className="grid md:grid-cols-[1fr_220px_160px] gap-3 md:items-center px-4 md:px-5 py-4 hover:bg-[#0A0A0A]"
+              className="sticker-row grid md:grid-cols-[1fr_220px_160px] gap-3 md:items-center px-4 md:px-5 py-4"
             >
               <div>
                 <div className="text-white font-bold">{leader.game_title}</div>

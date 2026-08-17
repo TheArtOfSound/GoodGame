@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { postJSON } from "../lib/api";
 import { FormField, PasswordInput } from "../components/FormControls";
-import { InlineNotice, PageHeader } from "../components/UIState";
+import { InlineNotice } from "../components/UIState";
 import { authPath, safeNext } from "../lib/navigation";
 
 export default function Login() {
@@ -32,51 +32,72 @@ export default function Login() {
   };
 
   return (
-    <div className="max-w-md mx-auto px-4 md:px-0 py-12 md:py-16" data-testid="login-page">
-      <PageHeader
-        eyebrow="Account"
-        title="Welcome back"
-        description="Log in to save scores, post updates, follow creators, and publish games."
-      />
-      <form onSubmit={submit} className="mt-8 space-y-4">
-        <FormField id="login-username" label="Username">
-          <input
-            id="login-username"
-            data-testid="login-username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            className="input"
-            autoComplete="username"
-            required
+    <div className="form-stage" data-testid="login-page">
+      <div className="form-stage-brand">
+        <img src="/brand/alley/door.webp" alt="" />
+        <div className="alley-rain" aria-hidden="true" />
+        <div className="form-stage-brand-inner">
+          <img
+            src="/brand/alley/mark.webp"
+            alt=""
+            width={48}
+            height={48}
+            className="w-12 h-12 mb-4"
           />
-        </FormField>
-        <FormField id="login-password" label="Password">
-          <PasswordInput
-            id="login-password"
-            data-testid="login-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="current-password"
-            required
-          />
-        </FormField>
-        {err && (
-          <InlineNotice tone="error" testId="login-error">{err}</InlineNotice>
-        )}
-        <button
-          type="submit"
-          disabled={loading}
-          data-testid="login-submit"
-          className="btn-primary w-full h-12"
-        >
-          {loading ? "Logging in..." : "Log in"}
-        </button>
-      </form>
-      <div className="text-[#A1A1AA] text-sm mt-6">
-        New here?{" "}
-        <Link to={authPath("/onboarding", next)} className="text-[#D4AF37] hover:text-[#F1D77A] underline">
-          Create an account
-        </Link>
+          <div className="alley-stamp">BACK DOOR</div>
+          <h2 className="text-white leading-tight max-w-xs">
+            Punch your ticket.
+          </h2>
+        </div>
+      </div>
+
+      <div className="form-stage-panel">
+        <div className="eyebrow">Regulars</div>
+        <h1 className="page-title !text-3xl mt-1">Welcome back</h1>
+        <p className="page-description !mt-2">
+          Scores, tape on the wall, and the machines you plugged in stay on this pass.
+        </p>
+
+        <form onSubmit={submit} className="mt-8 space-y-4">
+          <FormField id="login-username" label="Username">
+            <input
+              id="login-username"
+              data-testid="login-username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className="input"
+              autoComplete="username"
+              required
+            />
+          </FormField>
+          <FormField id="login-password" label="Password">
+            <PasswordInput
+              id="login-password"
+              data-testid="login-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+              required
+            />
+          </FormField>
+          {err && (
+            <InlineNotice tone="error" testId="login-error">{err}</InlineNotice>
+          )}
+          <button
+            type="submit"
+            disabled={loading}
+            data-testid="login-submit"
+            className="btn-primary w-full h-12"
+          >
+            {loading ? "Checking the list..." : "Enter the alley"}
+          </button>
+        </form>
+        <div className="text-[#A1A1AA] text-sm mt-6">
+          First night?{" "}
+          <Link to={authPath("/onboarding", next)} className="underline">
+            Stamp a pass
+          </Link>
+        </div>
       </div>
     </div>
   );

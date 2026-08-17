@@ -43,8 +43,9 @@ export function Document(props: {
         <meta name="twitter:title" content={meta.title} />
         <meta name="twitter:description" content={meta.description} />
         <meta name="twitter:image" content={img} />
-        <meta name="theme-color" content="#070a11" />
+        <meta name="theme-color" content="#000000" />
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="/brand/logo/gg-mark-gold.jpg" />
         <link rel="alternate" type="application/rss+xml" title="GoodGame News" href="/feed.xml" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />

@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { getJSON } from "../lib/api";
 import GameCard from "../components/GameCard";
 import SEO from "../components/SEO";
-import { Search, X } from "lucide-react";
+import { Search, Upload, X } from "lucide-react";
 import { EmptyState, ErrorState, GridSkeleton, PageHeader } from "../components/UIState";
+import { pickFeatured, sortGames } from "../lib/games";
 
 export default function Browse() {
   const [games, setGames] = useState([]);
@@ -11,6 +13,7 @@ export default function Browse() {
   const [error, setError] = useState(false);
   const [q, setQ] = useState("");
   const [tag, setTag] = useState(null);
+  const [sort, setSort] = useState("popular");
 
   const load = () => {
     setLoading(true);
@@ -53,122 +56,183 @@ export default function Browse() {
       .map(([name, count]) => ({ name, count }));
   })();
 
-  const filtered = games.filter((g) => {
-    if (tag && !(g.tags || []).some((t) => String(t).toLowerCase() === tag)) return false;
-    if (!normalizedQuery) return true;
-    return (
-      g.title.toLowerCase().includes(normalizedQuery) ||
-      (g.owner_username || "").toLowerCase().includes(normalizedQuery) ||
-      (g.tags || []).some((t) => t.toLowerCase().includes(normalizedQuery))
-    );
-  });
+  const filtered = sortGames(
+    games.filter((g) => {
+      if (tag && !(g.tags || []).some((t) => String(t).toLowerCase() === tag)) return false;
+      if (!normalizedQuery) return true;
+      return (
+        g.title.toLowerCase().includes(normalizedQuery) ||
+        (g.owner_username || "").toLowerCase().includes(normalizedQuery) ||
+        (g.tags || []).some((t) => t.toLowerCase().includes(normalizedQuery))
+      );
+    }),
+    sort,
+  );
+
+  const featured = !tag && !normalizedQuery && filtered.length ? pickFeatured(filtered) : null;
+  const gridGames = featured ? filtered.filter((g) => g.id !== featured.id) : filtered;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 md:px-8 py-10" data-testid="browse-page">
-      <SEO title="Browse all games" path="/games" />
-      <PageHeader
-        eyebrow="Catalog"
-        title="All games"
-        description="Original and creator-published browser games, ready to play without a download."
+    <div data-testid="browse-page" className="alley-lot">
+      <SEO
+        title="Free Browser Games — Play Indie Web Games on GoodGame.center"
+        description="Browse free browser games from indie creators. Play arcade, puzzle, shooter, experimental, and HTML5 games instantly on GoodGame.center."
+        path="/games"
       />
-      <div className="mt-6 mb-5 flex items-center justify-between gap-4 flex-wrap">
-        <label className="relative w-full md:w-96">
-          <span className="sr-only">Filter games</span>
-          <Search className="absolute left-3 top-4 w-4 h-4 text-[#52525B]" aria-hidden="true" />
-        <input
-          data-testid="browse-search"
-          placeholder="Filter by title, creator, or tag"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-            className="input pl-10 pr-11"
-        />
-          {q && (
-            <button type="button" onClick={() => setQ("")} className="absolute right-1 top-1 w-10 h-10 grid place-items-center text-[#71717A] hover:text-white" aria-label="Clear filter">
-              <X className="w-4 h-4" />
-            </button>
+
+      <div className="alley-lot-mast">
+        <div className="alley-lot-mast-inner">
+          <PageHeader
+            eyebrow="The lot"
+            title="Every cabinet on the block"
+            description="Walk the row. No download. Plug yours in if the lot is missing a machine."
+            actions={
+              <Link to="/create?method=upload" className="btn-primary h-11 px-5">
+                <Upload className="w-4 h-4" /> Plug one in
+              </Link>
+            }
+          />
+        </div>
+      </div>
+
+      <div className="alley-lot-filters">
+        <div className="max-w-7xl mx-auto px-4 md:px-8 py-3 flex items-center gap-3 flex-wrap">
+          <label className="relative flex-1 min-w-[200px] max-w-md">
+            <span className="sr-only">Filter games</span>
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#52525B]" aria-hidden="true" />
+            <input
+              data-testid="browse-search"
+              placeholder="Filter by title, creator, or tag"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              className="input h-10 pl-10 pr-11 text-sm"
+            />
+            {q && (
+              <button
+                type="button"
+                onClick={() => setQ("")}
+                className="absolute right-1 top-1/2 -translate-y-1/2 w-8 h-8 grid place-items-center text-[#71717A] hover:text-white"
+                aria-label="Clear filter"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </label>
+          {!loading && !error && (
+            <div className="flex items-center gap-3 ml-auto">
+              <div className="flex border border-[#242428]" role="group" aria-label="Sort games">
+                {[
+                  { id: "popular", label: "Popular" },
+                  { id: "new", label: "New" },
+                ].map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => setSort(option.id)}
+                    aria-pressed={sort === option.id}
+                    data-testid={`browse-sort-${option.id}`}
+                    className={`h-8 px-3 text-[11px] font-mono uppercase tracking-[0.14em] ${
+                      sort === option.id
+                        ? "bg-[var(--sodium)] text-black"
+                        : "text-[#C9C9D1] hover:text-white"
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+              <div className="meta-text font-mono text-[11px] uppercase tracking-[0.18em]">
+                {filtered.length} game{filtered.length === 1 ? "" : "s"}
+              </div>
+            </div>
           )}
-        </label>
-        {!loading && !error && (
-          <div className="meta-text font-mono text-[11px] uppercase tracking-[0.18em]">
-            {filtered.length} game{filtered.length === 1 ? "" : "s"}
+        </div>
+
+        {!loading && !error && genres.length > 0 && (
+          <div className="max-w-7xl mx-auto px-4 md:px-8 pb-3 flex flex-wrap gap-2" data-testid="genre-filters">
+            <button
+              type="button"
+              onClick={() => setTag(null)}
+              aria-pressed={tag === null}
+              className={`h-8 px-3 text-xs font-semibold border transition-colors ${
+                tag === null
+                  ? "bg-[var(--sodium)] text-black border-[var(--sodium)]"
+                  : "text-[#C9C9D1] border-[#242428] hover:border-white/40 hover:text-white"
+              }`}
+            >
+              All
+            </button>
+            {genres.map((g) => (
+              <button
+                key={g.name}
+                type="button"
+                onClick={() => setTag(tag === g.name ? null : g.name)}
+                aria-pressed={tag === g.name}
+                data-testid={`genre-${g.name}`}
+                className={`h-8 px-3 text-xs font-semibold border transition-colors ${
+                  tag === g.name
+                    ? "bg-[var(--sodium)] text-black border-[var(--sodium)]"
+                    : "text-[#C9C9D1] border-[#242428] hover:border-white/40 hover:text-white"
+                }`}
+              >
+                {g.name.charAt(0).toUpperCase() + g.name.slice(1)}
+                <span className={tag === g.name ? "ml-1.5 text-black/60" : "ml-1.5 text-[#71717A]"}>{g.count}</span>
+              </button>
+            ))}
           </div>
         )}
       </div>
 
-      {/* Browsing by genre is how players actually shop for a game to play. */}
-      {!loading && !error && genres.length > 0 && (
-        <div className="mb-6 flex flex-wrap gap-2" data-testid="genre-filters">
-          <button
-            type="button"
-            onClick={() => setTag(null)}
-            aria-pressed={tag === null}
-            className={`h-9 px-3.5 text-xs font-semibold border transition-colors ${
-              tag === null
-                ? "bg-[#D4AF37] text-black border-[#D4AF37]"
-                : "text-[#C9C9D1] border-[#242428] hover:border-white/40 hover:text-white"
-            }`}
-          >
-            All games
-          </button>
-          {genres.map((g) => (
-            <button
-              key={g.name}
-              type="button"
-              onClick={() => setTag(tag === g.name ? null : g.name)}
-              aria-pressed={tag === g.name}
-              data-testid={`genre-${g.name}`}
-              className={`h-9 px-3.5 text-xs font-semibold border transition-colors ${
-                tag === g.name
-                  ? "bg-[#D4AF37] text-black border-[#D4AF37]"
-                  : "text-[#C9C9D1] border-[#242428] hover:border-white/40 hover:text-white"
-              }`}
-            >
-              {g.name.charAt(0).toUpperCase() + g.name.slice(1)}
-              <span className={tag === g.name ? "ml-1.5 text-black/60" : "ml-1.5 text-[#71717A]"}>{g.count}</span>
-            </button>
-          ))}
-        </div>
-      )}
-      {loading ? (
-        <GridSkeleton count={12} />
-      ) : error ? (
-        <ErrorState
-          title="Games could not load"
-          body="Try the catalog request again."
-          action={<button type="button" className="btn-secondary" onClick={load}>Retry</button>}
-        />
-      ) : filtered.length === 0 ? (
-        <EmptyState
-          icon={Search}
-          testId="browse-empty"
-          title={games.length ? "No matching games" : "No games published yet"}
-          body={
-            games.length
-              ? `Nothing matches ${[q.trim() && `“${q.trim()}”`, tag && `the ${tag} genre`].filter(Boolean).join(" in ")}. Try a broader search.`
-              : "The public catalog is ready for its first creator release."
-          }
-          action={
-            games.length ? (
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={() => {
-                  setQ("");
-                  setTag(null);
-                }}
-              >
-                Clear filters
-              </button>
-            ) : null
-          }
-        />
-      ) : (
-        <div className="game-grid">
-          {filtered.map((g) => (
-            <GameCard key={g.id} game={g} />
-          ))}
-        </div>
-      )}
+      <div className="alley-lot-floor">
+        {loading ? (
+          <GridSkeleton count={12} className="catalog-grid" />
+        ) : error ? (
+          <ErrorState
+            title="The lot lights flickered"
+            body="The cabinets could not be counted. Try again."
+            action={<button type="button" className="btn-secondary" onClick={load}>Retry</button>}
+          />
+        ) : filtered.length === 0 ? (
+          <EmptyState
+            icon={Search}
+            testId="browse-empty"
+            title={games.length ? "Nothing in this bay" : "The lot is empty"}
+            body={
+              games.length
+                ? `Nothing matches ${[q.trim() && `“${q.trim()}”`, tag && `the ${tag} genre`].filter(Boolean).join(" in ")}. Try a broader walk.`
+                : "Wheel in an HTML5 build and it becomes the first machine on the row."
+            }
+            action={
+              games.length ? (
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => {
+                    setQ("");
+                    setTag(null);
+                  }}
+                >
+                  Clear filters
+                </button>
+              ) : null
+            }
+          />
+        ) : (
+          <>
+            {featured && (
+              <div className="mb-6">
+                <div className="eyebrow mb-3">Under the sodium lamp</div>
+                <GameCard game={featured} size="lg" />
+              </div>
+            )}
+            <div className="catalog-grid">
+              {gridGames.map((g) => (
+                <GameCard key={g.id} game={g} />
+              ))}
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }

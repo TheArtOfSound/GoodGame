@@ -14,7 +14,15 @@ const WELL_KNOWN = '/.well-known/goodgame-verify.txt';
 
 export type UrlCheck = { ok: true; url: string; origin: string } | { ok: false; error: string };
 export type EmbedCheck =
-  | { ok: true; finalUrl: string; html: string; verified: boolean }
+  | {
+      ok: true;
+      finalUrl: string;
+      html: string;
+      verified: boolean;
+      /** false when X-Frame-Options/CSP block iframes — play opens in a new tab instead */
+      frameable: boolean;
+      framingNote?: string;
+    }
   | { ok: false; error: string };
 
 // Block private, loopback, link-local, CGNAT, multicast and reserved IPv4 ranges.
@@ -33,6 +41,22 @@ function isPrivateIPv4(host: string): boolean {
   return false;
 }
 
+/** App-store / marketplace links are not browser play pages. */
+const NON_BROWSER_HOSTS = [
+  'play.google.com',
+  'apps.apple.com',
+  'itunes.apple.com',
+  'appstore.com',
+  'microsoft.com',
+  'www.microsoft.com',
+  'store.steampowered.com',
+  'www.amazon.com',
+  'amazon.com',
+  'galaxy.store',
+  'apkpure.com',
+  'aptoide.com',
+];
+
 export function normalizeEmbedUrl(raw: string): UrlCheck {
   const s = (raw || '').trim();
   if (!s) return { ok: false, error: 'Enter the URL where your game is hosted.' };
@@ -47,6 +71,21 @@ export function normalizeEmbedUrl(raw: string): UrlCheck {
   if (!host.includes('.')) return { ok: false, error: 'Use a full public domain (e.g. yourgame.example.com).' };
   if (/(^|\.)(localhost|local|internal|home|lan)$/.test(host)) return { ok: false, error: 'That host isn’t publicly reachable.' };
   if (isPrivateIPv4(host)) return { ok: false, error: 'That’s a private or reserved IP address and can’t be used.' };
+  if (NON_BROWSER_HOSTS.some((h) => host === h || host.endsWith('.' + h))) {
+    return {
+      ok: false,
+      error:
+        'That looks like an app store link. GoodGame needs a browser-playable page (HTML5/WebGL) or a .zip upload we can host — not Google Play / App Store / Steam storefront URLs.',
+    };
+  }
+  // Common mobile-store path patterns on shared domains
+  if (/\/store\/apps\/details|\/app\/id\d+/i.test(u.pathname + u.search)) {
+    return {
+      ok: false,
+      error:
+        'That looks like a mobile store listing. Upload an HTML5 .zip (we host it free) or paste a direct browser play URL (itch.io web, GitHub Pages, your domain, etc.).',
+    };
+  }
   u.hash = '';
   return { ok: true, url: u.toString(), origin: u.origin };
 }
@@ -116,13 +155,21 @@ export async function fetchForEmbed(url: string, siteOrigin: string, token?: str
   const ct = (res.headers.get('content-type') || '').toLowerCase();
   if (ct && !ct.includes('html')) return { ok: false, error: `That URL serves ${ct.split(';')[0]}, not an HTML page.` };
   const blocked = framingBlocked(res.headers, siteOrigin);
-  if (blocked) return { ok: false, error: `That page can’t be embedded — ${blocked}. Host it where framing is allowed, or upload a .zip instead.` };
   let html = '';
   try {
     const buf = await res.arrayBuffer();
     html = new TextDecoder().decode(buf.slice(0, MAX_HTML));
   } catch { /* body is optional for the framing decision */ }
-  return { ok: true, finalUrl: finalCheck.url, html, verified: token ? metaVerified(html, token) : false };
+  // Allow listing even when the host forbids iframes — GoodGame will open play
+  // in a new tab ("external") instead of embedding. Zip upload still preferred for in-site play.
+  return {
+    ok: true,
+    finalUrl: finalCheck.url,
+    html,
+    verified: token ? metaVerified(html, token) : false,
+    frameable: !blocked,
+    framingNote: blocked || undefined,
+  };
 }
 
 // Fallback ownership proof: GET <origin>/.well-known/goodgame-verify.txt and look for the token.

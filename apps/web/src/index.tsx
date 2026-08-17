@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import type { Env, Game, Creator, Clip, Community } from './lib';
-import { fmtCount, initials, csv, ld, siteLd, gameLd, breadcrumbLd } from './lib';
+import { fmtCount, initials, csv, ld, siteLd, gameLd, breadcrumbLd, orgLd, itemListLd, personLd } from './lib';
 import { CSS } from './styles';
 import { page } from './components';
 import { ogCard, favicon } from './og';
@@ -11,8 +11,10 @@ import { analyzeAndPrepare, type CompatReport } from './compat';
 import { normalizeEmbedUrl, fetchForEmbed, wellKnownVerified, newEmbedToken } from './embed';
 import { submitScore, getLeaderboard, putSave, getSave } from './sdk';
 import { generateGameHtml, refineGameHtml } from './forge';
+import { recipeCatalogPublic, type RecipePicks } from './forge-recipes';
 import { runtimeCheck } from './runtime';
-import { newsList, newsArticle, newsSlugs } from './news';
+import { newsSlugs } from './news';
+import { allPublicArticles, findPublicArticle, listDeskArticles, runNewsDesk } from './news-desk';
 import { togglePostLike, postLikes } from './social';
 import { getSession, logout, loginPassword, onboardPassword, rateLimit } from './auth';
 import { hasEntitlement } from './pay';
@@ -29,7 +31,7 @@ const app = new Hono<{ Bindings: Env }>();
 const ADMIN_COOKIE = 'gg_admin';
 const ADMIN_TTL = 60 * 60 * 12;
 const INDEXNOW_FALLBACK_KEY = 'a8df7c0d6f3b4ad2a6f9487c8f0b1d25';
-const SITEMAP_NAMES = ['static', 'games', 'creators', 'clips', 'communities', 'tags'] as const;
+const SITEMAP_NAMES = ['static', 'games', 'creators', 'clips', 'communities', 'tags', 'news', 'images'] as const;
 
 // Security headers applied to every Worker-handled response. The CSP allows the
 // React (CRA) app's inline runtime/styles plus Google Fonts; tightening to a
@@ -69,7 +71,13 @@ async function tooMany(c: any, name: string, limit: number, windowSeconds: numbe
 }
 
 app.use('*', async (c, next) => {
-  const path = new URL(c.req.url).pathname;
+  const url = new URL(c.req.url);
+  const host = (c.req.header('host') || url.host).split(':')[0].toLowerCase();
+  if (host === 'www.goodgame.center') {
+    url.hostname = 'goodgame.center';
+    return c.redirect(url.toString(), 301);
+  }
+  const path = url.pathname;
   if (shouldServeReactShell(c.req.method, path, c.req.header('accept') || '')) {
     const shell = await reactShell(c as any, path);
     if (shouldNoindexHeader(path)) shell.headers.set('X-Robots-Tag', 'noindex');
@@ -119,8 +127,14 @@ const isoLastmod = (value?: string | null) => {
   const d = source ? new Date(source.endsWith('Z') ? source : `${source}Z`) : new Date();
   return Number.isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
 };
-const sitemapUrl = (base: string, path: string, lastmod?: string | null) =>
-  `<url><loc>${escapeXml(base + path)}</loc><lastmod>${isoLastmod(lastmod)}</lastmod></url>`;
+const sitemapUrl = (base: string, path: string, lastmod?: string | null, image?: { loc: string; title?: string } | null) => {
+  const img = image?.loc
+    ? `<image:image><image:loc>${escapeXml(image.loc.startsWith('http') ? image.loc : base + image.loc)}</image:loc>${
+        image.title ? `<image:title>${escapeXml(image.title)}</image:title>` : ''
+      }</image:image>`
+    : '';
+  return `<url><loc>${escapeXml(base + path)}</loc><lastmod>${isoLastmod(lastmod)}</lastmod>${img}</url>`;
+};
 const sitemapIndex = (env: Env) => {
   const lastmod = isoLastmod(env.BUILD_TIME);
   const rows = SITEMAP_NAMES.map((name) =>
@@ -128,7 +142,7 @@ const sitemapIndex = (env: Env) => {
   return `<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${rows}</sitemapindex>`;
 };
 const sitemapUrlset = (urls: string[]) =>
-  `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.join('')}</urlset>`;
+  `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">${urls.join('')}</urlset>`;
 const indexNowKey = (env: Env) => env.INDEXNOW_KEY || INDEXNOW_FALLBACK_KEY;
 type ShellMeta = {
   title: string;
@@ -147,9 +161,13 @@ const shellRobots = (meta: ShellMeta) => meta.noindex
 const publicShellMeta = async (env: Env, path: string): Promise<{ meta: ShellMeta; status?: number }> => {
   const base = (title: string, description: string, route = path, noindex = false, heading?: string): ShellMeta => ({ title, description, path: route, noindex, heading });
   if (path === '/') {
-    return { meta: { ...base('GoodGame.center — Free Browser Games, Creators, Clips, and Communities', 'Play free browser games, discover indie creators, watch game clips, join communities, and publish your own HTML5 game on GoodGame.center.', '/'), jsonld: [siteLd(env)] } };
+    const games = await db.listGames(env, { limit: 24, sort: 'new' });
+    return { meta: { ...base('GoodGame.center — Free Browser Games, Creators, Clips, and Communities', 'Play free browser games, discover indie creators, watch game clips, join communities, and publish your own HTML5 game on GoodGame.center.', '/'), jsonld: [siteLd(env), orgLd(env), itemListLd(env, 'New browser games', '/', games.map((g) => ({ name: g.title, path: `/games/${g.slug}` })))] } };
   }
-  if (path === '/games') return { meta: base('Free Browser Games — Play Indie Web Games on GoodGame.center', 'Browse free browser games from indie creators. Play arcade, puzzle, shooter, experimental, and HTML5 games instantly on GoodGame.center.', '/games') };
+  if (path === '/games') {
+    const games = await db.listGames(env, { limit: 60 });
+    return { meta: { ...base('Free Browser Games — Play Indie Web Games on GoodGame.center', 'Browse free browser games from indie creators. Play arcade, puzzle, shooter, experimental, and HTML5 games instantly on GoodGame.center.', '/games'), jsonld: [itemListLd(env, 'All browser games', '/games', games.map((g) => ({ name: g.title, path: `/games/${g.slug}` }))), breadcrumbLd(env, [{ name: 'Games', path: '/games' }])] } };
+  }
   if (path === '/games/browser') return { meta: base('Instant Browser Games — Play HTML5 Games on GoodGame.center', 'Play HTML5, WebGL, WASM, Godot Web, Unity WebGL, Phaser, and creator-uploaded builds directly in your browser.', '/games/browser') };
   if (path === '/clips') return { meta: base('GoodGame Clips — Gameplay Moments from Indie Browser Games', 'Watch short gameplay clips from GoodGame.center creators, including arcade runs, speed tech, scares, builds, and browser-game highlights.', '/clips') };
   if (path === '/communities') return { meta: base('GoodGame Communities — Indie Game Hubs and Creator Spaces', 'Join public communities around browser games, creators, game jams, genres, clips, and player-made worlds on GoodGame.center.', '/communities') };
@@ -159,21 +177,31 @@ const publicShellMeta = async (env: Env, path: string): Promise<{ meta: ShellMet
   if (path === '/admin') return { meta: base('Admin · GoodGame.center', 'Private moderation access for GoodGame.center operators.', '/admin', true) };
   if (path === '/search') return { meta: base('Search · GoodGame.center', 'Search games, creators, and communities on GoodGame.center.', '/search', true) };
   if (path === '/feed') return { meta: base('Your feed · GoodGame.center', 'Activity from the creators you follow on GoodGame.center.', '/feed', true) };
-  if (path === '/news') return { meta: base('News & Guides · GoodGame.center', 'Browser-game news, creator guides, and how-tos: make a game with AI, publish HTML5 games, and play the best free browser games.', '/news') };
+  if (path === '/news') {
+    const latest = await listDeskArticles(env, 12);
+    const desc = latest[0]
+      ? `Live game desk plus evergreen guides. Latest: ${latest[0].title}`
+      : 'Browser-game news, creator guides, and how-tos: make a game with AI, publish HTML5 games, and play the best free browser games.';
+    return { meta: { ...base('Game News Desk — Daily Browser & Indie Coverage on GoodGame.center', desc.slice(0, 220), '/news'), jsonld: [itemListLd(env, 'GoodGame news desk', '/news', latest.map((a) => ({ name: a.title, path: `/news/${a.slug}` })))] } };
+  }
   const newsMatch = path.match(/^\/news\/([^/]+)$/);
   if (newsMatch) {
-    const a = newsArticle(decodeURIComponent(newsMatch[1]));
+    const a = await findPublicArticle(env, decodeURIComponent(newsMatch[1]));
     if (!a) return { status: 404, meta: base('Article not found · GoodGame.center', 'This article is not available on GoodGame.center.', path, true) };
-    return { meta: { ...base(`${a.title} · GoodGame.center`, a.excerpt, `/news/${a.slug}`), type: 'article', jsonld: [{
-      '@context': 'https://schema.org', '@type': 'Article', headline: a.title, description: a.excerpt,
+    return { meta: { ...base(`${a.title} · GoodGame.center`, a.excerpt, `/news/${a.slug}`), type: 'article', heading: a.title, jsonld: [{
+      '@context': 'https://schema.org', '@type': a.kind === 'guide' ? 'Article' : 'NewsArticle', headline: a.title, description: a.excerpt,
       datePublished: a.date, dateModified: a.date, inLanguage: 'en',
       author: { '@type': 'Organization', name: 'GoodGame.center', url: env.SITE_URL },
-      publisher: { '@type': 'Organization', name: 'GoodGame.center', url: env.SITE_URL },
+      publisher: { '@type': 'Organization', name: 'GoodGame.center', url: env.SITE_URL, logo: { '@type': 'ImageObject', url: `${env.SITE_URL}/logo.svg` } },
       mainEntityOfPage: `${env.SITE_URL}/news/${a.slug}`, url: `${env.SITE_URL}/news/${a.slug}`,
-      keywords: a.keywords.join(', '),
+      keywords: (a.keywords || []).join(', '),
+      ...(a.source_url ? { citation: a.source_url, isBasedOn: a.source_url } : {}),
     }] } };
   }
-  if (['/login', '/onboarding', '/settings', '/create'].includes(path) || path.startsWith('/console') || path.startsWith('/forge')) {
+  if (path === '/create') {
+    return { meta: base('Host Your Browser Game Free — Publish HTML5 Games on GoodGame.center', 'Upload an HTML5 or WebGL zip and GoodGame hosts it for free, or link a playable browser URL. Live play page in minutes. No app store, no wallet.', '/create', false, 'Host your browser game free') };
+  }
+  if (['/login', '/onboarding', '/settings'].includes(path) || path.startsWith('/console') || path.startsWith('/forge')) {
     return { meta: base('GoodGame.center', 'Account and creator tools on GoodGame.center.', path, true) };
   }
   if (path.startsWith('/legal/')) {
@@ -185,7 +213,7 @@ const publicShellMeta = async (env: Env, path: string): Promise<{ meta: ShellMet
   if (path.startsWith('/tags/')) {
     const tag = decodeURIComponent(path.slice('/tags/'.length)).toLowerCase();
     const matches = (await db.listGames(env, { limit: 120 })).filter((game) => csv(game.tags).includes(tag));
-    const noindex = matches.length < 5;
+    const noindex = matches.length < 2;
     return {
       meta: base(
         `Play ${tag} Games Online · GoodGame.center`,
@@ -222,7 +250,7 @@ const publicShellMeta = async (env: Env, path: string): Promise<{ meta: ShellMet
   if (creatorMatch) {
     const creator = await db.getCreator(env, decodeURIComponent(creatorMatch[1]));
     if (!creator) return { status: 404, meta: base('Creator not found · GoodGame.center', 'This creator profile is not available on GoodGame.center.', path, true) };
-    return { meta: base(`${creator.display_name} — Browser Games and Clips on GoodGame.center`, `View browser games, clips, updates, and communities from ${creator.display_name} on GoodGame.center.`, `/creators/${creator.username}`) };
+    return { meta: { ...base(`${creator.display_name} — Browser Games and Clips on GoodGame.center`, `View browser games, clips, updates, and communities from ${creator.display_name} on GoodGame.center.`, `/creators/${creator.username}`), jsonld: [personLd(env, creator.username, creator.display_name), breadcrumbLd(env, [{ name: 'Creators', path: '/creators' }, { name: creator.display_name, path: `/creators/${creator.username}` }])] } };
   }
   const communityMatch = path.match(/^\/communities\/([^/]+)$/);
   if (communityMatch) {
@@ -242,10 +270,13 @@ const publicShellMeta = async (env: Env, path: string): Promise<{ meta: ShellMet
 const injectShellMeta = (html: string, env: Env, meta: ShellMeta) => {
   const canonical = env.SITE_URL + meta.path;
   const img = shellImage(env, meta.image);
+  const build = env.BUILD_TIME || env.BUILD_SHA || 'dev';
   const head = [
     `<title>${escapeXml(meta.title)}</title>`,
     `<meta name="description" content="${escapeXml(meta.description)}">`,
     `<meta name="robots" content="${shellRobots(meta)}">`,
+    `<meta name="gg-build" content="${escapeXml(String(build))}">`,
+    `<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">`,
     `<link rel="canonical" href="${escapeXml(canonical)}">`,
     `<meta property="og:type" content="${escapeXml(meta.type || 'website')}">`,
     `<meta property="og:site_name" content="${escapeXml(env.SITE_NAME)}">`,
@@ -257,21 +288,44 @@ const injectShellMeta = (html: string, env: Env, meta: ShellMeta) => {
     `<meta name="twitter:title" content="${escapeXml(meta.title)}">`,
     `<meta name="twitter:description" content="${escapeXml(meta.description)}">`,
     `<meta name="twitter:image" content="${escapeXml(img)}">`,
+    `<link rel="alternate" type="application/rss+xml" title="GoodGame.center News" href="${escapeXml(env.SITE_URL + '/rss.xml')}">`,
+    `<link rel="alternate" hreflang="en" href="${escapeXml(canonical)}">`,
+    `<link rel="alternate" hreflang="x-default" href="${escapeXml(canonical)}">`,
     ...(meta.jsonld || []).map((obj) => `<script type="application/ld+json">${ld(obj)}</script>`),
   ].join('');
-  return html
+  // Bust any intermediate caches that key only on path (not content-hash).
+  const bust = encodeURIComponent(String(build));
+  const withBustedAssets = html
+    .replace(/(src|href)="(\/static\/(?:js|css)\/main\.[^"]+\.(?:js|css))"/g, `$1="$2?v=${bust}"`);
+  return withBustedAssets
     .replace(/<title>[\s\S]*?<\/title>/i, '')
     .replace(/<meta\s+name=["']description["'][^>]*>/i, '')
     .replace(/<head>/i, `<head>${head}`);
 };
+async function crawlableExtra(env: Env, path: string) {
+  const nav = `<nav aria-label="Site"><a href="/">Home</a> · <a href="/games">Games</a> · <a href="/create">Host a game</a> · <a href="/creators">Creators</a> · <a href="/clips">Clips</a> · <a href="/communities">Communities</a> · <a href="/news">News</a> · <a href="/leaderboards">Leaderboards</a> · <a href="/activity">Activity</a></nav>`;
+  if (path === '/' || path === '/games' || path === '/games/browser') {
+    const games = await db.listGames(env, { limit: 60, sort: path === '/' ? 'new' : undefined });
+    const items = games.map((g) => `<li><a href="/games/${escapeXml(g.slug)}">${escapeXml(g.title)}</a>${g.pitch ? ` — ${escapeXml(g.pitch)}` : ''}</li>`).join('');
+    return `${nav}<section><h2>Playable browser games</h2><ul>${items}</ul></section>`;
+  }
+  if (path === '/news') {
+    const articles = await allPublicArticles(env);
+    const items = articles.slice(0, 40).map((a) => `<li><a href="/news/${escapeXml(a.slug)}">${escapeXml(a.title)}</a></li>`).join('');
+    return `${nav}<section><h2>News desk</h2><ul>${items}</ul></section>`;
+  }
+  return nav;
+}
+
 async function reactShellDocument(c: any, meta: ShellMeta) {
   const fallbackHeading = meta.heading || meta.title.replace(/\s+[—·-]\s+.*$/, '');
   const assetResponse = await c.env.ASSETS.fetch(new Request('https://assets.local/index.html'));
   if (!assetResponse.ok) throw new Error(`React asset shell unavailable: ${assetResponse.status}`);
   const assetHtml = await assetResponse.text();
+  const extra = meta.noindex ? '' : await crawlableExtra(c.env, meta.path);
   const htmlWithFallback = assetHtml.replace(
     '<div id="root"></div>',
-    `<div id="root"><main><h1>${escapeXml(fallbackHeading)}</h1><p>${escapeXml(meta.description)}</p></main></div>`,
+    `<div id="root"><main><h1>${escapeXml(fallbackHeading)}</h1><p>${escapeXml(meta.description)}</p>${extra}</main></div>`,
   );
   return injectShellMeta(
     htmlWithFallback,
@@ -284,7 +338,17 @@ async function reactShell(c: any, path: string) {
   const html = await reactShellDocument(c, meta);
   const headers = new Headers();
   headers.set('content-type', 'text/html; charset=utf-8');
-  headers.set('cache-control', status === 404 ? 'public, max-age=60' : 'public, max-age=0, must-revalidate');
+  // HTML shell must never stick at the edge or browser — stale shell = old layout.
+  if (status === 404) {
+    headers.set('cache-control', 'public, max-age=60');
+  } else {
+    headers.set('cache-control', 'no-store, no-cache, must-revalidate, max-age=0');
+    headers.set('cdn-cache-control', 'no-store');
+    headers.set('cloudflare-cdn-cache-control', 'no-store');
+    headers.set('pragma', 'no-cache');
+    headers.set('expires', '0');
+    headers.set('surrogate-control', 'no-store');
+  }
   return new Response(html, { status: status || 200, headers });
 }
 
@@ -439,6 +503,73 @@ app.post('/api/admin/games/:id/restore', async (c) => {
   return c.json({ ok: true });
 });
 
+/** Operator one-off: list a creator-hosted browser game without the creator completing signup first. */
+app.post('/api/admin/games/import', async (c) => {
+  const admin = await requireAdmin(c);
+  if ('error' in admin) return admin.error;
+  const rl = await tooMany(c, 'admin-import', 30, 3600); if (rl) return rl;
+  const body = await c.req.json().catch(() => ({}));
+  const title = cleanText(body.title, 80);
+  const pitch = cleanText(body.pitch, 180);
+  const description = cleanText(body.description, 2000);
+  const tags = cleanTags(body.tags).join(',');
+  const embedRaw = cleanText(body.embed_url, 512);
+  const ownerUsername = cleanText(body.owner_username, 32).toLowerCase().replace(/[^a-z0-9_]/g, '');
+  if (title.length < 2) return c.json({ detail: 'Title is required.' }, 400);
+  if (!embedRaw) return c.json({ detail: 'embed_url is required (browser play page, not an app store link).' }, 400);
+
+  const norm = normalizeEmbedUrl(embedRaw);
+  if (!norm.ok) return c.json({ detail: norm.error }, 400);
+  const chk = await fetchForEmbed(norm.url, c.env.SITE_URL);
+  if (!chk.ok) return c.json({ detail: chk.error }, 400);
+
+  let owner = ownerUsername
+    ? await c.env.DB.prepare(
+        `SELECT id, username FROM users WHERE lower(username)=? AND deleted_at IS NULL AND status='active'`
+      ).bind(ownerUsername).first<{ id: string; username: string }>()
+    : null;
+  if (!owner) {
+    owner = await c.env.DB.prepare(
+      `SELECT id, username FROM users WHERE lower(username) IN ('goodgamelabs','goodgame','community') AND deleted_at IS NULL AND status='active' ORDER BY CASE lower(username) WHEN 'goodgamelabs' THEN 0 WHEN 'goodgame' THEN 1 ELSE 2 END LIMIT 1`
+    ).first<{ id: string; username: string }>();
+  }
+  if (!owner) {
+    owner = await c.env.DB.prepare(
+      `SELECT id, username FROM users WHERE deleted_at IS NULL AND status='active' ORDER BY created_at ASC LIMIT 1`
+    ).first<{ id: string; username: string }>();
+  }
+  if (!owner) return c.json({ detail: 'No active user to assign as owner. Create an account first or pass owner_username.' }, 400);
+
+  const id = 'gmu_' + crypto.randomUUID().replace(/-/g, '').slice(0, 10);
+  const slug = `${cleanSlug(title)}-${Math.random().toString(36).slice(2, 6)}`;
+  const embedToken = newEmbedToken();
+  const embedCheckedAt = nowIso();
+  const engine = chk.frameable ? 'web' : 'external';
+  await c.env.DB.prepare(
+    `INSERT INTO games (id, owner_id, slug, title, pitch, description, engine, tags, platforms, build_class, status, maturity, content_rating, official, verified, accent, upload_entry, upload_bytes, embed_url, embed_token, embed_verified, embed_checked_at, play_count, follow_count, rating_avg, rating_count)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'web', 'browser', 'published', 'everyone', 'Everyone', 0, 0, '#d4af37', NULL, NULL, ?, ?, 0, ?, 0, 0, 0, 0)`
+  ).bind(id, owner.id, slug, title, pitch, description || pitch, engine, tags, chk.finalUrl, embedToken, embedCheckedAt).run();
+  await c.env.DB.prepare(
+    `INSERT INTO releases (id, game_id, version, changelog, channel, status, is_current, release_date) VALUES (?, ?, '1.0.0', ?, 'public', 'published', 1, datetime('now'))`
+  ).bind(
+    'rel_' + id,
+    id,
+    engine === 'external'
+      ? 'Admin import — external play (host blocks iframe).'
+      : 'Admin import — creator-hosted browser build.',
+  ).run();
+  await c.env.DB.prepare(
+    `INSERT INTO audit_log (id, action, object_type, object_id, reason_code, metadata) VALUES (?, 'admin_import_game', 'game', ?, 'admin_import', ?)`
+  ).bind('audit_' + randomToken(8), id, JSON.stringify({ title, slug, owner: owner.username, embed_url: chk.finalUrl, engine })).run();
+  const game = await db.getGame(c.env, slug);
+  return c.json({
+    ok: true,
+    game: game ? apiGame(game) : { id, slug, title },
+    owner_username: owner.username,
+    play_url: `${c.env.SITE_URL}/games/${slug}`,
+  });
+});
+
 // ---------- React/FastAPI compatibility API ----------
 const nowIso = () => new Date().toISOString();
 const cleanSlug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 44) || 'game';
@@ -545,6 +676,8 @@ const apiGame = (g: Game) => ({
   upload_entry: g.upload_entry || (g.play_template ? '__template.html' : null),
   upload_bytes: g.upload_bytes || 0,
   updated_at: g.updated_at || nowIso(),
+  // external = linked URL that blocks iframes; play opens original site
+  play_mode: g.engine === 'external' && g.embed_url ? 'external' : g.embed_url ? 'embed' : 'hosted',
 });
 const apiCreator = (c: Creator) => ({
   ...c,
@@ -653,7 +786,8 @@ app.post('/api/games', async (c) => {
     const paths = res.files.map((f) => f.path.toLowerCase()).join('\n');
     engine = paths.includes('.pck') ? 'godot' : (paths.includes('.data') || paths.includes('.unityweb') || paths.includes('.framework.js')) ? 'unity' : 'web';
   } else if (embedRaw) {
-    // Creator-hosted: link a game the creator already hosts, embedded live.
+    // Creator-hosted: link a browser game URL. Prefer iframe embed; if the host
+    // sends X-Frame-Options: DENY we still list it as external (open in new tab).
     const norm = normalizeEmbedUrl(embedRaw);
     if (!norm.ok) return c.json({ detail: norm.error }, 400);
     const chk = await fetchForEmbed(norm.url, c.env.SITE_URL);
@@ -661,6 +795,8 @@ app.post('/api/games', async (c) => {
     embedUrl = chk.finalUrl;
     embedToken = newEmbedToken();       // creator places this, then re-checks to verify ownership
     embedCheckedAt = nowIso();
+    // engine=external → play UI opens the URL in a new tab (cannot iframe)
+    if (!chk.frameable) engine = 'external';
   } else {
     return c.json({ detail: 'Upload a build zip or paste the URL of a game you already host.' }, 400);
   }
@@ -671,9 +807,25 @@ app.post('/api/games', async (c) => {
   ).bind(id, user.id, slug, title, pitch, description || pitch, engine, tags, uploadEntry, uploadBytes, embedUrl, embedToken, embedCheckedAt).run();
   await c.env.DB.prepare(
     `INSERT INTO releases (id, game_id, version, changelog, channel, status, is_current, release_date) VALUES (?, ?, '1.0.0', ?, 'public', 'published', 1, datetime('now'))`
-  ).bind('rel_' + id, id, embedUrl ? 'Linked a creator-hosted build.' : 'Initial build uploaded to GoodGame.').run();
+  ).bind(
+    'rel_' + id,
+    id,
+    embedUrl
+      ? (engine === 'external'
+        ? 'Linked creator-hosted game (opens on original site — host blocks embedding).'
+        : 'Linked a creator-hosted build.')
+      : 'Initial build uploaded to GoodGame.',
+  ).run();
   const game = await db.getGame(c.env, slug);
-  return c.json({ game: game ? apiGame(game) : { id, slug, title }, compat });
+  return c.json({
+    game: game ? apiGame(game) : { id, slug, title, engine },
+    compat,
+    play_mode: engine === 'external' ? 'external' : embedUrl ? 'embed' : 'hosted',
+    note:
+      engine === 'external'
+        ? 'Listed. This site blocks iframes, so Play opens on the original site in a new tab. For play inside GoodGame, upload an HTML5 .zip instead.'
+        : undefined,
+  });
 });
 app.get('/api/games/:slug', async (c) => {
   const g = await db.getGame(c.env, c.req.param('slug'));
@@ -939,24 +1091,39 @@ async function storeForgeHtml(env: Env, gameId: string, html: string) {
     env.UGC.put(`ugc/${gameId}/${f.path}`, f.bytes, { httpMetadata: { contentType: f.ct, cacheControl: 'public, max-age=30' } })));
 }
 
+app.get('/api/forge/recipes', (c) => c.json(recipeCatalogPublic()));
+
 app.post('/api/forge', async (c) => {
   const user = await getSession(c);
   if (!user) return c.json({ detail: 'Log in to generate a game.' }, 401);
-  const rl = await tooMany(c, 'forge', 12, 3600); if (rl) return rl;
+  const rl = await tooMany(c, 'forge', 8, 3600); if (rl) return rl;
   const body = await c.req.json().catch(() => ({}));
-  const gen = await generateGameHtml(c.env, String(body.prompt || ''));
+  const recipe = (body.recipe && typeof body.recipe === 'object' ? body.recipe : null) as RecipePicks | null;
+  const gen = await generateGameHtml(c.env, String(body.prompt || ''), recipe);
   if (!gen.ok) return c.json({ detail: gen.error }, 400);
   const id = 'gmu_' + crypto.randomUUID().replace(/-/g, '').slice(0, 10);
   const slug = `${cleanSlug(gen.title)}-${Math.random().toString(36).slice(2, 6)}`;
   await storeForgeHtml(c.env, id, gen.html);
+  const pitch = cleanText(body.prompt, 120);
+  const desc =
+    `Generated with GoodGame Forge (deep design). ` +
+    (gen.recipe_fingerprint ? `DNA ${gen.recipe_fingerprint}. ` : '') +
+    `Refine in the workspace.`;
   await c.env.DB.prepare(
     `INSERT INTO games (id, owner_id, slug, title, pitch, description, engine, tags, platforms, build_class, status, maturity, content_rating, official, verified, accent, upload_entry, upload_bytes, play_count, follow_count, rating_avg, rating_count)
-     VALUES (?, ?, ?, ?, ?, ?, 'forge', '', 'web', 'browser', 'draft', 'everyone', 'Everyone', 0, 0, '#6b93ff', 'index.html', ?, 0, 0, 0, 0)`
-  ).bind(id, user.id, slug, gen.title, cleanText(body.prompt, 120), 'Generated with GoodGame Forge from a prompt — refine it in the workspace.', gen.html.length).run();
+     VALUES (?, ?, ?, ?, ?, ?, 'forge', '', 'web', 'browser', 'draft', 'everyone', 'Everyone', 0, 0, '#d4af37', 'index.html', ?, 0, 0, 0, 0)`
+  ).bind(id, user.id, slug, gen.title, pitch, desc, gen.html.length).run();
   await c.env.DB.prepare(
     `INSERT INTO releases (id, game_id, version, changelog, channel, status, is_current, release_date) VALUES (?, ?, '0.1.0', 'Forge draft created.', 'public', 'published', 1, datetime('now'))`
   ).bind('rel_' + id, id).run();
-  return c.json({ slug, title: gen.title });
+  return c.json({
+    slug,
+    title: gen.title,
+    stages: gen.stages,
+    design: gen.design,
+    recipe_fingerprint: gen.recipe_fingerprint,
+    smoke_fails: gen.smoke_fails || null,
+  });
 });
 
 app.post('/api/games/:slug/forge-refine', async (c) => {
@@ -990,7 +1157,8 @@ app.post('/api/games/:slug/runtime-check', async (c) => {
   const rl = await tooMany(c, 'runtime-check', 10, 3600); if (rl) return rl;
   const entry = game.upload_entry || (game.play_template ? '__template.html' : null);
   if (!entry) return c.json({ detail: 'No playable build to check yet.' }, 400);
-  const report = await runtimeCheck(c.env, `${c.env.SITE_URL}/api/ugc/${game.id}/${entry}`);
+  const encodedEntry = String(entry).split('/').filter(Boolean).map(encodeURIComponent).join('/');
+  const report = await runtimeCheck(c.env, `${c.env.SITE_URL}/api/ugc/${game.id}/${encodedEntry}`);
   await c.env.KV.put(`gg:runtime:${game.id}`, JSON.stringify(report));
   return c.json({ report });
 });
@@ -1594,12 +1762,26 @@ app.get('/community/:slug', (c) => c.redirect(`/communities/${c.req.param('slug'
 app.get('/arena', (c) => c.redirect('/games', 301));
 app.get('/arena/*', (c) => c.redirect('/games', 301));
 
-// ---------- news (curated SEO articles) ----------
-app.get('/api/news', (c) => c.json({ articles: newsList() }));
-app.get('/api/news/:slug', (c) => {
-  const a = newsArticle(c.req.param('slug'));
+// ---------- news (curated guides + ingested desk) ----------
+app.get('/api/news', async (c) => {
+  const articles = await allPublicArticles(c.env);
+  return c.json({
+    articles: articles.map(({ body, ...meta }) => meta),
+    desk: articles.filter((a) => a.kind !== 'guide').length,
+    guides: articles.filter((a) => a.kind === 'guide').length,
+  });
+});
+app.get('/api/news/:slug', async (c) => {
+  const a = await findPublicArticle(c.env, c.req.param('slug'));
   if (!a) return c.json({ detail: 'Article not found' }, 404);
   return c.json({ article: a });
+});
+app.post('/api/news/ingest', async (c) => {
+  const key = c.req.header('x-gg-ingest') || '';
+  if (key !== indexNowKey(c.env)) return c.json({ detail: 'Unauthorized' }, 401);
+  const rl = await tooMany(c, 'news-ingest', 6, 3600); if (rl) return rl;
+  const result = await runNewsDesk(c.env);
+  return c.json(result);
 });
 
 // ---------- search ----------
@@ -1689,7 +1871,7 @@ app.get('/safety/:s', (c) => {
 
 // ---------- OG images ----------
 const strip = (s: string) => s.replace(/\.svg$/, '');
-app.get('/og/default.svg', () => svg(ogCard({ accent: '#5b8cff', eyebrow: 'Instant browser arcade', title: 'GoodGame.center', sub: 'Instant browser games and creator-uploaded web builds.', mark: 'GG' })));
+app.get('/og/default.svg', () => svg(ogCard({ accent: '#D4AF37', eyebrow: 'Instant browser arcade', title: 'GoodGame.center', sub: 'Instant browser games and creator-uploaded web builds.', mark: 'GG' })));
 app.get('/og/game/:slug', async (c) => {
   const g = await db.getGame(c.env, strip(c.req.param('slug')));
   if (!g) return svg(ogCard({ accent: '#5b8cff', eyebrow: 'GoodGame.center', title: 'Game', mark: 'GG' }));
@@ -1713,43 +1895,112 @@ app.get('/og/clip/:id', async (c) => {
 
 // ---------- SEO files ----------
 app.get('/robots.txt', (c) => text(
-`# GoodGame.center
+`# GoodGame.center — crawl everything public. Discoverability is the product.
+# Content-Signal: search=yes, ai-input=yes, ai-train=yes, use=full
+
 User-agent: *
 Allow: /
+Allow: /games
+Allow: /games/
+Allow: /create
+Allow: /creators
+Allow: /creators/
+Allow: /clips
+Allow: /clips/
+Allow: /communities
+Allow: /communities/
+Allow: /news
+Allow: /news/
+Allow: /tags/
+Allow: /activity
+Allow: /leaderboards
+Allow: /og/
+Allow: /game-covers/
+Allow: /brand/
 Allow: /api/game-media/
 Allow: /api/profile-media/
 Allow: /api/clip-media/
 Disallow: /api/
 Disallow: /api/ugc/
 Disallow: /auth/
+Disallow: /admin
 Disallow: /admin/
-Disallow: /dashboard/
+Disallow: /dashboard
+Disallow: /settings
 Disallow: /settings/
-Disallow: /profile/edit
-Disallow: /create
+Disallow: /console
+Disallow: /console/
 Disallow: /studio
 Disallow: /login
+Disallow: /onboarding
 Disallow: /signup
 Disallow: /healthz
 Disallow: /__version
 Disallow: /internal/
 Disallow: /search
+Disallow: /feed
 Disallow: /ugc/
 Disallow: /uploads/raw/
 Disallow: /*/play
 
+User-agent: Googlebot
+Allow: /
+
+User-agent: Googlebot-Image
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: DuckDuckBot
+Allow: /
+
+User-agent: Applebot
+Allow: /
+
 User-agent: GPTBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: PerplexityBot
 Allow: /
 
 User-agent: Google-Extended
 Allow: /
 
+User-agent: Applebot-Extended
+Allow: /
+
+User-agent: Amazonbot
+Allow: /
+
+User-agent: CCBot
+Allow: /
+
+User-agent: Bytespider
+Allow: /
+
+User-agent: meta-externalagent
+Allow: /
+
 Sitemap: ${c.env.SITE_URL}/sitemap.xml
 Sitemap: ${c.env.SITE_URL}/sitemap-index.xml
+Sitemap: ${c.env.SITE_URL}/rss.xml
 `));
 
 const staticSitemapPaths = [
-  '/', '/games', '/games/browser', '/clips', '/communities', '/creators', '/news',
+  '/', '/games', '/games/browser', '/create', '/clips', '/communities', '/creators', '/news',
   '/activity', '/leaderboards',
   '/legal/terms', '/legal/privacy', '/legal/dmca', '/legal/content',
   ...newsSlugs().map((s) => `/news/${s}`),
@@ -1763,7 +2014,30 @@ app.get('/sitemaps/static.xml', (c) => {
 });
 app.get('/sitemaps/games.xml', async (c) => {
   const rows = await db.sitemapRows(c.env);
-  return xml(sitemapUrlset(rows.games.map((g) => sitemapUrl(c.env.SITE_URL, `/games/${encodeURIComponent(g.slug)}`, g.updated_at))));
+  return xml(sitemapUrlset(rows.games.map((g) => sitemapUrl(
+    c.env.SITE_URL,
+    `/games/${encodeURIComponent(g.slug)}`,
+    g.updated_at,
+    g.cover_image ? { loc: g.cover_image, title: g.title } : { loc: `/og/game/${g.slug}.svg`, title: g.title },
+  ))));
+});
+app.get('/sitemaps/news.xml', async (c) => {
+  const base = c.env.SITE_URL;
+  const articles = await allPublicArticles(c.env);
+  const urls = [
+    sitemapUrl(base, '/news', c.env.BUILD_TIME),
+    ...articles.map((a) => sitemapUrl(base, `/news/${a.slug}`, a.date)),
+  ];
+  return xml(sitemapUrlset(urls));
+});
+app.get('/sitemaps/images.xml', async (c) => {
+  const rows = await db.sitemapRows(c.env);
+  return xml(sitemapUrlset(rows.games.map((g) => sitemapUrl(
+    c.env.SITE_URL,
+    `/games/${encodeURIComponent(g.slug)}`,
+    g.updated_at,
+    g.cover_image ? { loc: g.cover_image, title: `${g.title} cover` } : { loc: `/og/game/${g.slug}.svg`, title: `${g.title} cover` },
+  ))));
 });
 app.get('/sitemaps/creators.xml', async (c) => {
   const rows = await db.sitemapRows(c.env);
@@ -1812,21 +2086,19 @@ Public pages provide crawlable fallback content, canonical URLs, metadata, and s
 User dashboards, the creator console, admin tools, auth flows, search result pages, internal APIs, and isolated game-play runtimes.
 `, 'text/plain'));
 
-app.get('/:key.txt', (c) => {
-  const key = c.req.param('key');
-  if (key !== indexNowKey(c.env)) return c.notFound();
-  return text(key, 'text/plain');
-});
-
-app.get('/feed.xml', async (c) => {
-  const base = c.env.SITE_URL;
-  const news = await db.listNews(c.env, { limit: 20 });
-  const items = news.map((a) =>
-    `<item><title>${a.title.replace(/&/g, '&amp;')}</title><link>${base}/news/${a.slug}</link><guid>${base}/news/${a.slug}</guid><pubDate>${new Date((a.published_at || '').replace(' ', 'T') + 'Z').toUTCString()}</pubDate><description>${(a.excerpt || '').replace(/&/g, '&amp;').replace(/</g, '&lt;')}</description></item>`).join('');
-  return new Response(
-    `<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0"><channel><title>GoodGame.center News</title><link>${base}/news</link><description>Platform news, creator spotlights, and guides.</description>${items}</channel></rss>`,
-    { headers: { 'content-type': 'application/rss+xml; charset=utf-8', 'cache-control': 'public, max-age=1800' } });
-});
+const rssDocument = async (env: Env) => {
+  const base = env.SITE_URL;
+  const articles = await allPublicArticles(env);
+  const items = articles.slice(0, 40).map((a) =>
+    `<item><title>${escapeXml(a.title)}</title><link>${base}/news/${a.slug}</link><guid isPermaLink="true">${base}/news/${a.slug}</guid><pubDate>${new Date(a.date).toUTCString()}</pubDate><description>${escapeXml(a.excerpt)}</description></item>`).join('');
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0"><channel><title>GoodGame.center News Desk</title><link>${base}/news</link><description>Daily game desk and browser-game guides from GoodGame.center.</description><language>en</language><lastBuildDate>${new Date().toUTCString()}</lastBuildDate>${items}</channel></rss>`;
+};
+app.get('/feed.xml', async (c) => new Response(await rssDocument(c.env), {
+  headers: { 'content-type': 'application/rss+xml; charset=utf-8', 'cache-control': 'public, max-age=600' },
+}));
+app.get('/rss.xml', async (c) => new Response(await rssDocument(c.env), {
+  headers: { 'content-type': 'application/rss+xml; charset=utf-8', 'cache-control': 'public, max-age=600' },
+}));
 
 // ---------- 404 ----------
 app.notFound((c) => {
@@ -1834,4 +2106,9 @@ app.notFound((c) => {
   return page(c, <NotFound env={c.env} />);
 });
 
-export default app;
+export default {
+  fetch: (request: Request, env: Env, ctx: ExecutionContext) => app.fetch(request, env, ctx),
+  scheduled: (event: ScheduledEvent, env: Env, ctx: ExecutionContext) => {
+    ctx.waitUntil(runNewsDesk(env));
+  },
+};

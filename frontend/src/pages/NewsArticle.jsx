@@ -20,51 +20,62 @@ export default function NewsArticle() {
   if (err)
     return (
       <div className="max-w-3xl mx-auto px-4 py-20" data-testid="news-not-found">
-        <ErrorState title="Article not found" body="This guide may have moved or been unpublished." action={<Link to="/news" className="btn-secondary">Back to news</Link>} />
+        <ErrorState title="Article not found" body="This desk item may have moved." action={<Link to="/news" className="btn-secondary">Back to news</Link>} />
       </div>
     );
   if (!a) return <PageLoader label="Loading article" />;
 
   return (
-    <article className="max-w-3xl mx-auto px-4 md:px-8 py-10" data-testid="news-article">
+    <div className="alley-zine">
+    <article className="alley-zine-sheet" data-testid="news-article">
       <SEO title={a.title} description={a.excerpt} type="article" path={`/news/${a.slug}`} />
-      <Link to="/news" className="text-[#52525B] hover:text-[#D4AF37] font-mono text-xs uppercase tracking-[0.2em]">
-        &larr; News
+      <Link to="/news" className="font-mono text-xs uppercase tracking-[0.2em]">
+        ← The desk
       </Link>
-      <div className="font-mono text-[10px] uppercase tracking-[0.2em] mt-4" style={{ color: a.accent }}>
-        {a.category} &middot; {new Date(a.date).toLocaleDateString()}
+      <div className="font-mono text-[10px] uppercase tracking-[0.2em] mt-4" style={{ color: "var(--rust)" }}>
+        {a.category}
+        {a.date ? ` · ${new Date(a.date).toLocaleDateString()}` : ""}
       </div>
-      <h1 className="text-3xl md:text-4xl font-bold text-white mt-2 leading-tight">{a.title}</h1>
-      <p className="text-[#A1A1AA] text-lg mt-4 leading-relaxed">{a.excerpt}</p>
+      <h1 className="text-3xl md:text-4xl font-bold mt-2 leading-tight">{a.title}</h1>
+      <p className="text-lg mt-4 leading-relaxed">{a.excerpt}</p>
 
       <div className="mt-8 space-y-4">
-        {a.body.map((block, i) =>
-          block.startsWith("## ") ? (
-            <h2 key={i} className="text-white text-xl font-bold mt-8">
-              {block.slice(3)}
+        {(a.body || []).map((block, i) =>
+          String(block).startsWith("## ") ? (
+            <h2 key={i} className="text-xl font-bold mt-8">
+              {String(block).slice(3)}
             </h2>
           ) : (
-            <p key={i} className="text-[#C7C7CC] leading-relaxed">
+            <p key={i} className="leading-relaxed">
               {block}
             </p>
           )
         )}
       </div>
 
+      {a.source_url && (
+        <p className="mt-8 text-sm text-[#9aa7a4]">
+          Original reporting:{" "}
+          <a href={a.source_url} target="_blank" rel="noopener noreferrer" className="text-[#7EF0FF] underline">
+            {a.source_name || "source"}
+            {a.source_title ? ` — ${a.source_title}` : ""}
+          </a>
+          . This page is GoodGame’s own write-up, not a reprint.
+        </p>
+      )}
+
       <div className="mt-12 border-t border-[#1A1A1A] pt-6 flex flex-wrap gap-3">
-        <Link
-          to="/games"
-          className="bg-[#D4AF37] text-black font-bold uppercase tracking-wider text-sm px-5 h-11 flex items-center"
-        >
+        <Link to="/games" className="btn-primary h-11 px-5">
           Play games
         </Link>
-        <Link
-          to="/create"
-          className="border border-[#1A1A1A] hover:border-white text-white font-bold uppercase tracking-wider text-sm px-5 h-11 flex items-center"
-        >
-          Create a game
+        <Link to="/create" className="btn-secondary h-11 px-5">
+          Host a game
+        </Link>
+        <Link to="/news" className="btn-secondary h-11 px-5">
+          More desk
         </Link>
       </div>
     </article>
+    </div>
   );
 }

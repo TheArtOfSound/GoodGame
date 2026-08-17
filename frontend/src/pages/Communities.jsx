@@ -48,15 +48,20 @@ export default function Communities() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto px-4 md:px-8 py-10" data-testid="communities-page">
-      <PageHeader
-        eyebrow="Communities"
-        title="Player hubs"
-        description="Create or join focused spaces for games, genres, playtests, and creator communities."
-      />
+    <div className="alley-rooms" data-testid="communities-page">
+      <div>
+        <div>
+          <PageHeader
+            eyebrow="Side rooms"
+            title="Behind the row"
+            description="Open a room for a genre, a playtest, or the people who keep a cabinet warm."
+          />
+        </div>
+      </div>
 
+      <div className="max-w-7xl mx-auto px-4 md:px-8 py-8">
       {user && (
-        <form onSubmit={create} className="mt-6 border border-[#1A1A1A] p-5 bg-[#080808] grid md:grid-cols-3 gap-3">
+        <form onSubmit={create} className="mb-8 surface p-5 grid md:grid-cols-3 gap-3">
           <FormField id="community-name" label="Community name">
             <input
               id="community-name"
@@ -95,10 +100,9 @@ export default function Communities() {
       {loading ? (
         <PageLoader label="Loading communities" />
       ) : loadError ? (
-        <ErrorState className="mt-8" title="Communities could not load" body="The community directory is temporarily unavailable." />
+        <ErrorState title="Communities could not load" body="The community directory is temporarily unavailable." />
       ) : items.length === 0 ? (
         <EmptyState
-          className="mt-8"
           icon={Users}
           testId="communities-empty"
           title="No communities yet"
@@ -106,23 +110,24 @@ export default function Communities() {
           action={!user ? <Link to="/login" className="btn-secondary">Log in</Link> : null}
         />
       ) : (
-        <div className="mt-8 grid md:grid-cols-2 gap-4">
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
           {items.map((c) => (
             <Link
               key={c.id}
               to={`/communities/${c.slug}`}
               data-testid={`community-card-${c.slug}`}
-              className="border border-[#1A1A1A] hover:border-[#D4AF37]/60 p-5 block"
+              className="surface card-lift p-5 block"
             >
-              <div className="text-white font-bold text-lg">{c.name}</div>
+              <div className="text-white font-bold text-lg group-hover:text-[#F1D77A]">{c.name}</div>
               <div className="text-[#A1A1AA] text-sm mt-1 line-clamp-2">{c.description}</div>
-              <div className="text-[#52525B] font-mono text-[10px] uppercase tracking-[0.2em] mt-3">
+              <div className="meta-text font-mono text-[10px] uppercase tracking-[0.2em] mt-3">
                 {c.member_count} member{c.member_count === 1 ? "" : "s"}
               </div>
             </Link>
           ))}
         </div>
       )}
+      </div>
     </div>
   );
 }

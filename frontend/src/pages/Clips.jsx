@@ -32,65 +32,80 @@ export default function Clips() {
   }, []);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 md:px-8 py-10" data-testid="clips-page">
+    <div className="alley-vhs" data-testid="clips-page">
       <SEO title="Clips" description="Short gameplay clips from GoodGame.center creators." path="/clips" />
-      <PageHeader
-        eyebrow="Clips"
-        title="Community highlights"
-        description="Gameplay moments uploaded by players and creators."
-        actions={user ? (
-          <button
-            data-testid="clips-upload-toggle"
-            onClick={() => setShowForm((s) => !s)}
-            className={showForm ? "btn-secondary" : "btn-primary"}
-          >
-            {showForm ? <><X className="w-4 h-4" /> Close</> : <><Upload className="w-4 h-4" /> Upload clip</>}
-          </button>
-        ) : (
-          <Link to="/login" className="btn-secondary">
-            Log in to upload
-          </Link>
-        )}
-      />
 
-      {showForm && user && <UploadForm onDone={refresh} />}
-
-      {loading ? (
-        <PageLoader label="Loading clips" />
-      ) : error ? (
-        <ErrorState className="mt-8" title="Clips could not load" body="Try this page again in a moment." />
-      ) : clips.length === 0 ? (
-        <EmptyState
-          className="mt-8"
-          icon={Film}
-          testId="clips-empty"
-          title="No clips yet"
-          body="Capture a gameplay moment and publish the first community highlight."
-          action={user ? <button type="button" className="btn-primary" onClick={() => setShowForm(true)}>Upload clip</button> : null}
-        />
-      ) : (
-        <div className="mt-8 grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {clips.map((c) => (
-            <Link
-              key={c.id}
-              to={`/clips/${c.slug}`}
-              data-testid={`clip-card-${c.slug}`}
-              className="border border-[#1A1A1A] hover:border-[#D4AF37]/60 p-3 block group"
-            >
-              <video
-                src={`${BACKEND_URL}${c.video_path}`}
-                preload="metadata"
-                muted
-                className="w-full aspect-video bg-black"
-              />
-              <div className="text-white group-hover:text-[#F1D77A] mt-2 truncate">{c.caption || "Untitled"}</div>
-              <div className="text-[#52525B] font-mono text-[10px] uppercase tracking-[0.2em] mt-1">
-                @{c.author_username}
-              </div>
-            </Link>
-          ))}
+      <div>
+        <div>
+          <PageHeader
+            eyebrow="VHS stack"
+            title="Moments from the row"
+            description="Short tapes players pull off a cabinet and leave on the counter."
+            actions={user ? (
+              <button
+                data-testid="clips-upload-toggle"
+                onClick={() => setShowForm((s) => !s)}
+                className={showForm ? "btn-secondary" : "btn-primary"}
+              >
+                {showForm ? <><X className="w-4 h-4" /> Close</> : <><Upload className="w-4 h-4" /> Upload clip</>}
+              </button>
+            ) : (
+              <Link to="/login" className="btn-secondary">
+                Log in to upload
+              </Link>
+            )}
+          />
         </div>
-      )}
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 md:px-8 py-8">
+        {showForm && user && <UploadForm onDone={refresh} />}
+
+        {loading ? (
+          <PageLoader label="Loading clips" />
+        ) : error ? (
+          <ErrorState title="Clips could not load" body="Try this page again in a moment." />
+        ) : clips.length === 0 ? (
+          <EmptyState
+            icon={Film}
+            testId="clips-empty"
+            title="No clips yet"
+            body="Capture a gameplay moment and publish the first community highlight."
+            action={user ? <button type="button" className="btn-primary" onClick={() => setShowForm(true)}>Upload clip</button> : null}
+          />
+        ) : (
+          <div className="clip-grid">
+            {clips.map((c) => (
+              <Link
+                key={c.id}
+                to={`/clips/${c.slug}`}
+                data-testid={`clip-card-${c.slug}`}
+                className="clip-card group"
+              >
+                <video
+                  src={`${BACKEND_URL}${c.video_path}`}
+                  preload="metadata"
+                  muted
+                  playsInline
+                  onMouseEnter={(e) => e.currentTarget.play().catch(() => {})}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.pause();
+                    e.currentTarget.currentTime = 0;
+                  }}
+                />
+                <div className="p-3">
+                  <div className="text-white group-hover:text-[#F1D77A] truncate font-semibold">
+                    {c.caption || "Untitled"}
+                  </div>
+                  <div className="meta-text font-mono text-[10px] uppercase tracking-[0.2em] mt-1">
+                    @{c.author_username}
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -167,7 +167,18 @@ export async function search(env: Env, q: string) {
     run<Creator>(`${CREATOR_SELECT} WHERE u.display_name LIKE ? OR u.username LIKE ? LIMIT 8`, like, like),
     run<Community>(`${COMMUNITY_SELECT} AND (c.name LIKE ? OR c.description LIKE ?) LIMIT 8`, like, like),
     run<EventRow>(`${EVENT_SELECT} WHERE e.title LIKE ? OR e.description LIKE ? LIMIT 8`, like, like),
-    run<Article>(`${NEWS_SELECT} AND (a.title LIKE ? OR a.excerpt LIKE ?) LIMIT 8`, like, like),
+    (async () => {
+      const fromTable = await run<Article>(`${NEWS_SELECT} AND (a.title LIKE ? OR a.excerpt LIKE ?) LIMIT 8`, like, like);
+      const desk = await run<{ slug: string; title: string; excerpt: string; published_at: string; category: string }>(
+        `SELECT slug, title, excerpt, published_at, category FROM desk_articles WHERE status='published' AND (title LIKE ? OR excerpt LIKE ?) ORDER BY datetime(published_at) DESC LIMIT 8`,
+        like, like,
+      );
+      const mapped = desk.map((d) => ({
+        id: d.slug, slug: d.slug, title: d.title, excerpt: d.excerpt,
+        published_at: d.published_at, category: d.category, author_name: 'GoodGame desk',
+      })) as Article[];
+      return [...mapped, ...fromTable].slice(0, 10);
+    })(),
   ]);
   return { games, creators, communities, events, news };
 }
@@ -320,7 +331,11 @@ export async function globalActivity(env: Env, limit = 40) {
 // For sitemap generation
 export async function sitemapRows(env: Env) {
   const [games, creators, communities, events, news, clips] = await Promise.all([
-    env.DB.prepare(`SELECT g.slug, g.updated_at, g.tags FROM games g JOIN users u ON u.id = g.owner_id WHERE ${GAME_PUB}`).all<{ slug: string; updated_at: string; tags: string | null }>(),
+    env.DB.prepare(
+      `SELECT g.slug, g.title, g.updated_at, g.tags,
+        (SELECT ma.source_path FROM media_assets ma WHERE ma.game_id = g.id AND ma.type = 'capsule' AND ma.moderation_status = 'clear' ORDER BY ma.sort ASC LIMIT 1) cover_image
+       FROM games g JOIN users u ON u.id = g.owner_id WHERE ${GAME_PUB}`
+    ).all<{ slug: string; title: string; updated_at: string; tags: string | null; cover_image: string | null }>(),
     env.DB.prepare(
       `SELECT u.username slug
        FROM users u JOIN creator_accounts ca ON ca.user_id = u.id
@@ -344,7 +359,7 @@ export async function sitemapRows(env: Env) {
     }
   }
   const tags = Array.from(tagCounts.entries())
-    .filter(([, count]) => count >= 5)
+    .filter(([, count]) => count >= 2)
     .map(([slug, count]) => ({ slug, count }));
   return {
     games: games.results, creators: creators.results, communities: communities.results,

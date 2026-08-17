@@ -48,16 +48,16 @@ export default function Activity() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto px-4 md:px-8 py-10" data-testid="activity-page">
+    <div className="alley-tape" data-testid="activity-page">
       <SEO
         title="Global gaming activity"
         description="Follow public game releases, player posts, gameplay clips, and persistent high scores from across GoodGame.center."
         path="/activity"
       />
       <PageHeader
-        eyebrow="Live network"
-        title="Global activity"
-        description="One public stream for releases, player posts, clips, and leaderboard runs."
+        eyebrow="Brick wall"
+        title="Everything taped up"
+        description="One public stream for releases, player posts, clips, and high-score runs."
       />
 
       <div className="mt-8 border-y border-[#1A1A1A] py-5">

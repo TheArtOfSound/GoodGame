@@ -27,23 +27,27 @@ export default function Creators() {
   }, []);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 md:px-8 py-10" data-testid="creators-page">
+    <div className="alley-crew" data-testid="creators-page">
       <SEO
         title="Creators"
         description="Discover indie creators publishing free browser games, clips, and communities on GoodGame.center. Follow them to fill your feed."
         path="/creators"
       />
-      <PageHeader
-        eyebrow="People"
-        title="Creators"
-        description="Indie developers publishing browser games, clips, and communities. Follow them to personalize your feed."
-      />
+      <div>
+        <div>
+          <PageHeader
+            eyebrow="The crew"
+            title="Who plugs machines in"
+            description="Indie developers publishing browser games, clips, and side rooms. Follow them to fill your wall."
+          />
+        </div>
+      </div>
 
+      <div className="max-w-7xl mx-auto px-4 md:px-8 py-8">
       {!creators && <PageLoader label="Loading creators" />}
-      {error && <ErrorState className="mt-8" title="Creators could not load" body="The directory request failed." />}
+      {error && <ErrorState title="Creators could not load" body="The directory request failed." />}
       {!error && creators && creators.length === 0 && (
         <EmptyState
-          className="mt-8"
           icon={UserRoundSearch}
           testId="creators-empty"
           title="No creator profiles yet"
@@ -52,14 +56,14 @@ export default function Creators() {
         />
       )}
 
-      <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
         {(creators || []).map((c) => {
           const verified = c.official || c.verification_state === "verified";
           return (
             <Link
               key={c.id || c.username}
               to={`/creators/${c.username}`}
-              className="border border-[#1A1A1A] hover:border-[#D4AF37]/60 p-5 flex items-center gap-4 text-left transition-colors group"
+              className="surface card-lift p-5 flex items-center gap-4 text-left group"
               data-testid="creator-card"
             >
               <Avatar
@@ -72,11 +76,12 @@ export default function Creators() {
                 <div className="text-white group-hover:text-[#F1D77A] font-bold truncate">{c.display_name || c.username}</div>
                 <div className="text-[#52525B] font-mono text-[10px] uppercase tracking-[0.18em] truncate">@{c.username}</div>
                 <div className="text-[#A1A1AA] text-xs mt-2">{fmtCount(c.follower_count)} followers</div>
-                {verified && <div className="text-[#66c0f4] text-[10px] font-mono uppercase tracking-wider mt-1">&#10003; Verified</div>}
+                {verified && <div className="text-[#D4AF37] text-[10px] font-mono uppercase tracking-wider mt-1">&#10003; Verified</div>}
               </div>
             </Link>
           );
         })}
+      </div>
       </div>
     </div>
   );

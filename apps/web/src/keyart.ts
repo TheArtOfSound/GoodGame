@@ -179,11 +179,12 @@ const ART: Record<string, () => string> = {
 export const hasKeyart = (slug: string): boolean => slug in ART;
 export const keyart = (slug: string): string | null => (ART[slug] ? ART[slug]() : null);
 
-// Custom GoodGame brand mark (replaces the plain gradient square).
+// Custom GoodGame brand mark — black + gold premium arcade monogram.
 export const brandMark = (): string =>
-  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36" width="30" height="30">` +
-  `<defs><linearGradient id="bm" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1a9fff"/><stop offset="1" stop-color="#0768c9"/></linearGradient></defs>` +
-  `<rect width="36" height="36" rx="8" fill="url(#bm)"/>` +
-  `<path d="M25 12.5 A8.5 8.5 0 1 0 25 23.5 L25 19 L19.5 19" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round"/>` +
-  `<circle cx="26" cy="18" r="2.1" fill="#9fe0ff"/>` +
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36" width="30" height="30" role="img" aria-label="GoodGame">` +
+  `<defs><linearGradient id="bm" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#E5C158"/><stop offset="0.55" stop-color="#D4AF37"/><stop offset="1" stop-color="#A8861F"/></linearGradient></defs>` +
+  `<rect width="36" height="36" rx="8" fill="#0A0A0A"/>` +
+  `<rect x="0.75" y="0.75" width="34.5" height="34.5" rx="7.25" fill="none" stroke="url(#bm)" stroke-width="1.5"/>` +
+  `<path d="M14.2 11.2 a7 7 0 1 0 0.2 13.6 h3.4 v-4.1 h-4.6 a3.6 3.6 0 1 1 0.1-7.2 c0.9 0 1.7 0.3 2.3 0.8 l2.2-2.4 a7 7 0 0 0-3.6-0.7z" fill="url(#bm)"/>` +
+  `<path d="M23.5 11.2 a7 7 0 1 0 0.2 13.6 h3.2 v-3.4 h-4.4 a3.6 3.6 0 1 1 0.1-7.2 c0.9 0 1.7 0.3 2.3 0.8 l2.1-2.4 a7 7 0 0 0-3.5-0.7z" fill="url(#bm)" opacity="0.92"/>` +
   `</svg>`;

@@ -34,6 +34,9 @@ const FEEDS: { name: string; url: string }[] = [
   { name: 'Godot', url: 'https://godotengine.org/rss.xml' },
   { name: 'Indie Games Plus', url: 'https://indiegamesplus.com/feed' },
   { name: 'Destructoid', url: 'https://www.destructoid.com/feed/' },
+  { name: 'GamesIndustry.biz', url: 'https://www.gamesindustry.biz/feed' },
+  { name: 'Pocket Gamer', url: 'https://www.pocketgamer.com/rss' },
+  { name: 'The Verge Games', url: 'https://www.theverge.com/rss/games/index.xml' },
 ];
 
 const MODELS = [
@@ -43,7 +46,7 @@ const MODELS = [
 ];
 
 const INDEXNOW_KEY = 'a8df7c0d6f3b4ad2a6f9487c8f0b1d25';
-const MAX_WIRE_PER_RUN = 8;
+const MAX_WIRE_PER_RUN = 10;
 const UA = 'GoodGameDesk/1.0 (+https://goodgame.center/news)';
 
 const stripTags = (s: string) =>

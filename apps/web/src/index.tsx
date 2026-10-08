@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import type { Env, Game, Creator, Clip, Community } from './lib';
-import { fmtCount, initials, csv, ld, siteLd, gameLd, breadcrumbLd, orgLd, itemListLd, personLd } from './lib';
+import { fmtCount, initials, csv, ld, siteLd, gameLd, breadcrumbLd, orgLd, itemListLd, personLd, seoArticleTitle } from './lib';
 import { CSS } from './styles';
 import { page } from './components';
 import { ogCard, favicon } from './og';
@@ -188,7 +188,7 @@ const publicShellMeta = async (env: Env, path: string): Promise<{ meta: ShellMet
   if (newsMatch) {
     const a = await findPublicArticle(env, decodeURIComponent(newsMatch[1]));
     if (!a) return { status: 404, meta: base('Article not found · GoodGame.center', 'This article is not available on GoodGame.center.', path, true) };
-    return { meta: { ...base(`${a.title} · GoodGame.center`, a.excerpt, `/news/${a.slug}`), type: 'article', heading: a.title, jsonld: [{
+    return { meta: { ...base(seoArticleTitle(a.title), a.excerpt, `/news/${a.slug}`), type: 'article', heading: a.title, jsonld: [{
       '@context': 'https://schema.org', '@type': a.kind === 'guide' ? 'Article' : 'NewsArticle', headline: a.title, description: a.excerpt,
       datePublished: a.date, dateModified: a.date, inLanguage: 'en',
       author: { '@type': 'Organization', name: 'GoodGame.center', url: env.SITE_URL },

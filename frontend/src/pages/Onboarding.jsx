@@ -45,15 +45,15 @@ export default function Onboarding() {
         <div className="alley-rain" aria-hidden="true" />
         <div className="form-stage-brand-inner">
           <img src="/brand/alley/mark.webp" alt="" width={48} height={48} className="w-12 h-12 mb-4" />
-          <div className="alley-stamp">FREE PASS</div>
+          <div className="alley-stamp">FREE ACCOUNT</div>
           <h2 className="text-white leading-tight max-w-xs">
-            The alley keeps a locker for you.
+            Save scores, follow creators, and publish games.
           </h2>
           <ul className="mt-5 space-y-2 text-sm text-[#C9C9D1]" data-testid="onb-valueprops">
             {[
-              "Walk any cabinet — no install",
-              "Wheel in an HTML5 zip and it goes live",
-              "Tape scores, posts, and follows to your name",
+              "Play browser games with no install",
+              "Upload an HTML5 zip and put it online",
+              "Keep your scores, posts, and follows in one place",
             ].map((item) => (
               <li className="flex gap-2" key={item}>
                 <Check className="w-4 h-4 text-[var(--sodium)] shrink-0 mt-0.5" aria-hidden="true" />
@@ -65,10 +65,10 @@ export default function Onboarding() {
       </div>
 
       <div className="form-stage-panel">
-      <div className="eyebrow">Membership</div>
-      <h1 className="page-title !text-3xl mt-1">Stamp a pass</h1>
+      <div className="eyebrow">Create account</div>
+      <h1 className="page-title !text-3xl mt-1">Join GoodGame</h1>
       <p className="page-description !mt-2">
-        Free. No wallet. One ticket for play, hosting, and the wall.
+        Free. No wallet required. One account for playing, publishing, and community features.
       </p>
       <form onSubmit={submit} className="mt-8 space-y-4">
         <FormField id="onb-username" label="Username" hint="3-24 letters, numbers, or underscores.">
@@ -133,13 +133,13 @@ export default function Onboarding() {
           data-testid="onb-submit"
           className="btn-primary w-full h-12"
         >
-          {loading ? "Stamping..." : "Stamp my pass"}
+          {loading ? "Creating account..." : "Create my account"}
         </button>
       </form>
       <div className="text-[#A1A1AA] text-sm mt-6">
         Already on the list?{" "}
         <Link to={authPath("/login", next || "/feed")} className="underline">
-          Back door
+          Log in
         </Link>
       </div>
       </div>

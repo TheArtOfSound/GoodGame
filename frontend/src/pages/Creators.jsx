@@ -36,9 +36,9 @@ export default function Creators() {
       <div>
         <div>
           <PageHeader
-            eyebrow="The crew"
+            eyebrow="Creators"
             title="Who plugs machines in"
-            description="Indie developers publishing browser games, clips, and side rooms. Follow them to fill your wall."
+            description="Indie developers publishing browser games, clips, and communities. Follow them to personalize your feed."
           />
         </div>
       </div>

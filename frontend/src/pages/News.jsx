@@ -35,9 +35,9 @@ export default function News() {
       />
       <div className="alley-zine-inner">
       <PageHeader
-        eyebrow="Wheatpaste"
-        title="Tonight’s paper"
-        description="Feeds come in around the clock. We write the alley take — original copy, source cited — so Google and players can find a fresh page each day."
+        eyebrow="Guides & news"
+        title="Learn, publish, and stay current"
+        description="Practical guides for browser-game creators, plus original coverage of indie and browser games with sources included."
       />
 
       {!articles && <PageLoader label="Loading the desk" />}

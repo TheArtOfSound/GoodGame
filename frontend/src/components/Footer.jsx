@@ -13,32 +13,32 @@ export default function Footer() {
             </span>
           </div>
           <p>
-            A night street of browser cabinets. Play indie HTML5 games, or wheel your own machine into the alley.
+            Play indie browser games instantly, publish an HTML5 build for free, and meet the people making them.
           </p>
           <div className="mt-5">
             <DonateButton variant="footer" />
           </div>
         </div>
         <FooterCol
-          title="Walk"
+          title="Play"
           links={[
-            ["The cabinets", "/games"],
+            ["Browse games", "/games"],
             ["Feed", "/feed"],
             ["High scores", "/leaderboards"],
             ["Clips", "/clips"],
           ]}
         />
         <FooterCol
-          title="Plug in"
+          title="Create"
           links={[
-            ["Host a game", "/create"],
+            ["Publish a game", "/create"],
             ["Creators", "/creators"],
             ["News", "/news"],
             ["Communities", "/communities"],
           ]}
         />
         <FooterCol
-          title="House rules"
+          title="About"
           links={[
             ["Terms", "/legal/terms"],
             ["Privacy", "/legal/privacy"],
@@ -48,7 +48,7 @@ export default function Footer() {
         />
       </div>
       <div className="alley-pavement-grate">
-        © {new Date().getFullYear()} GoodGame.center — the alley is open
+        © {new Date().getFullYear()} GoodGame.center — free browser games and creator hosting
       </div>
     </footer>
   );

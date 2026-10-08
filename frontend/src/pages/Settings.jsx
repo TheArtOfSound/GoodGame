@@ -96,7 +96,7 @@ export default function Settings() {
   return (
     <div className="alley-office" data-testid="settings-page">
       <SEO title="Settings" path="/settings" />
-      <PageHeader eyebrow="Back office" title="Your locker" description="Name on the pass, portrait, and the banner over your stall." />
+      <PageHeader eyebrow="Settings" title="Your profile" description="Update your display name, bio, profile image, and banner." />
 
       <Section title="Profile">
         <form onSubmit={saveProfile} className="space-y-3 max-w-lg">

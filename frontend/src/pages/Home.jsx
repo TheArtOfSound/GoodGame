@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { getJSON } from "../lib/api";
 import GameCard from "../components/GameCard";
-import { ChevronLeft, ChevronRight, Play, Upload } from "lucide-react";
+import ActivityFeed from "../components/ActivityFeed";
+import { ChevronLeft, ChevronRight, Gamepad2, Globe2, Play, Upload } from "lucide-react";
 import SEO from "../components/SEO";
 import { EmptyState, ErrorState } from "../components/UIState";
 import { coverFallbackUrl, coverUrl, isExternalGame, pickFeatured, playHref } from "../lib/games";
@@ -13,6 +14,8 @@ export default function Home() {
   const [leaders, setLeaders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [activityError, setActivityError] = useState(false);
+  const [leaderError, setLeaderError] = useState(false);
   const location = useLocation();
   const railRef = useRef(null);
   const donationState = new URLSearchParams(location.search).get("donation");
@@ -20,15 +23,18 @@ export default function Home() {
   const load = () => {
     setLoading(true);
     setError(false);
-    Promise.all([
-      getJSON("/games?limit=24&sort=new"),
+    Promise.allSettled([
+      getJSON("/games?limit=12&sort=new"),
       getJSON("/feed/global?limit=8"),
       getJSON("/leaderboards?limit=6"),
     ])
       .then(([gameData, activityData, leaderboardData]) => {
-        setGames(gameData.games || []);
-        setActivity(activityData.activity || []);
-        setLeaders(leaderboardData.leaders || []);
+        setError(gameData.status === "rejected");
+        setActivityError(activityData.status === "rejected");
+        setLeaderError(leaderboardData.status === "rejected");
+        setGames(gameData.value?.games || []);
+        setActivity(activityData.value?.activity || []);
+        setLeaders(leaderboardData.value?.leaders || []);
       })
       .catch(() => setError(true))
       .finally(() => setLoading(false));
@@ -52,7 +58,7 @@ export default function Home() {
       <SEO path="/" />
       {donationState === "thanks" && (
         <div className="alley-notice is-gold" data-testid="donation-thanks">
-          Thank you for supporting the alley.
+          Thank you for supporting GoodGame.
         </div>
       )}
       {donationState === "cancelled" && (
@@ -79,20 +85,21 @@ export default function Home() {
           <div className="alley-arrival-fade" />
         </div>
         <div className="alley-arrival-ticket">
-          <div className="alley-stamp">FREE ENTRY</div>
+          <div className="alley-stamp">FREE BROWSER GAMES</div>
           <h1>
-            The alley is
-            <span> open.</span>
+            Play instantly.
+            <span> Publish in minutes.</span>
           </h1>
           <p>
-            Browser cabinets, no install. Walk the row, drop a coin, or wheel your own HTML5 machine in.
+            Discover indie games that run in your browser—no download or account required. Made a game?
+            Upload an HTML5 zip or link your hosted build for free.
           </p>
           <div className="alley-arrival-cta">
             <Link to="/games" data-testid="hero-browse-cta" className="btn-primary h-12 px-6">
-              <Play className="w-4 h-4 fill-current" /> Walk the cabinets
+              <Play className="w-4 h-4 fill-current" /> Browse games
             </Link>
             <Link to="/create?method=upload" data-testid="hero-upload-cta" className="btn-secondary h-12 px-6">
-              <Upload className="w-4 h-4" /> Plug yours in
+              <Upload className="w-4 h-4" /> Publish a game
             </Link>
           </div>
           {featured && (
@@ -106,7 +113,7 @@ export default function Home() {
                 }}
               />
               <div>
-                <b>{isExternalGame(featured) ? "Lit on the host" : "Now glowing"}</b>
+                <b>{isExternalGame(featured) ? "Play on creator site" : "Featured game"}</b>
                 <strong>{featured.title}</strong>
                 <small>{featured.owner_username ? `@${featured.owner_username}` : "GoodGame Labs"}</small>
               </div>
@@ -118,17 +125,17 @@ export default function Home() {
       <section className="alley-row">
         <div className="alley-row-head">
           <div>
-            <div className="eyebrow">The row</div>
-            <h2>Cabinets on tonight</h2>
+            <div className="eyebrow">Ready to play</div>
+            <h2>Recently added games</h2>
           </div>
           <div className="alley-row-tools">
-            <button type="button" className="alley-nudge" onClick={() => nudge(-1)} aria-label="Previous cabinets">
+            <button type="button" className="alley-nudge" onClick={() => nudge(-1)} aria-label="Previous games">
               <ChevronLeft className="w-5 h-5" />
             </button>
-            <button type="button" className="alley-nudge" onClick={() => nudge(1)} aria-label="Next cabinets">
+            <button type="button" className="alley-nudge" onClick={() => nudge(1)} aria-label="Next games">
               <ChevronRight className="w-5 h-5" />
             </button>
-            <Link to="/games">See the lot →</Link>
+            <Link to="/games">Browse all games →</Link>
           </div>
         </div>
 
@@ -140,8 +147,8 @@ export default function Home() {
           </div>
         ) : error ? (
           <ErrorState
-            title="The alley lights flickered"
-            body="The catalog could not load. The cabinets are still here."
+            title="Games could not load"
+            body="The catalog is temporarily unavailable. Try again in a moment."
             action={
               <button type="button" className="btn-secondary" onClick={load}>
                 Try again
@@ -152,9 +159,9 @@ export default function Home() {
           <EmptyState
             testId="empty-catalog"
             icon={Upload}
-            eyebrow="Dark alley"
-            title="No cabinets yet"
-            body="Upload an HTML5 build and it becomes the first machine on the row."
+            eyebrow="Game catalog"
+            title="No games yet"
+            body="Upload an HTML5 build to publish the first game."
             action={
               <Link to="/create" className="btn-primary h-12 px-6">
                 <Upload className="w-4 h-4" /> Host a game
@@ -170,38 +177,54 @@ export default function Home() {
         )}
       </section>
 
+      <section className="home-how" aria-labelledby="how-goodgame-works">
+        <div className="home-how-copy">
+          <div className="eyebrow">Simple by design</div>
+          <h2 id="how-goodgame-works">Play, publish, and share</h2>
+          <p>GoodGame is built for browser games. Players can start immediately, and creators get a permanent page they can share anywhere.</p>
+        </div>
+        <ol className="home-how-steps">
+          <li>
+            <Gamepad2 aria-hidden="true" />
+            <div><b>1. Pick a game</b><span>Browse by title, creator, or genre.</span></div>
+          </li>
+          <li>
+            <Play aria-hidden="true" />
+            <div><b>2. Play instantly</b><span>Open it in your browser. No install required.</span></div>
+          </li>
+          <li>
+            <Globe2 aria-hidden="true" />
+            <div><b>3. Publish your own</b><span>Upload a zip or link a hosted game for free.</span></div>
+          </li>
+        </ol>
+      </section>
+
       <section className="alley-board">
         <div className="alley-board-brick">
           <div className="alley-row-head">
             <div>
-              <div className="eyebrow">Brick wall</div>
-              <h2>Tonight’s flyers</h2>
+              <div className="eyebrow">Community</div>
+              <h2>Latest activity</h2>
             </div>
-            <Link to="/activity">More tape →</Link>
+            <Link to="/activity">See all activity →</Link>
           </div>
-          <div className="flyer-wall">
-            {(activity.length ? activity : [{ kind: "note", title: "The wall is clean", body: "Post after you play." }]).map(
-              (item, index) => (
-                <article
-                  key={item.id || item.title || index}
-                  className="flyer"
-                  style={{ "--tilt": `${((index * 17) % 7) - 3}deg` }}
-                >
-                  <span>{item.kind || "note"}</span>
-                  <strong>{item.title || item.game_title || item.body || "Untitled"}</strong>
-                  {item.username || item.author_username ? (
-                    <small>@{item.username || item.author_username}</small>
-                  ) : null}
-                </article>
-              ),
+          <div className="home-activity">
+            {activityError ? (
+              <p className="meta-text">Activity is temporarily unavailable.</p>
+            ) : (
+              <ActivityFeed activity={activity.slice(0, 6)} compact />
             )}
+            <div className="home-community-invite">
+              <p>Follow creators, share updates, and find people to playtest with.</p>
+              <Link to="/onboarding" className="btn-secondary">Join the community</Link>
+            </div>
           </div>
         </div>
 
         <aside className="sticker-wall">
           <div className="alley-row-head">
             <div>
-              <div className="eyebrow">Glass case</div>
+              <div className="eyebrow">Competition</div>
               <h2>High scores</h2>
             </div>
             <Link to="/leaderboards" aria-label="All leaderboards">
@@ -223,8 +246,10 @@ export default function Home() {
                 </li>
               ))}
             </ol>
+          ) : leaderError ? (
+            <p className="meta-text">High scores are temporarily unavailable.</p>
           ) : (
-            <div className="sticker is-empty">No champion yet. First logged-in score takes the glass.</div>
+            <div className="sticker is-empty">No high scores yet. Log in and play to join the leaderboard.</div>
           )}
         </aside>
       </section>

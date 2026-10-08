@@ -83,12 +83,12 @@ export default function Browse() {
       <div className="alley-lot-mast">
         <div className="alley-lot-mast-inner">
           <PageHeader
-            eyebrow="The lot"
-            title="Every cabinet on the block"
-            description="Walk the row. No download. Plug yours in if the lot is missing a machine."
+            eyebrow="Game catalog"
+            title="Free games you can play now"
+            description="Browse indie browser games by title, creator, or genre. No download required."
             actions={
               <Link to="/create?method=upload" className="btn-primary h-11 px-5">
-                <Upload className="w-4 h-4" /> Plug one in
+                <Upload className="w-4 h-4" /> Publish a game
               </Link>
             }
           />
@@ -188,19 +188,19 @@ export default function Browse() {
           <GridSkeleton count={12} className="catalog-grid" />
         ) : error ? (
           <ErrorState
-            title="The lot lights flickered"
-            body="The cabinets could not be counted. Try again."
+            title="Games could not load"
+            body="The catalog is temporarily unavailable. Try again."
             action={<button type="button" className="btn-secondary" onClick={load}>Retry</button>}
           />
         ) : filtered.length === 0 ? (
           <EmptyState
             icon={Search}
             testId="browse-empty"
-            title={games.length ? "Nothing in this bay" : "The lot is empty"}
+            title={games.length ? "No matching games" : "No games yet"}
             body={
               games.length
-                ? `Nothing matches ${[q.trim() && `“${q.trim()}”`, tag && `the ${tag} genre`].filter(Boolean).join(" in ")}. Try a broader walk.`
-                : "Wheel in an HTML5 build and it becomes the first machine on the row."
+                ? `Nothing matches ${[q.trim() && `“${q.trim()}”`, tag && `the ${tag} genre`].filter(Boolean).join(" in ")}. Try a broader search.`
+                : "Upload an HTML5 build to publish the first game."
             }
             action={
               games.length ? (
@@ -221,7 +221,7 @@ export default function Browse() {
           <>
             {featured && (
               <div className="mb-6">
-                <div className="eyebrow mb-3">Under the sodium lamp</div>
+                <div className="eyebrow mb-3">Featured game</div>
                 <GameCard game={featured} size="lg" />
               </div>
             )}

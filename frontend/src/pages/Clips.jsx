@@ -38,9 +38,9 @@ export default function Clips() {
       <div>
         <div>
           <PageHeader
-            eyebrow="VHS stack"
-            title="Moments from the row"
-            description="Short tapes players pull off a cabinet and leave on the counter."
+            eyebrow="Gameplay clips"
+            title="Highlights from the community"
+            description="Watch and share short gameplay moments from GoodGame creators and players."
             actions={user ? (
               <button
                 data-testid="clips-upload-toggle"

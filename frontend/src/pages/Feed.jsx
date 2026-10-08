@@ -63,9 +63,9 @@ export default function Feed() {
     <div className="alley-tape" data-testid="feed-page">
       <SEO title="Your feed" path="/feed" noindex />
       <PageHeader
-        eyebrow={personalized ? "Your brick" : "The wall"}
-        title={personalized ? "Tape from people you follow" : "Tonight’s tape"}
-        description={personalized ? "Notes from creators you follow." : "Fresh posts, cabinets, clips, and reviews stuck to the wall."}
+        eyebrow={personalized ? "Following" : "Community feed"}
+        title={personalized ? "Updates from people you follow" : "What the community is sharing"}
+        description={personalized ? "New posts from creators you follow." : "Recent posts, game releases, clips, and reviews."}
       />
 
       {welcome && user && (

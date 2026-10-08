@@ -44,18 +44,18 @@ export default function Login() {
             height={48}
             className="w-12 h-12 mb-4"
           />
-          <div className="alley-stamp">BACK DOOR</div>
+          <div className="alley-stamp">GOOD TO SEE YOU</div>
           <h2 className="text-white leading-tight max-w-xs">
-            Punch your ticket.
+            Pick up where you left off.
           </h2>
         </div>
       </div>
 
       <div className="form-stage-panel">
-        <div className="eyebrow">Regulars</div>
+        <div className="eyebrow">Account</div>
         <h1 className="page-title !text-3xl mt-1">Welcome back</h1>
         <p className="page-description !mt-2">
-          Scores, tape on the wall, and the machines you plugged in stay on this pass.
+          Your scores, posts, follows, and published games are waiting for you.
         </p>
 
         <form onSubmit={submit} className="mt-8 space-y-4">
@@ -89,13 +89,13 @@ export default function Login() {
             data-testid="login-submit"
             className="btn-primary w-full h-12"
           >
-            {loading ? "Checking the list..." : "Enter the alley"}
+            {loading ? "Logging in..." : "Log in"}
           </button>
         </form>
         <div className="text-[#A1A1AA] text-sm mt-6">
-          First night?{" "}
+          New to GoodGame?{" "}
           <Link to={authPath("/onboarding", next)} className="underline">
-            Stamp a pass
+            Create an account
           </Link>
         </div>
       </div>

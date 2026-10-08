@@ -1274,6 +1274,84 @@ code, .font-mono, [class*="font-mono"] {
   }
 }
 
+/* How it works: readable steps beside a short explanation. */
+.home-how {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.75fr) minmax(0, 1.25fr);
+  gap: clamp(32px, 6vw, 92px);
+  padding: clamp(52px, 7vw, 88px) 8vw;
+  background: #071216;
+  border-block: 1px solid rgba(126, 240, 255, 0.14);
+}
+
+.home-how-copy {
+  max-width: 34rem;
+}
+
+.home-how h2 {
+  margin-top: 8px;
+  font-size: clamp(2rem, 4vw, 3.25rem);
+  line-height: 1;
+}
+
+.home-how-copy p {
+  margin-top: 16px;
+  color: #aebbb8;
+  line-height: 1.65;
+}
+
+.home-how-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+}
+
+.home-how-steps li {
+  display: grid;
+  grid-template-columns: 42px 1fr;
+  align-items: start;
+  gap: 16px;
+  padding: 18px 0;
+  border-bottom: 1px solid rgba(126, 240, 255, 0.14);
+}
+
+.home-how-steps li:first-child {
+  padding-top: 0;
+}
+
+.home-how-steps li:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.home-how-steps svg {
+  width: 24px;
+  height: 24px;
+  color: var(--sodium);
+  margin-top: 2px;
+}
+
+.home-how-steps b,
+.home-how-steps span {
+  display: block;
+}
+
+.home-how-steps b {
+  font-family: "Syne", sans-serif;
+  font-size: 18px;
+}
+
+.home-how-steps span {
+  margin-top: 4px;
+  color: #9aa7a4;
+  line-height: 1.45;
+}
+
+@media (max-width: 720px) {
+  .home-how { grid-template-columns: 1fr; padding: 46px 18px; }
+}
+
 /* ══════════════════════════════════════════════
    THE ALLEY — spatial chrome, not a SaaS shell
    ══════════════════════════════════════════════ */
@@ -2644,4 +2722,87 @@ code, .font-mono, [class*="font-mono"] {
   .cabinet:hover .cabinet-screen img {
     transform: none;
   }
+}
+
+/* Clear, task-first navigation overrides legacy alley chrome. */
+.alley-marquee,
+.alley-spine { display: none !important; }
+.alley-main { padding: 0; }
+.alley-pavement { padding-left: 0; }
+.alley-topbar {
+  position: sticky; top: 0; z-index: 70; height: 72px; display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto; align-items: center;
+  gap: clamp(20px, 3vw, 48px); padding: 0 clamp(18px, 3vw, 44px);
+  background: rgba(6, 16, 20, 0.94); border-bottom: 1px solid rgba(126, 240, 255, 0.22);
+  box-shadow: 0 10px 30px -24px #000; backdrop-filter: blur(14px);
+}
+.alley-topbar-brand { display: inline-flex; align-items: center; gap: 10px; color: #fff; font: 800 16px "Syne", sans-serif; letter-spacing: .02em; white-space: nowrap; }
+.alley-topbar-brand img { width: 36px; height: 36px; filter: drop-shadow(0 0 9px rgba(255, 45, 138, .35)); }
+.alley-topbar-brand i { color: var(--tube); font-style: normal; }
+.alley-topbar-nav { display: flex; align-items: stretch; gap: clamp(14px, 1.6vw, 28px); height: 72px; min-width: 0; }
+.alley-topbar-nav a { position: relative; display: inline-flex; align-items: center; color: #b7c2c0; font-size: 14px; font-weight: 600; white-space: nowrap; transition: color 150ms ease; }
+.alley-topbar-nav a:hover,
+.alley-topbar-nav a.is-active { color: #fff; }
+.alley-topbar-nav a.is-active::after { content: ""; position: absolute; inset: auto 0 0; height: 3px; background: var(--sodium); }
+.alley-topbar-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; white-space: nowrap; }
+.topbar-login,
+.topbar-account { min-height: 42px; display: inline-flex; align-items: center; color: #d5e0dd; font-size: 14px; font-weight: 700; padding: 0 6px; }
+.topbar-login:hover,
+.topbar-account:hover { color: var(--tube); }
+.topbar-publish { height: 42px; padding-inline: 16px; }
+.topbar-menu { display: none; }
+.nav-drawer { inset: 72px 0 0; z-index: 69; }
+.alley-arrival { min-height: min(72svh, 680px); }
+.alley-arrival-ticket { width: min(100%, 58rem); max-width: 58rem; min-width: 0; }
+.alley-arrival-ticket h1 { font-size: clamp(3rem, 4.5vw, 4.8rem); line-height: 1.02; }
+.alley-arrival-ticket p { max-width: 58ch; }
+.alley-lot-filters { top: 72px; }
+.alley-row-tools { flex-shrink: 0; }
+.sticker-wall .alley-row-head { padding: 0 0 18px; }
+.cabinet-stat { max-width: 48%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cabinet:focus-visible .cabinet-play { opacity: 1; }
+.alley-board > * { min-width: 0; }
+.home-activity { padding: 0 8vw; overflow-wrap: anywhere; }
+.home-community-invite { margin-top: 24px; padding-top: 24px; border-top: 1px solid rgba(126,240,255,.16); }
+.home-community-invite p { margin-bottom: 16px; color: #aebbb8; line-height: 1.5; }
+.sticker div { min-width: 0; }
+.sticker strong { overflow-wrap: anywhere; }
+
+@media (max-width: 1260px) {
+  .alley-topbar { gap: 20px; padding-inline: 22px; }
+  .alley-topbar-nav { gap: 16px; }
+  .topbar-donate { display: none; }
+}
+@media (max-width: 1160px) {
+  .alley-topbar { height: 64px; display: grid; grid-template-columns: auto 1fr; }
+  .alley-topbar-nav,
+  .topbar-search,
+  .topbar-account,
+  .topbar-user-tool { display: none; }
+  .topbar-menu { display: inline-grid; }
+  .nav-drawer { inset: 64px 0 0; }
+  .alley-lot-filters { top: 64px; }
+}
+@media (max-width: 720px) {
+  .alley-topbar { padding-inline: 14px; gap: 8px; }
+  .alley-topbar-brand { font-size: 14px; }
+  .alley-topbar-brand img { width: 32px; height: 32px; }
+  .topbar-login { display: none; }
+  .topbar-publish { height: 40px; padding-inline: 12px; font-size: 10px; }
+  .alley-arrival { min-height: auto; }
+  .alley-arrival-ticket { padding: 42px 18px 36px; }
+  .alley-arrival-ticket h1 { font-size: clamp(2.1rem, 10vw, 2.65rem); }
+  .alley-arrival-ticket p { font-size: 16px; }
+  .alley-arrival-cta { gap: 10px; }
+  .alley-arrival-cta a { flex: 1 1 150px; padding-inline: 12px; }
+  .alley-row-head { align-items: flex-start; flex-wrap: wrap; gap: 12px; }
+  .alley-row-head h2 { font-size: 1.6rem; }
+  .alley-row-tools { width: 100%; }
+  .alley-row-tools a { margin-left: auto; }
+  .alley-row-head > a { font-size: 12px; }
+  .home-activity { padding-inline: 18px; }
+}
+@media (max-width: 390px) {
+  .alley-topbar-brand span { font-size: 12px; }
+  .topbar-publish { display: none; }
 }

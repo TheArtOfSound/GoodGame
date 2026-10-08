@@ -55,8 +55,8 @@ export default function Activity() {
         path="/activity"
       />
       <PageHeader
-        eyebrow="Brick wall"
-        title="Everything taped up"
+        eyebrow="Global activity"
+        title="What’s happening on GoodGame"
         description="One public stream for releases, player posts, clips, and high-score runs."
       />
 

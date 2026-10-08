@@ -84,7 +84,7 @@ export default function Legal() {
     );
   return (
     <article className="alley-rules" data-testid={`legal-${topic}`}>
-      <div className="eyebrow">House rules</div>
+      <div className="eyebrow">Policies</div>
       <h1 className="text-3xl md:text-4xl font-bold uppercase text-white mt-2 tracking-tight">
         {page.title}
       </h1>

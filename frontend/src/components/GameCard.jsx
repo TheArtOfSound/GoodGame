@@ -42,12 +42,12 @@ export default function GameCard({ game, size = "md", variant = "cabinet" }) {
           </span>
           {external && (
             <span className="cabinet-chip">
-              <ExternalLink className="w-2.5 h-2.5" /> Host
+              <ExternalLink className="w-2.5 h-2.5" /> Creator site
             </span>
           )}
           {instant && (
             <span className="cabinet-chip is-live">
-              <Zap className="w-2.5 h-2.5 fill-current" /> Live
+              <Zap className="w-2.5 h-2.5 fill-current" /> Play now
             </span>
           )}
         </div>

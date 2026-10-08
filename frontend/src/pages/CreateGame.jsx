@@ -36,14 +36,14 @@ const PATHS = [
     id: "forge",
     icon: Sparkles,
     title: "Make one with AI",
-    detail: "Pick a recipe DNA + idea — Forge designs menus, systems, then codes a playable draft.",
+    detail: "Describe an idea and choose a game style. Forge generates a playable draft you can edit.",
   },
 ];
 
 const STEPS = [
-  { n: "1", t: "Stamp a pass", d: "Join in under a minute — no wallet needed." },
-  { n: "2", t: "Wheel it in", d: "HTML5 zip we host, or a public browser URL." },
-  { n: "3", t: "Lights on", d: "Share /games/your-slug — playable in one click." },
+  { n: "1", t: "Create an account", d: "Join free in under a minute. No wallet needed." },
+  { n: "2", t: "Add your game", d: "Upload an HTML5 zip we host, or paste a public browser URL." },
+  { n: "3", t: "Share your page", d: "Get a permanent GoodGame link that players can open in one click." },
 ];
 
 /** Client-side gate before hitting the API (store links are not browser builds). */
@@ -140,14 +140,14 @@ export default function CreateGame() {
           <img src="/brand/alley/dock.webp" alt="" width={1280} height={720} />
           <div className="alley-rain" aria-hidden="true" />
           <div className="alley-dock-copy">
-            <div className="alley-stamp">LOADING BAY</div>
+            <div className="alley-stamp">FREE GAME PUBLISHING</div>
             <h1>
-              Wheel a machine
-              <span> in.</span>
+              Publish your game.
+              <span> Keep ownership.</span>
             </h1>
             <p>
-              Drop an HTML5 zip on the dock and we plug it into the row. Or paste a playable browser URL.
-              You keep the keys.
+              Upload an HTML5 zip and we host it free, or link a browser game you already host.
+              Either way, you get a shareable play page.
             </p>
             <div className="alley-arrival-cta">
               <Link
@@ -155,19 +155,19 @@ export default function CreateGame() {
                 className="btn-primary h-12 px-7"
                 data-testid="create-guest-join"
               >
-                <Upload className="w-4 h-4" /> Stamp a pass &amp; plug in
+                <Upload className="w-4 h-4" /> Create account &amp; publish
               </Link>
               <Link
                 to={authPath("/login", nextPath)}
                 className="btn-secondary h-12 px-6"
                 data-testid="create-guest-login"
               >
-                Back door
+                Log in
               </Link>
             </div>
             <p className="meta-text text-xs mt-4 max-w-lg">
-              App-store links stay on the truck. We need a{" "}
-              <strong className="text-[#C9C9D1] font-semibold">browser</strong> build — zip or https play page.
+              GoodGame needs a{" "}
+              <strong className="text-[#C9C9D1] font-semibold">browser-playable</strong> build — an HTML5 zip or https play page. App-store-only links are not supported.
             </p>
           </div>
         </div>
@@ -183,7 +183,7 @@ export default function CreateGame() {
             ))}
           </div>
 
-          <h2 className="text-2xl font-bold text-white mt-12 mb-4">Three bays</h2>
+          <h2 className="text-2xl font-bold text-white mt-12 mb-4">Three ways to publish</h2>
           <div className="grid md:grid-cols-3 border border-[rgba(232,165,75,0.28)]">
             {PATHS.map((path) => {
               const Icon = path.icon;
@@ -204,7 +204,7 @@ export default function CreateGame() {
             <div className="flex gap-3">
               <Zap className="w-5 h-5 text-[var(--sodium)] shrink-0" />
               <div>
-                <div className="text-white font-bold">What rolls in</div>
+                <div className="text-white font-bold">Supported</div>
                 <p className="text-[#8B8B95] text-sm mt-1">
                   HTML5 / WebGL / Unity Web / Godot Web zips · itch.io web embeds · GitHub Pages · Vercel · Netlify · your domain
                 </p>
@@ -213,9 +213,9 @@ export default function CreateGame() {
             <div className="flex gap-3">
               <Shield className="w-5 h-5 text-[var(--sodium)] shrink-0" />
               <div>
-                <div className="text-white font-bold">What stays on the truck</div>
+                <div className="text-white font-bold">Not supported</div>
                 <p className="text-[#8B8B95] text-sm mt-1">
-                  Play Store / App Store only · native APKs with no web build · pages that block framing (unless you host the zip with us)
+                  App-store-only links · native APKs or desktop builds with no browser version
                 </p>
               </div>
             </div>
@@ -227,7 +227,7 @@ export default function CreateGame() {
               className="btn-primary h-12 px-8 inline-flex"
               data-testid="create-guest-join-bottom"
             >
-              <Gamepad2 className="w-4 h-4" /> Open the bay
+              <Gamepad2 className="w-4 h-4" /> Start publishing
             </Link>
           </div>
         </div>
@@ -330,9 +330,9 @@ export default function CreateGame() {
         path="/create"
       />
       <PageHeader
-        eyebrow="Loading bay"
-        title="Wheel a machine in"
-        description="Upload a zip we host, link a browser URL, or generate a draft. Every path ends with a cabinet on the row."
+        eyebrow="Publish a game"
+        title="Choose how to add your game"
+        description="Upload a zip we host, link a browser URL you already host, or generate a playable draft with AI."
       />
 
       <div className="mt-4 surface px-4 py-3 text-sm text-[#C9C9D1] flex gap-2 items-start">

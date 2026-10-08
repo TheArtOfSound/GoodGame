@@ -1,7 +1,6 @@
 import Nav from "./Nav";
 import Footer from "./Footer";
 import RouteEffects from "./RouteEffects";
-import BootScreen from "./BootScreen";
 
 export default function Layout({ children }) {
   return (
@@ -16,7 +15,6 @@ export default function Layout({ children }) {
       <a href="#main-content" className="skip-link">
         Skip to content
       </a>
-      <BootScreen />
       <RouteEffects />
       <Nav />
       <main id="main-content" tabIndex={-1} className="alley-main flex-1 outline-none">

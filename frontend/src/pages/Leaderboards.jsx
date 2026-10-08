@@ -37,7 +37,7 @@ export default function Leaderboards() {
         path="/leaderboards"
       />
       <PageHeader
-        eyebrow="Glass case"
+        eyebrow="Leaderboards"
         title="High scores"
         description="Each row is the current best authenticated run for that game. Scores are never prefilled."
       />

@@ -223,7 +223,7 @@ export default function GameDetail() {
       {listedExternal && (
         <div className="mb-6 alley-notice is-gold" data-testid="external-listed-notice">
           <strong>Listed.</strong> That host blocks embedding, so Play opens on the original site.
-          Want it on this glass? Upload an HTML5 .zip from the creator console.
+          To play inside GoodGame, upload an HTML5 .zip from the creator console.
         </div>
       )}
       <div className="grid lg:grid-cols-3 gap-8">
@@ -300,7 +300,7 @@ export default function GameDetail() {
                     className="btn-primary btn-coin h-14 px-8 text-sm"
                   >
                     {isExternal ? <Play className="w-5 h-5" /> : <img src="/brand/alley/token.webp" alt="" className="coin-icon" />}
-                    {isExternal ? "Play on original site" : "Drop a coin"}
+                    {isExternal ? "Play on creator site" : "Play game"}
                   </button>
                   {!isExternal && (
                   <button
@@ -313,7 +313,7 @@ export default function GameDetail() {
                   )}
                   {isExternal && (
                     <p className="w-full text-center text-[#C9C9D1] text-xs max-w-sm mt-1">
-                      This host blocks embedding (X-Frame-Options). Play opens on {embedHost || "the original site"}.
+                      This game opens on {embedHost || "the creator’s site"} in a new tab.
                     </p>
                   )}
                 </div>

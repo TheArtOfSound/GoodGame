@@ -53,9 +53,9 @@ export default function ActivityFeed({ activity = [], compact = false }) {
                   >
                     {item.actor_name || `@${item.actor_username}`}
                   </Link>
-                  <span className="text-[#71717A] text-sm"> · {labelFor[item.kind] || "Updated"}</span>
+                  <span className="meta-text text-sm"> · {labelFor[item.kind] || "Updated"}</span>
                 </div>
-                <time className="text-[#52525B] font-mono text-[10px] uppercase tracking-wider shrink-0">
+                <time className="meta-text font-mono text-[10px] uppercase tracking-wider shrink-0">
                   {formatTime(item.created_at)}
                 </time>
               </div>
@@ -79,7 +79,7 @@ export default function ActivityFeed({ activity = [], compact = false }) {
                   )}
                 </>
               )}
-              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[#52525B] font-mono text-[10px] uppercase tracking-wider">
+              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 meta-text font-mono text-[10px] uppercase tracking-wider">
                 {item.game_slug && <Link to={`/games/${item.game_slug}`}>{item.game_title}</Link>}
                 {item.community_slug && <Link to={`/communities/${item.community_slug}`}>{item.community_name}</Link>}
               </div>

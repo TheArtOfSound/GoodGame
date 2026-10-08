@@ -52,9 +52,9 @@ export default function Communities() {
       <div>
         <div>
           <PageHeader
-            eyebrow="Side rooms"
-            title="Behind the row"
-            description="Open a room for a genre, a playtest, or the people who keep a cabinet warm."
+            eyebrow="Communities"
+            title="Find your people"
+            description="Join a group for a genre, organize a playtest, or create a space around the games you love."
           />
         </div>
       </div>

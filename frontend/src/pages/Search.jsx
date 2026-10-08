@@ -48,7 +48,7 @@ export default function Search() {
   return (
     <div className="alley-clerk" data-testid="search-page">
       <SEO title="Search" path="/search" noindex />
-      <PageHeader eyebrow="Ask the clerk" title="What’s on tonight" description="Name a cabinet, a handle, or a side room. We’ll check the board." />
+      <PageHeader eyebrow="Search" title="Find games and people" description="Search by game title, creator username, genre, or community." />
       <form onSubmit={submit} className="mt-4 flex gap-2 max-w-xl">
         <label className="relative flex-1">
           <span className="sr-only">Search GoodGame</span>

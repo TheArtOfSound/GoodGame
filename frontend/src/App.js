@@ -34,14 +34,14 @@ function NotFound() {
   return (
     <div className="alley-deadend" data-testid="not-found">
       <div>
-        <div className="alley-stamp">DEAD END</div>
+        <div className="alley-stamp">PAGE NOT FOUND</div>
         <h1 className="text-4xl md:text-6xl font-bold text-white mt-4 tracking-tight">
-          This street goes nowhere.
+          We couldn&apos;t find that page.
         </h1>
-        <p className="text-[#A1A1AA] mt-4">That door was bricked over.</p>
+        <p className="text-[#A1A1AA] mt-4">The link may be outdated, or the page may have moved.</p>
         <div className="mt-6 flex justify-center gap-2 flex-wrap">
-          <Link to="/games" className="btn-primary">Walk the cabinets</Link>
-          <Link to="/" className="btn-secondary">Back to the mouth</Link>
+          <Link to="/games" className="btn-primary">Browse games</Link>
+          <Link to="/" className="btn-secondary">Go home</Link>
         </div>
       </div>
     </div>

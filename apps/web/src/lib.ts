@@ -220,6 +220,18 @@ export const personLd = (env: Env, username: string, displayName: string) => ({
   },
 });
 
+// Keep long wire-story headlines fully visible in H1 and structured data,
+// but make the SERP title concise without clipping in the middle of a word.
+export const seoArticleTitle = (headline: string): string => {
+  const suffix = ' · GoodGame.center';
+  const clean = headline.replace(/\s+/g, ' ').trim();
+  if (clean.length + suffix.length <= 68) return clean + suffix;
+  const max = 68 - suffix.length - 1;
+  const clipped = clean.slice(0, max);
+  const boundary = clipped.lastIndexOf(' ');
+  return (boundary >= 29 ? clipped.slice(0, boundary) : clipped).trimEnd() + '…' + suffix;
+};
+
 export const articleLd = (env: Env, a: Article) => ({
   '@context': 'https://schema.org',
   '@type': 'Article',
@@ -228,7 +240,7 @@ export const articleLd = (env: Env, a: Article) => ({
   url: `${env.SITE_URL}/news/${a.slug}`,
   datePublished: a.published_at,
   author: { '@type': 'Organization', name: a.author_name || 'GoodGame.center' },
-  publisher: { '@type': 'Organization', name: 'GoodGame.center' },
+  publisher: orgLd(env),
 });
 
 export const eventLd = (env: Env, e: EventRow) => ({

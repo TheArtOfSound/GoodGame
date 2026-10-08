@@ -1,5 +1,5 @@
 import { Document, NewsCard, GameCard, ClipCard, CommunityCard, CreatorCard, EventCard, Avatar, RailHead } from '../components';
-import { artVars, fmtDate, relTime, breadcrumbLd, articleLd, type Env, type Article } from '../lib';
+import { artVars, fmtDate, relTime, breadcrumbLd, articleLd, seoArticleTitle, type Env, type Article } from '../lib';
 import type { search as searchFn } from '../db';
 
 export function NewsDirectory(props: { env: Env; articles: Article[] }) {
@@ -33,7 +33,7 @@ export function ArticlePage(props: { env: Env; a: Article; related: Article[] })
   const { env, a } = props;
   return (
     <Document env={env} active="news"
-      meta={{ title: `${a.title} | GoodGame.center`, description: a.excerpt, path: `/news/${a.slug}`, type: 'article', image: `/og/news/${a.slug}.svg` }}
+      meta={{ title: seoArticleTitle(a.title), description: a.excerpt, path: `/news/${a.slug}`, type: 'article', image: `/og/news/${a.slug}.svg` }}
       jsonld={[articleLd(env, a), breadcrumbLd(env, [{ name: 'News', path: '/news' }, { name: a.title, path: `/news/${a.slug}` }])]}>
       <div class="art" style={'height:220px;position:relative;' + artVars(a.accent, a.slug)} />
       <div class="container">

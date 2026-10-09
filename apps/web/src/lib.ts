@@ -223,7 +223,8 @@ export const personLd = (env: Env, username: string, displayName: string) => ({
 // Keep long wire-story headlines fully visible in H1 and structured data,
 // but make the SERP title concise without clipping in the middle of a word.
 export const seoArticleTitle = (headline: string): string => {
-  const suffix = ' · GoodGame.center';
+  // The URL already shows GoodGame.center; keep search-intent words in the visible headline.
+  const suffix = ' · GoodGame';
   const clean = headline.replace(/\s+/g, ' ').trim();
   if (clean.length + suffix.length <= 60) return clean + suffix;
   const max = 60 - suffix.length - 1;

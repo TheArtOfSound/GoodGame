@@ -225,8 +225,8 @@ export const personLd = (env: Env, username: string, displayName: string) => ({
 export const seoArticleTitle = (headline: string): string => {
   const suffix = ' · GoodGame.center';
   const clean = headline.replace(/\s+/g, ' ').trim();
-  if (clean.length + suffix.length <= 68) return clean + suffix;
-  const max = 68 - suffix.length - 1;
+  if (clean.length + suffix.length <= 60) return clean + suffix;
+  const max = 60 - suffix.length - 1;
   const clipped = clean.slice(0, max);
   const boundary = clipped.lastIndexOf(' ');
   return (boundary >= 29 ? clipped.slice(0, boundary) : clipped).trimEnd() + '…' + suffix;

@@ -188,10 +188,13 @@ const publicShellMeta = async (env: Env, path: string): Promise<{ meta: ShellMet
   if (newsMatch) {
     const a = await findPublicArticle(env, decodeURIComponent(newsMatch[1]));
     if (!a) return { status: 404, meta: base('Article not found · GoodGame.center', 'This article is not available on GoodGame.center.', path, true) };
-    return { meta: { ...base(seoArticleTitle(a.title), a.excerpt, `/news/${a.slug}`), type: 'article', heading: a.title, jsonld: [{
+    const excerptForSearch = a.excerpt.length > 158
+      ? `${a.excerpt.slice(0, 154).replace(/\s+\S*$/, '').trimEnd()}…`
+      : a.excerpt;
+    return { meta: { ...base(seoArticleTitle(a.title), excerptForSearch, `/news/${a.slug}`), type: 'article', heading: a.title, jsonld: [{
       '@context': 'https://schema.org', '@type': a.kind === 'guide' ? 'Article' : 'NewsArticle', headline: a.title, description: a.excerpt,
       datePublished: a.date, dateModified: a.date, inLanguage: 'en',
-      author: { '@type': 'Organization', name: 'GoodGame.center', url: env.SITE_URL },
+      author: { '@type': 'Organization', name: 'GoodGame.center', url: env.SITE_URL, logo: { '@type': 'ImageObject', url: `${env.SITE_URL}/logo.svg` } },
       publisher: { '@type': 'Organization', name: 'GoodGame.center', url: env.SITE_URL, logo: { '@type': 'ImageObject', url: `${env.SITE_URL}/logo.svg` } },
       mainEntityOfPage: `${env.SITE_URL}/news/${a.slug}`, url: `${env.SITE_URL}/news/${a.slug}`,
       keywords: (a.keywords || []).join(', '),

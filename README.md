@@ -1,5 +1,9 @@
 # GoodGame.center
 
+**Play GoodGame:** https://goodgame.center/
+
+Discover free browser games, gaming clips, creators, and communities. The public site is the entry point for playing and exploring; this repository contains the application source and deployment workflow.
+
 Production is served by the Cloudflare Worker in `apps/web`. The Worker also
 serves the React UI built from `frontend/build` and exposes the `/api/*`
 compatibility routes that UI calls.

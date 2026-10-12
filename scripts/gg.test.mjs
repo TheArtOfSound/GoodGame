@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { GG_MINT, validSolanaAddress, parseGGAccounts, ggBalance } from '../apps/web/src/gg.ts';
+import { GG_MINT, validSolanaAddress, parseGGAccounts, parseAssociatedGG, associatedGGAddress, ggBalance } from '../apps/web/src/gg.ts';
 const owner = '11111111111111111111111111111111';
 const account = (amount, decimals = 6, mint = GG_MINT) => ({ account: { data: { parsed: { info: { owner, mint, tokenAmount: { amount, decimals } } } } } });
 test('Solana address validation checks decoded length and base58 characters', () => {
@@ -29,5 +29,28 @@ test('RPC request pins mainnet mint and confirmed jsonParsed encoding', async ()
     };
     const result = await ggBalance(owner);
     assert.equal(result.balance, 2); assert.equal(result.mint, GG_MINT);
+  } finally { globalThis.fetch = original; }
+});
+test('non-indexed fallback checks the derived associated account and exact token program', async () => {
+  assert.equal(validSolanaAddress(associatedGGAddress(owner)), true);
+  const original = globalThis.fetch;
+  let calls = 0;
+  try {
+    globalThis.fetch = async (url, options) => {
+      calls++;
+      if (calls === 1) return new Response('Rate limited', { status: 429 });
+      assert.equal(url, 'https://solana-rpc.publicnode.com');
+      const request = JSON.parse(options.body);
+      assert.equal(request.method, 'getAccountInfo');
+      assert.equal(request.params[0], associatedGGAddress(owner));
+      const data = account('3000000').account;
+      data.owner = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
+      return new Response(JSON.stringify({ result: { value: data } }));
+    };
+    const result = await ggBalance(owner);
+    assert.equal(result.balance, 3); assert.equal(result.scope, 'associated-token-account');
+    assert.equal(calls, 2);
+    assert.throws(() => parseAssociatedGG({ result: { value: { owner, data: account('1').account.data } } }, owner));
+    assert.equal(parseAssociatedGG({ result: { value: null } }, owner).balance, 0);
   } finally { globalThis.fetch = original; }
 });

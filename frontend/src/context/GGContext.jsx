@@ -7,15 +7,16 @@ export function GGProvider({ children }) {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [wallet, setWallet] = useState(null);
+  const [scope, setScope] = useState('');
   const generation = useRef(0);
-  const clear = () => { generation.current++; setAddress(""); setBalance(null); setBusy(false); setNotice(""); };
+  const clear = () => { generation.current++; setAddress(""); setBalance(null); setScope(''); setBusy(false); setNotice(""); };
   async function refresh(nextAddress = address) {
     if (!nextAddress) return;
     const ticket = ++generation.current;
     setBalance(null); setBusy(true);
     try {
       const data = await getJSON(`/gg/balance?address=${encodeURIComponent(nextAddress)}`);
-      if (ticket === generation.current) { setBalance(data.balance); setNotice(data.balance > 0 ? "GG detected. Gold pilot skin unlocked." : "Wallet connected. No GG detected; all games are still free."); }
+      if (ticket === generation.current) { setBalance(data.balance); setScope(data.scope || ''); setNotice(data.balance > 0 ? "GG detected. Gold pilot skin unlocked." : data.scope === 'associated-token-account' ? "No GG in this wallet's standard token account. All games are still free." : "Wallet connected. No GG detected; all games are still free."); }
     } catch { if (ticket === generation.current) setNotice("Wallet connected. Balance check is unavailable; try refreshing shortly."); }
     finally { if (ticket === generation.current) setBusy(false); }
   }
@@ -39,6 +40,6 @@ export function GGProvider({ children }) {
     return () => { wallet.removeListener?.("accountChanged", changed); wallet.removeListener?.("disconnect", clear); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wallet]);
-  return <GGContext.Provider value={{ address, balance, busy, notice, connect, disconnect, refresh, gold: balance !== null && balance > 0 }}>{children}</GGContext.Provider>;
+  return <GGContext.Provider value={{ address, balance, scope, busy, notice, connect, disconnect, refresh, gold: balance !== null && balance > 0 }}>{children}</GGContext.Provider>;
 }
 export const useGG = () => useContext(GGContext);

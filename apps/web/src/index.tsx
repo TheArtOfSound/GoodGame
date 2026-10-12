@@ -366,7 +366,7 @@ const injectShellMeta = (html: string, env: Env, meta: ShellMeta) => {
     .replace(/<head>/i, `<head>${head}`);
 };
 async function crawlableExtra(env: Env, path: string) {
-  const nav = `<nav aria-label="Site"><a href="/">Home</a> · <a href="/games">Games</a> · <a href="/create">Host a game</a> · <a href="/creators">Creators</a> · <a href="/clips">Clips</a> · <a href="/communities">Communities</a> · <a href="/news">News</a> · <a href="/leaderboards">Leaderboards</a> · <a href="/activity">Activity</a></nav>`;
+  const nav = `<nav aria-label="Site"><a href="/">Home</a> · <a href="/games">Games</a> · <a href="/create">Host a game</a> · <a href="/creators">Creators</a> · <a href="/clips">Clips</a> · <a href="/communities">Communities</a> · <a href="/news">News</a> · <a href="/mission">GG First 100</a> · <a href="/press">Project facts</a> · <a href="/leaderboards">Leaderboards</a> · <a href="/activity">Activity</a></nav>`;
   if (path === '/mission') {
     const data = await missionData(env);
     return `${nav}<section><h2>Help 100 independent creators find their first players</h2><p>${MISSION_DESCRIPTION}</p><p>${data.published_creators} creators currently have eligible published games; ${data.qualified_creators} have a release with five qualifying independent written reviews. Goal: 100 qualified creators.</p><h2>How the mission works</h2><p>Publish a playable browser game. Play another creator's game and leave a specific written review of at least 40 characters. Five different active reviewers, excluding the creator, complete a release's feedback milestone.</p><h2>Where GG fits</h2><p>GG is an optional community token on Solana. Creators can opt into direct GG tip requests on their profiles. A tip is voluntary and grants no investment return or paid placement. Free play and mission participation do not require tokens.</p><h2>Games that need playtest feedback</h2><ul>${data.games.map(g=>`<li><a href="/games/${escapeXml(g.slug)}">${escapeXml(g.title)}</a> by @${escapeXml(g.username)} — ${g.feedback_count}/5 qualifying reviews</li>`).join('')}</ul><a href="/create">Publish a game</a> · <a href="/gg">Meet GG</a></section>`;
@@ -377,7 +377,7 @@ async function crawlableExtra(env: Env, path: string) {
   if (path === '/' || path === '/games' || path === '/games/browser') {
     const games = await db.listGames(env, { limit: 60, sort: path === '/' ? 'new' : undefined });
     const items = games.map((g) => `<li><a href="/games/${escapeXml(g.slug)}">${escapeXml(g.title)}</a>${g.pitch ? ` — ${escapeXml(g.pitch)}` : ''}</li>`).join('');
-    return `${nav}<section><h2>Free browser arcade, connected to GG on Solana</h2><p>Play instantly as a guest, challenge a friend in <a href="/arena">GG Moon Dash</a>, and discover <a href="/gg">GOODGAME GG on Solana</a>. Free game XP is device progress and cannot be redeemed for tokens.</p><h2>Playable browser games</h2><ul>${items}</ul></section>`;
+    return `${nav}<section><h2>Free browser arcade, connected to GG on Solana</h2><p>Play instantly as a guest, challenge a friend in <a href="/arena">GG Moon Dash</a>, and discover <a href="/gg">GOODGAME GG on Solana</a>. Free game XP is device progress and cannot be redeemed for tokens.</p><h2>GG First 100</h2><p>Help 100 independent game creators publish playable releases and receive five useful written playtest reviews. <a href="/mission">Join the creator mission</a>. GG can be used for optional direct creator tips. <a href="https://x.com/GGcenterhub">Follow the official GoodGame X channel @GGcenterhub</a>.</p><h2>Playable browser games</h2><ul>${items}</ul></section>`;
   }
   if (path === '/news') {
     const articles = await allPublicArticles(env);
@@ -2148,6 +2148,7 @@ GoodGame.center hosts first-party and creator-published browser games with publi
 ## Public content
 - /games — browser-game catalog. Canonical game pages at /games/{slug}
 - /arena — free GG Moon Dash, personal device passport, and shareable score challenges
+- Official X channel: https://x.com/GGcenterhub
 - /mission — GG First 100: 100 independent creators with playable releases and five useful written playtest reviews
 - /press — official project facts, exact GG mint, public source, community contact, and downloadable artwork
 - /gg — GOODGAME (GG) on Solana; mint ${GG_MINT}; public wallet balance check and gold pilot cosmetic

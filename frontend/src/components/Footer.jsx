@@ -18,6 +18,7 @@ export default function Footer() {
           <div className="mt-5">
             <DonateButton variant="footer" />
           </div>
+          <p className="mt-4"><a href="https://x.com/GGcenterhub" target="_blank" rel="noopener noreferrer">Follow GoodGame on X · @GGcenterhub ↗</a></p>
         </div>
         <FooterCol
           title="Play"

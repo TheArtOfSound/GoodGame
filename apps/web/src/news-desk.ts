@@ -3,6 +3,7 @@ import type { Env } from './lib';
 import { newsList, newsArticle, type NewsArticle } from './news';
 
 export type PublicArticle = {
+  image?: string;
   slug: string;
   title: string;
   excerpt: string;
@@ -314,6 +315,7 @@ export async function getDeskArticle(env: Env, slug: string): Promise<PublicArti
 
 export function guideToPublic(a: NewsArticle): PublicArticle {
   return {
+    image: a.image,
     slug: a.slug,
     title: a.title,
     excerpt: a.excerpt,

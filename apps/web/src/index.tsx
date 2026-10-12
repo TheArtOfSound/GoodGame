@@ -28,6 +28,7 @@ import { NewsDirectory, ArticlePage, SearchPage, DocsPage, NotFound } from './vi
 import { CreatePage } from './views/create';
 import { GG_MINT, GG_DESCRIPTION, ggBalance, ggTokenLd, ggFaqLd, validSolanaAddress } from './gg';
 import { MISSION_DESCRIPTION, missionData, validSupportWallet, checkSupportWallet, supportUri } from './mission';
+import { articleBodyHtml } from './article-content';
 
 const app = new Hono<{ Bindings: Env }>();
 const ADMIN_COOKIE = 'gg_admin';
@@ -222,7 +223,7 @@ const publicShellMeta = async (env: Env, path: string): Promise<{ meta: ShellMet
   }
   if (path === '/mission') return { meta: { ...base('GG First 100 — A Mission for Independent Game Creators', MISSION_DESCRIPTION, '/mission', false, 'GG First 100: publish, playtest, improve'), image: '/og/gg-arcade.png', jsonld: [breadcrumbLd(env,[{name:'GG First 100',path:'/mission'}])] } };
   if (path === '/press') return { meta: { ...base('GoodGame & GG — Official Project Facts and Media Kit', 'Official GoodGame project facts, GG Solana mint, mission, live features, downloadable artwork, and verified public project links.', '/press', false, 'GoodGame and GG: official project facts'), image: '/og/gg-arcade.png', jsonld: [ggTokenLd(env.SITE_URL)] } };
-  if (path === '/gg') return { meta: { ...base('GOODGAME (GG) on Solana — Token, Arcade & Wallet Perks', `Meet GOODGAME (GG), the Solana token connected to GoodGame.center. Check holdings, unlock a gold Moon Dash pilot, and verify mint ${GG_MINT}.`, '/gg', false, 'GOODGAME (GG) on Solana'), image: '/og/gg-arcade.png', jsonld: [ggTokenLd(env.SITE_URL), ggFaqLd(), breadcrumbLd(env, [{ name: 'GG on Solana', path: '/gg' }])] } };
+  if (path === '/gg') return { meta: { ...base('GOODGAME (GG) on Solana — Token, Arcade & Wallet Perks', 'Explore GOODGAME (GG) on Solana: the First 100 creator mission, optional direct creator tips, token verification, and a gold Moon Dash pilot cosmetic.', '/gg', false, 'GOODGAME (GG) on Solana'), image: '/og/gg-arcade.png', jsonld: [ggTokenLd(env.SITE_URL), ggFaqLd(), breadcrumbLd(env, [{ name: 'GG on Solana', path: '/gg' }])] } };
   if (path === '/arena') return { meta: { ...base('GG Arena — Play Moon Dash & Challenge Your Friends', 'Play GG Moon Dash free in your browser. Collect game coins, dodge obstacles, earn device passport badges, and share a score challenge with friends.', '/arena', false, 'GG Moon Dash — Free Browser Arcade'), image: '/og/gg-arcade.png', jsonld: [{ '@context': 'https://schema.org', '@type': 'VideoGame', name: 'GG Moon Dash', url: `${env.SITE_URL}/arena`, description: 'A free 30-second, three-lane browser arcade game. Collect gold game coins, dodge red obstacles, and share your personal score.', gamePlatform: 'Web browser', genre: 'Arcade', playMode: 'SinglePlayer', isAccessibleForFree: true, publisher: orgLd(env) }, breadcrumbLd(env, [{ name: 'GG Arena', path: '/arena' }])] } };
   if (path === '/games') {
     const games = await db.listGames(env, { limit: 60 });
@@ -251,9 +252,10 @@ const publicShellMeta = async (env: Env, path: string): Promise<{ meta: ShellMet
     const excerptForSearch = a.excerpt.length > 158
       ? `${a.excerpt.slice(0, 154).replace(/\s+\S*$/, '').trimEnd()}…`
       : a.excerpt;
-    return { meta: { ...base(seoArticleTitle(a.title), excerptForSearch, `/news/${a.slug}`), type: 'article', heading: a.title, jsonld: [{
+    return { meta: { ...base(seoArticleTitle(a.title), excerptForSearch, `/news/${a.slug}`), ...(a.image ? { image: a.image } : {}), type: 'article', heading: a.title, jsonld: [{
       '@context': 'https://schema.org', '@type': a.kind === 'guide' ? 'Article' : 'NewsArticle', headline: a.title, description: a.excerpt,
       datePublished: a.date, dateModified: a.date, inLanguage: 'en',
+      ...(a.image ? { image: `${env.SITE_URL}${a.image}` } : {}),
       author: { '@type': 'Organization', name: 'GoodGame.center', url: env.SITE_URL, logo: { '@type': 'ImageObject', url: `${env.SITE_URL}/logo.svg` } },
       publisher: { '@type': 'Organization', name: 'GoodGame.center', url: env.SITE_URL, logo: { '@type': 'ImageObject', url: `${env.SITE_URL}/logo.svg` } },
       mainEntityOfPage: `${env.SITE_URL}/news/${a.slug}`, url: `${env.SITE_URL}/news/${a.slug}`,
@@ -371,13 +373,21 @@ async function crawlableExtra(env: Env, path: string) {
     const data = await missionData(env);
     return `${nav}<section><h2>Help 100 independent creators find their first players</h2><p>${MISSION_DESCRIPTION}</p><p>${data.published_creators} creators currently have eligible published games; ${data.qualified_creators} have a release with five qualifying independent written reviews. Goal: 100 qualified creators.</p><h2>How the mission works</h2><p>Publish a playable browser game. Play another creator's game and leave a specific written review of at least 40 characters. Five different active reviewers, excluding the creator, complete a release's feedback milestone.</p><h2>Where GG fits</h2><p>GG is an optional community token on Solana. Creators can opt into direct GG tip requests on their profiles. A tip is voluntary and grants no investment return or paid placement. Free play and mission participation do not require tokens.</p><h2>Games that need playtest feedback</h2><ul>${data.games.map(g=>`<li><a href="/games/${escapeXml(g.slug)}">${escapeXml(g.title)}</a> by @${escapeXml(g.username)} — ${g.feedback_count}/5 qualifying reviews</li>`).join('')}</ul><a href="/create">Publish a game</a> · <a href="/gg">Meet GG</a></section>`;
   }
-  if (path === '/press') return `${nav}<section><h2>GoodGame project facts</h2><p>GoodGame.center is a standalone browser arcade and creator publishing project. The GG First 100 mission helps independent creators publish games and receive useful playtests.</p><p>Token: GOODGAME. Symbol: GG. Network: Solana mainnet. Mint: ${GG_MINT}.</p><p>Live features: free browser play, Moon Dash, device badges, score challenges, optional holder cosmetics, direct opt-in creator tip requests, and a public mission scoreboard.</p><p>No funded grant pool, promised token return, staking yield, or redemption of device XP is claimed.</p><a href="/mission">Mission and progress</a> · <a href="/og/gg-arcade.png">Download project artwork</a> · <a href="https://github.com/TheArtOfSound/GoodGame">Public source</a></section>`;
+  if (path === '/press') return `${nav}<section><h2>GoodGame project facts</h2><p>GoodGame.center is a standalone browser arcade and creator publishing project. The GG First 100 mission helps independent creators publish games and receive useful playtests.</p><p>Token: GOODGAME. Symbol: GG. Network: Solana mainnet. Mint: ${GG_MINT}.</p><p>Live features: free browser play, Moon Dash, device badges, score challenges, optional holder cosmetics, direct opt-in creator tip requests, and a public mission scoreboard.</p><p>No funded grant pool, promised token return, staking yield, or redemption of device XP is claimed.</p><a href="/mission">Mission and progress</a> · <a href="/og/gg-arcade.png">Download project artwork</a> · <a href="https://github.com/TheArtOfSound/GoodGame">Public source</a> · <a href="https://x.com/GGcenterhub">Official X: @GGcenterhub</a> · <a href="https://bsky.app/profile/ggcenterhub.bsky.social">Official Bluesky: @ggcenterhub.bsky.social</a> · <a href="mailto:goodgame-center@agentmail.to">Community contact</a></section>`;
   if (path === '/gg') return `${nav}<section><h2>GOODGAME GG token on Solana</h2><p>Mint: <code>${GG_MINT}</code></p><p>GG is the optional appreciation token around the <a href="/mission">GG First 100 creator mission</a>. Creators can enable direct GG tip requests. A positive GG wallet balance also activates a gold pilot cosmetic in <a href="/arena">GG Moon Dash</a>. Playing is free and does not require a wallet.</p><p><a href="https://solscan.io/token/${GG_MINT}">Inspect GG on Solscan</a> · <a href="https://dexscreener.com/solana/${GG_MINT}">Market information on DEX Screener</a></p><h2>What is the GOODGAME token address?</h2><p>The GOODGAME GG mint on Solana is ${GG_MINT}.</p><h2>Does holding more GG improve my score?</h2><p>No. Holding GG unlocks a cosmetic only. The rules, difficulty, and scoring stay identical.</p><h2>Can I earn real GG by playing?</h2><p>The arcade awards free game points, device XP, and badges. They cannot be redeemed for GG or money.</p></section>`;
   if (path === '/arena') return `${nav}<section><h2>How to play Moon Dash</h2><p>Start a free 30-second run. Use left and right arrow keys or A and D to switch lanes, or tap a lane on mobile. Collect gold GG game coins for 10 points each. Avoid red obstacles; three hits end the run.</p><h2>Your arcade passport</h2><p>Complete runs to earn free device XP, unlock badges, and build a daily UTC streak. Save your personal best and share a score challenge with friends. Moon Dash progress is stored locally, has no cash value, and is separate from global ranked game scores.</p><p><a href="/gg">GG holders can activate a gold pilot cosmetic</a>. All players get identical game rules.</p><a href="/games">Explore more free browser games</a></section>`;
   if (path === '/' || path === '/games' || path === '/games/browser') {
     const games = await db.listGames(env, { limit: 60, sort: path === '/' ? 'new' : undefined });
     const items = games.map((g) => `<li><a href="/games/${escapeXml(g.slug)}">${escapeXml(g.title)}</a>${g.pitch ? ` — ${escapeXml(g.pitch)}` : ''}</li>`).join('');
     return `${nav}<section><h2>Free browser arcade, connected to GG on Solana</h2><p>Play instantly as a guest, challenge a friend in <a href="/arena">GG Moon Dash</a>, and discover <a href="/gg">GOODGAME GG on Solana</a>. Free game XP is device progress and cannot be redeemed for tokens.</p><h2>GG First 100</h2><p>Help 100 independent game creators publish playable releases and receive five useful written playtest reviews. <a href="/mission">Join the creator mission</a>. GG can be used for optional direct creator tips. <a href="https://x.com/GGcenterhub">Follow the official GoodGame X channel @GGcenterhub</a>.</p><h2>Playable browser games</h2><ul>${items}</ul></section>`;
+  }
+  const articleMatch = path.match(/^\/news\/([^/]+)$/);
+  if (articleMatch) {
+    const a = await findPublicArticle(env, decodeURIComponent(articleMatch[1]));
+    if (!a) return nav;
+    const image = a.image ? `<img src="${escapeXml(a.image)}" alt="${escapeXml(a.title)}" width="1200" loading="eager">` : '';
+    const source = a.source_url && /^https?:\/\//i.test(a.source_url) ? `<p>Original reporting: <a href="${escapeXml(a.source_url)}" rel="noopener noreferrer">${escapeXml(a.source_name || 'source')}</a>. This is GoodGame's own write-up.</p>` : '';
+    return `${nav}<article><p>By <a href="/press">GoodGame.center</a> · <time datetime="${escapeXml(a.date)}">${escapeXml(a.date.slice(0,10))}</time></p>${image}${articleBodyHtml(a.body || [])}${source}<p><a href="/mission">Join GG First 100</a> · <a href="/arena">Play Moon Dash</a> · <a href="/gg">GG token facts</a></p></article>`;
   }
   if (path === '/news') {
     const articles = await allPublicArticles(env);
@@ -1942,8 +1952,8 @@ app.get('/safety/:s', (c) => {
 
 // ---------- OG images ----------
 const strip = (s: string) => s.replace(/\.svg$/, '');
-app.get('/og/gg-arcade.png', async (c) => {
-  const asset = await c.env.ASSETS.fetch(new Request('https://assets.local/og/gg-arcade.png'));
+for (const filename of ['gg-arcade.png', 'gg-first-100.png', 'moon-dash-gameplay.png']) app.get(`/og/${filename}`, async (c) => {
+  const asset = await c.env.ASSETS.fetch(new Request(`https://assets.local/og/${filename}`));
   // Asset-binding response headers are immutable. Clone before security middleware.
   return new Response(asset.body, { status: asset.status, headers: new Headers(asset.headers) });
 });
@@ -2149,6 +2159,7 @@ GoodGame.center hosts first-party and creator-published browser games with publi
 - /games — browser-game catalog. Canonical game pages at /games/{slug}
 - /arena — free GG Moon Dash, personal device passport, and shareable score challenges
 - Official X channel: https://x.com/GGcenterhub
+- Official Bluesky: https://bsky.app/profile/ggcenterhub.bsky.social
 - /mission — GG First 100: 100 independent creators with playable releases and five useful written playtest reviews
 - /press — official project facts, exact GG mint, public source, community contact, and downloadable artwork
 - /gg — GOODGAME (GG) on Solana; mint ${GG_MINT}; public wallet balance check and gold pilot cosmetic

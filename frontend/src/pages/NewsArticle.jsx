@@ -28,7 +28,7 @@ export default function NewsArticle() {
   return (
     <div className="alley-zine">
     <article className="alley-zine-sheet" data-testid="news-article">
-      <SEO title={a.title} description={a.excerpt} type="article" path={`/news/${a.slug}`} />
+      <SEO title={a.title} description={a.excerpt} image={a.image} type="article" path={`/news/${a.slug}`} />
       <Link to="/news" className="font-mono text-xs uppercase tracking-[0.2em]">
         ← The desk
       </Link>
@@ -38,6 +38,8 @@ export default function NewsArticle() {
       </div>
       <h1 className="text-3xl md:text-4xl font-bold mt-2 leading-tight">{a.title}</h1>
       <p className="text-lg mt-4 leading-relaxed">{a.excerpt}</p>
+      <p className="text-xs mt-4 text-[#9aa7a4]">By <Link to="/press" className="underline">GoodGame.center</Link></p>
+      {a.image && <img src={a.image} alt={a.slug==='gg-first-100-independent-game-creators'?'The live GG First 100 creator mission and progress panel':'GG Moon Dash browser gameplay with a pilot, obstacle, timer, and game controls'} className="w-full max-w-3xl mt-6 border border-[#27272A]" loading="eager"/>}
 
       <div className="mt-8 space-y-4">
         {(a.body || []).map((block, i) =>

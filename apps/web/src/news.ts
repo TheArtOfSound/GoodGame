@@ -3,6 +3,7 @@
 // content is live and indexable immediately without a DB seed. Body blocks: a
 // string is a paragraph; "## ..." renders as a subheading.
 export type NewsArticle = {
+  image?: string;
   slug: string;
   title: string;
   excerpt: string;
@@ -16,6 +17,7 @@ export type NewsArticle = {
 export const NEWS: NewsArticle[] = [
   {
     slug: 'gg-first-100-independent-game-creators',
+    image: '/og/gg-first-100.png',
     title: 'GG First 100: Help Independent Game Creators Find Their First Players',
     excerpt: 'A concrete mission for GoodGame and GG: 100 independent creators, playable browser games, and five useful written playtest reviews per creator.',
     category: 'community', accent: '#f4ce67', date: '2026-10-12T07:00:00Z',
@@ -37,6 +39,7 @@ export const NEWS: NewsArticle[] = [
   },
   {
     slug: 'goodgame-gg-solana-arcade',
+    image: '/og/moon-dash-gameplay.png',
     title: 'GOODGAME (GG) on Solana: A Free Arcade and a Gold Game Face',
     excerpt: 'Meet the GG token connected to GoodGame.center, try Moon Dash, and see exactly what a connected wallet unlocks today.',
     category: 'guide', accent: '#f4ce67', date: '2026-10-11T12:00:00Z',
@@ -55,6 +58,7 @@ export const NEWS: NewsArticle[] = [
   },
   {
     slug: 'moon-dash-free-browser-game',
+    image: '/og/moon-dash-gameplay.png',
     title: 'How to Play GG Moon Dash: Three Lanes, Thirty Seconds',
     excerpt: 'A quick guide to Moon Dash controls, points, badges, streaks, and sharing a score challenge with a friend.',
     category: 'guide', accent: '#a0edc9', date: '2026-10-11T12:00:00Z',

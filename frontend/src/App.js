@@ -5,6 +5,8 @@ import Layout from "@/components/Layout";
 import Home from "@/pages/Home";
 import Arena from "@/pages/Arena";
 import GGToken from "@/pages/GGToken";
+import Mission from "@/pages/Mission";
+import Press from "@/pages/Press";
 import { GGProvider } from "@/context/GGContext";
 import Browse from "@/pages/Browse";
 import GameDetail from "@/pages/GameDetail";
@@ -33,6 +35,7 @@ import Leaderboards from "@/pages/Leaderboards";
 import { Toaster } from "sonner";
 import "@/App.css";
 import "@/arcade.css";
+import "@/mission.css";
 
 function NotFound() {
   return (
@@ -74,6 +77,8 @@ export default function App() {
               <Route path="/" element={<Home />} />
               <Route path="/arena" element={<Arena />} />
               <Route path="/gg" element={<GGToken />} />
+              <Route path="/mission" element={<Mission />} />
+              <Route path="/press" element={<Press />} />
               <Route path="/games" element={<Browse />} />
               <Route path="/games/browser" element={<Browse />} />
               <Route path="/games/:slug" element={<GameDetail />} />

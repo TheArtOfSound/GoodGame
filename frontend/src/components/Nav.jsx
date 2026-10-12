@@ -8,11 +8,13 @@ const navItems = [
   { to: "/games", label: "Games" },
   { to: "/arena", label: "Arena" },
   { to: "/gg", label: "$GG" },
-  { to: "/communities", label: "Community" },
+  { to: "/mission", label: "Mission" },
   { to: "/creators", label: "Creators" },
 ];
 
 const secondaryItems = [
+  { to: "/communities", label: "Community" },
+  { to: "/press", label: "Project & media kit" },
   { to: "/clips", label: "Clips" },
   { to: "/feed", label: "Feed" },
   { to: "/news", label: "Guides & news" },

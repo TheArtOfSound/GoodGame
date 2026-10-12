@@ -8,6 +8,7 @@ import { BACKEND_URL } from "../lib/config";
 import { Film, Gamepad2 } from "lucide-react";
 import { EmptyState, ErrorState, PageLoader } from "../components/UIState";
 import Avatar from "../components/Avatar";
+import CreatorSupport from "../components/CreatorSupport";
 
 export default function CreatorProfile() {
   const { username } = useParams();
@@ -107,6 +108,7 @@ export default function CreatorProfile() {
           <p className="text-[#A1A1AA] mt-4 max-w-2xl leading-relaxed">{creator.bio}</p>
         )}
 
+        <CreatorSupport username={creator.username} isSelf={is_self} />
         <div className="mt-8 border-b border-[#1A1A1A] flex gap-6" role="tablist" aria-label="Creator content">
           {["games", "clips"].map((t) => (
             <button

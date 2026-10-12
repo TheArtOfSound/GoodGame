@@ -1,0 +1,30 @@
+name: GG First 100 — Creator introduction
+description: Introduce a playable indie game for the GG First 100 community mission.
+title: "GG First 100: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Help 100 independent creators find a first crowd. Publish your browser game on [GoodGame](https://goodgame.center/create), then introduce it here. [Mission rules and live progress](https://goodgame.center/mission).
+        Buying tokens is not required. This introduction is public and does not promise selection, payment, a grant, or a token reward.
+  - type: input
+    id: game
+    attributes:
+      label: GoodGame playable game page
+      placeholder: https://goodgame.center/games/your-game
+    validations:
+      required: true
+  - type: textarea
+    id: concept
+    attributes:
+      label: What did you make, and what feedback would help?
+      description: Briefly describe your game, controls, and one question for playtesters. Do not include private data, keys, or passwords.
+    validations:
+      required: true
+  - type: checkboxes
+    id: creator
+    attributes:
+      label: Creator confirmation
+      options:
+        - label: I made this game or have permission to represent its creators, and it is playable in a browser.
+          required: true

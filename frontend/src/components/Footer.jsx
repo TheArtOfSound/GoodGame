@@ -42,6 +42,8 @@ export default function Footer() {
         <FooterCol
           title="About"
           links={[
+            ["GG First 100", "/mission"],
+            ["Project & media kit", "/press"],
             ["Terms", "/legal/terms"],
             ["Privacy", "/legal/privacy"],
             ["DMCA", "/legal/dmca"],

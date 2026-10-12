@@ -37,6 +37,8 @@
       "/__version",
       "/arena",
       "/gg",
+      "/mission",
+      "/press",
       "/arena/*",
       "/community",
       "/community/*",

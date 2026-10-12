@@ -8,6 +8,7 @@ import { CharacterCount, ErrorState, InlineNotice, PageHeader, PageLoader } from
 import { FormField } from "../components/FormControls";
 import { ImageUp } from "lucide-react";
 import Avatar from "../components/Avatar";
+import { GGSupportSettings } from "../components/CreatorSupport";
 
 export default function Settings() {
   const { user, loading, refresh } = useAuth();
@@ -133,6 +134,7 @@ export default function Settings() {
         </form>
       </Section>
 
+      <GGSupportSettings username={user.username} />
       <Section title="Avatar">
         <div className="flex items-start gap-6 flex-wrap">
           <Avatar

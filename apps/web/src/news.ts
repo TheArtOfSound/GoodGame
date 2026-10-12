@@ -15,6 +15,27 @@ export type NewsArticle = {
 
 export const NEWS: NewsArticle[] = [
   {
+    slug: 'gg-first-100-independent-game-creators',
+    title: 'GG First 100: Help Independent Game Creators Find Their First Players',
+    excerpt: 'A concrete mission for GoodGame and GG: 100 independent creators, playable browser games, and five useful written playtest reviews per creator.',
+    category: 'community', accent: '#f4ce67', date: '2026-10-12T07:00:00Z',
+    keywords: ['GG First 100', 'GOODGAME mission', 'GG Solana creator tips', 'indie browser game playtesting'],
+    body: [
+      'A small game can disappear before it finds its first player. GG First 100 gives GoodGame.center a concrete mission: help 100 independent creators publish a playable browser game and receive five useful written playtest reviews. The mission page at /mission shows current progress from actual platform records.',
+      '## A first crowd, one review at a time',
+      'Players can open a game from the mission shortlist, try it, and sign in to leave a useful review. Tell the creator one thing you enjoyed, one confusing moment, and one specific improvement. Creators can publish an HTML5 build, use a playable template, or verify a hosted embed through the creator flow at /create.',
+      '## What counts',
+      'A creator completes the goal when an eligible published playable release has written reviews of at least 40 characters from five different active accounts, excluding the creator. Platform checks must pass. Each creator counts once. Official house games are excluded. The counter measures different accounts, not independently verified human identities.',
+      '## Where GG fits',
+      'GOODGAME, ticker GG, is a Solana token with mint 5QNJ5DDnTPYW1gfNoxeXBGy85Ws5k5vH5Ass1KWYmoon. Creators may opt in to publish their personal Solana recipient wallet in settings. Their profile then prepares an optional GG Solana Pay request, including a QR code, so players can thank them directly.',
+      'These are creator-provided addresses, not ownership-verified wallets. Check the exact recipient, token mint, amount, and network fee in your wallet. GoodGame prepares a payment request but does not confirm a completed transfer, hold tips, or pool a donation fund. No funded creator grant or charity allocation is announced.',
+      '## Everyone can help',
+      'Buying GG is not required to play, publish a game, leave feedback, or join the mission. Positive GG holdings can also unlock the gold Moon Dash pilot cosmetic. Free game XP and badges are not redeemable for tokens. The mission does not promise token price appreciation or investment returns.',
+      '## Spread a playable story',
+      'Share a creator game, invite a friend to playtest, or share the mission at goodgame.center/mission. Official project facts and downloadable artwork live at /press. GoodGame is a standalone project with public application source at github.com/TheArtOfSound/GoodGame.',
+    ],
+  },
+  {
     slug: 'goodgame-gg-solana-arcade',
     title: 'GOODGAME (GG) on Solana: A Free Arcade and a Gold Game Face',
     excerpt: 'Meet the GG token connected to GoodGame.center, try Moon Dash, and see exactly what a connected wallet unlocks today.',

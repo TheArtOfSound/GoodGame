@@ -165,7 +165,7 @@ export const orgLd = (env: Env) => ({
   logo: `${env.SITE_URL}/logo.svg`,
   description: 'Free browser-game alley: play indie HTML5 games instantly or publish your own zip.',
   email: 'hello@goodgame.center',
-  sameAs: ['https://goodgame.center', 'https://x.com/GGcenterhub'],
+  sameAs: ['https://goodgame.center', 'https://x.com/GGcenterhub', 'https://bsky.app/profile/ggcenterhub.bsky.social'],
 });
 
 export const gameLd = (env: Env, g: Game) => ({

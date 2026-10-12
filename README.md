@@ -14,6 +14,7 @@ Progress counts distinct eligible creators whose playable release has five publi
 [Token facts](https://goodgame.center/gg) · [Official media kit](https://goodgame.center/press) · Community contact: goodgame-center@agentmail.to
 
 Official GoodGame X channel: [@GGcenterhub](https://x.com/GGcenterhub).
+Official GoodGame Bluesky: [@ggcenterhub.bsky.social](https://bsky.app/profile/ggcenterhub.bsky.social).
 
 Discover free browser games, gaming clips, creators, and communities. The public site is the entry point for playing and exploring; this repository contains the application source and deployment workflow.
 

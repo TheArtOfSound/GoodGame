@@ -31,4 +31,3 @@ test('RPC request pins mainnet mint and confirmed jsonParsed encoding', async ()
     assert.equal(result.balance, 2); assert.equal(result.mint, GG_MINT);
   } finally { globalThis.fetch = original; }
 });
-

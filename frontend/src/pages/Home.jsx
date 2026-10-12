@@ -64,4 +64,3 @@ export default function Home() {
     <section className="gg-faq"><div className="gg-kicker">BEFORE YOU HIT PLAY</div><h2>A few good answers.</h2><details><summary>Do I need a wallet to play?</summary><p>No. Browse and play free browser games as a guest. Connect a Solana wallet only if you want to check your GG holdings and use the gold pilot cosmetic.</p></details><details><summary>Are XP and game coins real GG tokens?</summary><p>No. Moon Dash coins, XP, and passport badges are free game progress stored on this device. They have no cash value and cannot be exchanged for GG.</p></details><details><summary>Can I publish my own browser game?</summary><p>Yes. Use the creator flow to upload a web game or link a hosted build. <Link to="/create">Publish your game →</Link></p></details></section>
   </div>;
 }
-

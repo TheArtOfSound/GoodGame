@@ -127,4 +127,3 @@ export default function App() {
     </HelmetProvider>
   );
 }
-

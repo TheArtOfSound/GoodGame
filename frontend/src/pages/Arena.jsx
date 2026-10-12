@@ -18,4 +18,3 @@ export default function Arena() {
     <section className="gg-arena-next"><div><h2>There's more to play.</h2><p>Find your next favorite in the full browser arcade.</p></div><Link className="gg-button gg-button-outline" to="/games">Explore all games <ArrowUpRight size={18}/></Link></section>
   </div>;
 }
-

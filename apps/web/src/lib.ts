@@ -280,4 +280,3 @@ export const siteLd = (env: Env) => ({
     'query-input': 'required name=search_term_string',
   },
 });
-

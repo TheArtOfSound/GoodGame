@@ -246,4 +246,3 @@ export const NEWS: NewsArticle[] = [
 export const newsList = () => NEWS.map(({ body, ...meta }) => meta);
 export const newsArticle = (slug: string) => NEWS.find((a) => a.slug === slug) || null;
 export const newsSlugs = () => NEWS.map((a) => a.slug);
-

@@ -42,4 +42,3 @@ export function GGProvider({ children }) {
   return <GGContext.Provider value={{ address, balance, busy, notice, connect, disconnect, refresh, gold: balance !== null && balance > 0 }}>{children}</GGContext.Provider>;
 }
 export const useGG = () => useContext(GGContext);
-

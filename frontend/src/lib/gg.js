@@ -34,4 +34,3 @@ export async function shareChallenge(score) {
   await navigator.clipboard.writeText(`${text}\n${url}`);
   return "Challenge copied";
 }
-

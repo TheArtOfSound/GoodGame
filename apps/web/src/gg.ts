@@ -41,4 +41,3 @@ export function ggFaqLd() {
     { '@type': 'Question', name: 'Can I earn real GG by playing?', acceptedAnswer: { '@type': 'Answer', text: 'The arcade awards free game points, device XP, and badges. They cannot be redeemed for GG or money.' } },
   ] };
 }
-

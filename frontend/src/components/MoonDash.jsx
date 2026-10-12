@@ -75,4 +75,3 @@ export default function MoonDash() {
     <p className="gg-muted" role="status">{notice || (gold?"Gold pilot active · cosmetic only, same game for everyone":"Guest pilot · game coins are points, not real GG")}</p>
   </div>;
 }
-

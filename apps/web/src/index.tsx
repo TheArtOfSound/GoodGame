@@ -2145,4 +2145,3 @@ export default {
     ctx.waitUntil(runNewsDesk(env));
   },
 };
-

@@ -70,4 +70,3 @@ function FooterCol({ title, links }) {
     </div>
   );
 }
-

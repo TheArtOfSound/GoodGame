@@ -16,4 +16,3 @@ export default function GGToken() {
     <section className="gg-faq"><h2>Know your GG.</h2><details><summary>What is the GOODGAME token address?</summary><p>The Solana mint is <code>{GG_MINT}</code>. Use the explorer link above to inspect it independently.</p></details><details><summary>Does holding more GG improve my score?</summary><p>No. GG unlocks a cosmetic skin only. The rules, difficulty, and scoring stay identical.</p></details><details><summary>Can I earn real GG by playing?</summary><p>This arcade currently awards free game points, device XP, and badges. They cannot be redeemed for GG or money.</p></details><details><summary>Why might my balance be unavailable?</summary><p>The public Solana RPC can be busy or rate limited. Refresh later. Your games and progress still work without a balance check.</p></details></section>
   </div>;
 }
-

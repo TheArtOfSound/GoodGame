@@ -53,4 +53,3 @@ jobs:
 
       - name: Validate Worker bundle (dry run)
         run: pnpm --filter web exec wrangler deploy --dry-run
-

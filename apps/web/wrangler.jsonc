@@ -36,6 +36,7 @@
       "/tags/*",
       "/__version",
       "/arena",
+      "/gg",
       "/arena/*",
       "/community",
       "/community/*",

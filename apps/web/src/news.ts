@@ -15,6 +15,44 @@ export type NewsArticle = {
 
 export const NEWS: NewsArticle[] = [
   {
+    slug: 'goodgame-gg-solana-arcade',
+    title: 'GOODGAME (GG) on Solana: A Free Arcade and a Gold Game Face',
+    excerpt: 'Meet the GG token connected to GoodGame.center, try Moon Dash, and see exactly what a connected wallet unlocks today.',
+    category: 'guide', accent: '#f4ce67', date: '2026-10-11T12:00:00Z',
+    keywords: ['GOODGAME GG', 'GG Solana token', 'Solana browser arcade', 'GoodGame crypto games'],
+    body: [
+      'GoodGame.center is an instant browser arcade where players can play free games and creators can publish web builds. GOODGAME, ticker GG, is the Solana token connected to that identity. You do not need a token, wallet, or purchase to start playing.',
+      '## Verify the token',
+      'The GOODGAME Solana mint is 5QNJ5DDnTPYW1gfNoxeXBGy85Ws5k5vH5Ass1KWYmoon. The /gg page publishes the full address and links to the Solscan explorer and third-party market information. Token names can be reused, so inspect the exact mint.',
+      '## What GG unlocks today',
+      'Connect Phantom or Solflare on the /gg page to read your public token balance. Any positive GG balance activates a gold pilot cosmetic in Moon Dash for that connected session. The game rules and scoring stay the same for everyone. This connection does not transfer tokens or authenticate a GoodGame account.',
+      '## Play before anything else',
+      'Open /arena for a free Moon Dash run, or /games for the full catalog. Moon Dash uses game coins as score points. Its XP, badges, streaks, and personal best are stored on your device and cannot be redeemed for GG or money.',
+      '## Share a challenge',
+      'At the end of a Moon Dash run, use Challenge a friend. The link opens the free arena with your score as a target. Challenge scores are personal and separate from the catalog games’ authenticated global leaderboards.',
+    ],
+  },
+  {
+    slug: 'moon-dash-free-browser-game',
+    title: 'How to Play GG Moon Dash: Three Lanes, Thirty Seconds',
+    excerpt: 'A quick guide to Moon Dash controls, points, badges, streaks, and sharing a score challenge with a friend.',
+    category: 'guide', accent: '#a0edc9', date: '2026-10-11T12:00:00Z',
+    keywords: ['GG Moon Dash', 'free browser arcade game', 'browser game challenges', 'GoodGame arena'],
+    body: [
+      'GG Moon Dash is a free single-player browser arcade game at /arena. Complete a 30-second run by collecting gold game coins and dodging red obstacles. Three hits end a run early.',
+      '## Controls',
+      'Use left and right arrow keys, or A and D, while the game canvas has focus. On a phone, tap the lane you want to move into, or use the left and right buttons under the game. Tab moves keyboard focus outside the canvas.',
+      '## Score and progress',
+      'Each gold coin adds ten points. A completed run adds ten XP plus one XP per ten score points to your device passport. Every hundred XP advances a level. Your best score, runs, and UTC play days are stored in this browser; clearing storage resets them.',
+      '## Earn your badges',
+      'Complete a run for First flight, score at least 100 for Coin collector, complete ten runs for Arcade regular, and play on three different days for Back for more. The day streak counts consecutive UTC play days.',
+      '## Invite a rival',
+      'Use Challenge a friend after a run to share a link with your score to beat. The recipient plays for free. No bet, entry fee, cash prize, or token payout is involved.',
+      '## A little gold',
+      'Connect a supported Solana wallet at /gg. A positive balance of the exact GOODGAME mint unlocks a gold pilot cosmetic. It gives no scoring advantage.',
+    ],
+  },
+  {
     slug: 'what-is-goodgame-center',
     title: 'What Is GoodGame.center? Instant Browser Games, No Downloads',
     excerpt: 'GoodGame.center is a free, browser-first platform to play indie games instantly, publish your own HTML5 builds, and build a following — no downloads, no wallet, no installs.',
@@ -31,7 +69,7 @@ export const NEWS: NewsArticle[] = [
       '## Make a game from a prompt',
       'No build yet? GoodGame Forge turns a text prompt into a real, playable browser game you can keep refining, test, and publish when it is ready. It is the simplest way to go from idea to playable.',
       '## Free and creator-first',
-      'There is no wallet, no token, and no paywall to play. GoodGame is supported by optional donations so the focus stays on great games and the creators who make them.',
+      'There is no wallet or token requirement to play free games. The optional GG token connection adds a cosmetic gold pilot in Moon Dash; points and XP are not redeemable tokens. GoodGame also accepts optional donations.',
     ],
   },
   {

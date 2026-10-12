@@ -48,6 +48,9 @@ jobs:
       - name: Typecheck web worker
         run: pnpm --filter web exec tsc --noEmit
 
+      - name: Test GG address and token balance validation
+        run: node --test scripts/gg.test.mjs
+
       - name: Compute build time
         id: meta
         run: echo "time=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"

@@ -7,7 +7,7 @@ export default function Footer() {
       <div className="alley-pavement-inner">
         <div>
           <div className="alley-pavement-brand">
-            <img src="/brand/alley/mark.webp" alt="" width={36} height={36} />
+            <img src="/brand/logo/gg-mark.svg" alt="" width={36} height={36} />
             <span>
               GOODGAME<i>.center</i>
             </span>
@@ -23,6 +23,8 @@ export default function Footer() {
           title="Play"
           links={[
             ["Browse games", "/games"],
+            ["GG Arena", "/arena"],
+            ["GG on Solana", "/gg"],
             ["Feed", "/feed"],
             ["High scores", "/leaderboards"],
             ["Clips", "/clips"],

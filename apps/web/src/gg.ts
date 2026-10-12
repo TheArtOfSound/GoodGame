@@ -1,3 +1,4 @@
+import { PublicKey } from '@solana/web3.js';
 export const GG_MINT = '5QNJ5DDnTPYW1gfNoxeXBGy85Ws5k5vH5Ass1KWYmoon';
 export const GG_DESCRIPTION = 'Play free browser games, take the daily arcade challenge, and discover GOODGAME (GG) on Solana. No download or wallet required to play.';
 const ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
@@ -26,10 +27,35 @@ export function parseGGAccounts(data: any, owner: string): { balance: number; ra
   if (!Number.isFinite(balance)) throw new Error('Invalid balance');
   return { balance, raw_amount: total.toString(), decimals: decimals || 0 };
 }
-export async function ggBalance(address: string, rpc = 'https://api.mainnet-beta.solana.com') {
-  const res = await fetch(rpc, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getTokenAccountsByOwner', params: [address, { mint: GG_MINT }, { encoding: 'jsonParsed', commitment: 'confirmed' }] }), signal: AbortSignal.timeout(8000) });
+const TOKEN_PROGRAM = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
+export function associatedGGAddress(owner: string): string {
+  return PublicKey.findProgramAddressSync([
+    new PublicKey(owner).toBuffer(), new PublicKey(TOKEN_PROGRAM).toBuffer(), new PublicKey(GG_MINT).toBuffer(),
+  ], new PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL'))[0].toBase58();
+}
+export function parseAssociatedGG(data: any, owner: string) {
+  if (data.error || !data.result || !('value' in data.result)) throw new Error('Invalid account result');
+  const account = data.result.value;
+  if (account && account.owner !== TOKEN_PROGRAM) throw new Error('Unexpected token program');
+  return parseGGAccounts({ result: { value: account ? [{ account }] : [] } }, owner);
+}
+async function rpcRead(url: string, method: string, params: unknown[]) {
+  const res = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }), signal: AbortSignal.timeout(4000) });
   if (!res.ok) throw new Error('RPC unavailable');
-  return { mint: GG_MINT, address, network: 'solana-mainnet', ...parseGGAccounts(await res.json(), address), checked_at: new Date().toISOString() };
+  return res.json();
+}
+export async function ggBalance(address: string, rpc = 'https://api.mainnet-beta.solana.com') {
+  const common = { mint: GG_MINT, address, network: 'solana-mainnet' };
+  try {
+    const data = await rpcRead(rpc, 'getTokenAccountsByOwner', [address, { mint: GG_MINT }, { encoding: 'jsonParsed', commitment: 'confirmed' }]);
+    return { ...common, ...parseGGAccounts(data, address), scope: 'all-token-accounts', checked_at: new Date().toISOString() };
+  } catch {
+    // Public indexed RPC methods are often restricted. A standard wallet's
+    // deterministic associated account can be read without an indexed query.
+    const account = associatedGGAddress(address);
+    const data = await rpcRead('https://solana-rpc.publicnode.com', 'getAccountInfo', [account, { encoding: 'jsonParsed', commitment: 'confirmed' }]);
+    return { ...common, ...parseAssociatedGG(data, address), scope: 'associated-token-account', token_account: account, checked_at: new Date().toISOString() };
+  }
 }
 export function ggTokenLd(base: string) {
   return { '@context': 'https://schema.org', '@type': 'WebPage', name: 'GOODGAME (GG) on Solana', url: `${base}/gg`, description: `GOODGAME GG token connected to the GoodGame arcade. Solana mint: ${GG_MINT}. Wallet holdings activate a gold Moon Dash pilot cosmetic.`, about: { '@type': 'Thing', name: 'GOODGAME (GG)', identifier: GG_MINT, sameAs: `https://solscan.io/token/${GG_MINT}` } };

@@ -137,8 +137,8 @@ const FRONTEND_PATHS = [
   /^\/admin$/, /^\/login$/, /^\/onboarding$/, /^\/settings$/, /^\/create$/,
   /^\/console(?:\/.*)?$/, /^\/search$/, /^\/forge(?:\/.*)?$/, /^\/feed$/, /^\/news(?:\/.*)?$/,
 ];
-const shouldServeReactShell = (method: string, path: string, accept: string) =>
-  (method === 'GET' || method === 'HEAD') && (accept.includes('text/html') || accept.includes('*/*')) && FRONTEND_PATHS.some((re) => re.test(path));
+const shouldServeReactShell = (method: string, path: string, _accept: string) =>
+  (method === 'GET' || method === 'HEAD') && FRONTEND_PATHS.some((re) => re.test(path));
 const escapeXml = (s: string) => s.replace(/[<>&'"]/g, (ch) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[ch]!));
 const isoLastmod = (value?: string | null) => {
   const source = value && /[-:T ]/.test(value) ? value.replace(' ', 'T') : '';
@@ -1897,7 +1897,11 @@ app.get('/safety/:s', (c) => {
 
 // ---------- OG images ----------
 const strip = (s: string) => s.replace(/\.svg$/, '');
-app.get('/og/gg-arcade.png', (c) => c.env.ASSETS.fetch(new Request(new URL('/og/gg-arcade.png', c.req.url))));
+app.get('/og/gg-arcade.png', async (c) => {
+  const asset = await c.env.ASSETS.fetch(new Request('https://assets.local/og/gg-arcade.png'));
+  // Asset-binding response headers are immutable. Clone before security middleware.
+  return new Response(asset.body, { status: asset.status, headers: new Headers(asset.headers) });
+});
 app.get('/og/default.svg', () => svg(ogCard({ accent: '#D4AF37', eyebrow: 'Instant browser arcade', title: 'GoodGame.center', sub: 'Instant browser games and creator-uploaded web builds.', mark: 'GG' })));
 app.get('/og/game/:slug', async (c) => {
   const g = await db.getGame(c.env, strip(c.req.param('slug')));

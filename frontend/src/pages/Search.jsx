@@ -5,6 +5,7 @@ import SEO from "../components/SEO";
 import GameCard from "../components/GameCard";
 import { Search as SearchIcon, X } from "lucide-react";
 import { EmptyState, ErrorState, GridSkeleton, PageHeader } from "../components/UIState";
+import { GG_MINT } from "../lib/gg";
 
 export default function Search() {
   const [params, setParams] = useSearchParams();
@@ -43,7 +44,8 @@ export default function Search() {
   const games = data?.games || [];
   const creators = data?.creators || [];
   const communities = data?.communities || [];
-  const nothing = q && !loading && !games.length && !creators.length && !communities.length;
+  const ggMatch = q.trim() && /^(\$?gg|goodgame|solana|moon dash|token|crypto)$/i.test(q.trim()) || q.trim() === GG_MINT;
+  const nothing = q && !loading && !games.length && !creators.length && !communities.length && !ggMatch;
 
   return (
     <div className="alley-clerk" data-testid="search-page">
@@ -82,6 +84,7 @@ export default function Search() {
       )}
 
       {loading && <div className="mt-8"><GridSkeleton count={6} /></div>}
+      {ggMatch && <section className="gg-token-banner" style={{ marginTop: 28, marginBottom: 20 }}><div><div className="gg-kicker">GOODGAME / SOLANA ARCADE</div><h2>Find your GG.</h2><p>Explore the GOODGAME token and its gold pilot cosmetic, or jump straight into the free Moon Dash game.</p></div><Link to="/gg" className="gg-button gg-button-outline">GG token ↗</Link><Link to="/arena" className="gg-button">Play Moon Dash ↗</Link></section>}
       {error && (
         <ErrorState
           className="mt-8"
@@ -164,3 +167,4 @@ function Section({ title, children }) {
 function Empty({ children }) {
   return <div className="text-[#A1A1AA] text-sm">{children}</div>;
 }
+

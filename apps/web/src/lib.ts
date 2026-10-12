@@ -17,6 +17,7 @@ export type Env = {
   STRIPE_PUBLISHABLE_KEY?: string;
   ADMIN_PASSWORD?: string;
   INDEXNOW_KEY?: string;
+  GG_RPC_URL?: string;
 };
 
 export type SessionUser = {
@@ -279,3 +280,4 @@ export const siteLd = (env: Env) => ({
     'query-input': 'required name=search_term_string',
   },
 });
+

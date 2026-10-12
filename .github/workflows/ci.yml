@@ -48,5 +48,9 @@ jobs:
       - name: Typecheck web worker
         run: pnpm --filter web exec tsc --noEmit
 
+      - name: Test GG address and token balance validation
+        run: node --test scripts/gg.test.mjs
+
       - name: Validate Worker bundle (dry run)
         run: pnpm --filter web exec wrangler deploy --dry-run
+

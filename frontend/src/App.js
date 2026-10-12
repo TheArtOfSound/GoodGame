@@ -3,6 +3,9 @@ import { HelmetProvider } from "react-helmet-async";
 import { AuthProvider } from "@/context/AuthContext";
 import Layout from "@/components/Layout";
 import Home from "@/pages/Home";
+import Arena from "@/pages/Arena";
+import GGToken from "@/pages/GGToken";
+import { GGProvider } from "@/context/GGContext";
 import Browse from "@/pages/Browse";
 import GameDetail from "@/pages/GameDetail";
 import CreatorProfile from "@/pages/CreatorProfile";
@@ -29,6 +32,7 @@ import Activity from "@/pages/Activity";
 import Leaderboards from "@/pages/Leaderboards";
 import { Toaster } from "sonner";
 import "@/App.css";
+import "@/arcade.css";
 
 function NotFound() {
   return (
@@ -63,10 +67,13 @@ export default function App() {
   return (
     <HelmetProvider>
       <AuthProvider>
+        <GGProvider>
         <BrowserRouter>
           <Layout>
             <Routes>
               <Route path="/" element={<Home />} />
+              <Route path="/arena" element={<Arena />} />
+              <Route path="/gg" element={<GGToken />} />
               <Route path="/games" element={<Browse />} />
               <Route path="/games/browser" element={<Browse />} />
               <Route path="/games/:slug" element={<GameDetail />} />
@@ -115,7 +122,9 @@ export default function App() {
             }}
           />
         </BrowserRouter>
+        </GGProvider>
       </AuthProvider>
     </HelmetProvider>
   );
 }
+

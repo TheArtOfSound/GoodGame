@@ -6,14 +6,16 @@ import DonateButton from "./DonateButton";
 
 const navItems = [
   { to: "/games", label: "Games" },
-  { to: "/feed", label: "Feed" },
-  { to: "/clips", label: "Clips" },
-  { to: "/communities", label: "Communities" },
+  { to: "/arena", label: "Arena" },
+  { to: "/gg", label: "$GG" },
+  { to: "/communities", label: "Community" },
   { to: "/creators", label: "Creators" },
-  { to: "/news", label: "Guides & news" },
 ];
 
 const secondaryItems = [
+  { to: "/clips", label: "Clips" },
+  { to: "/feed", label: "Feed" },
+  { to: "/news", label: "Guides & news" },
   { to: "/activity", label: "Global activity" },
   { to: "/leaderboards", label: "Leaderboards" },
 ];
@@ -60,7 +62,7 @@ export default function Nav() {
     <>
       <header className="alley-topbar" data-testid="site-header">
         <Link to="/" className="alley-topbar-brand" data-testid="brand-link" aria-label="GoodGame.center home">
-          <img src="/brand/alley/mark.webp" alt="" width={36} height={36} />
+          <img src="/brand/logo/gg-mark.svg" alt="" width={36} height={36} />
           <span>
             GOODGAME<i>.center</i>
           </span>
@@ -178,3 +180,4 @@ export default function Nav() {
     </>
   );
 }
+

@@ -29,6 +29,7 @@ import { CreatePage } from './views/create';
 import { GG_MINT, GG_DESCRIPTION, ggBalance, ggTokenLd, ggFaqLd, validSolanaAddress } from './gg';
 import { MISSION_DESCRIPTION, missionData, validSupportWallet, checkSupportWallet, supportUri } from './mission';
 import { articleBodyHtml } from './article-content';
+import { botStatus, telegramWebhook, runCommunityBot, COMMUNITY_CRON } from './community-bot';
 
 const app = new Hono<{ Bindings: Env }>();
 const ADMIN_COOKIE = 'gg_admin';
@@ -124,6 +125,15 @@ app.get('/api/gg/mission', async (c) => {
   c.header('cache-control', 'public, max-age=30');
   return c.json(await missionData(c.env));
 });
+app.get('/api/community-bot/status', async (c) => {
+  c.header('cache-control','no-store');
+  return c.json(await botStatus(c.env));
+});
+app.post('/api/community-bot/telegram', (c) => telegramWebhook(c.req.raw,c.env));
+app.get('/api/admin/community-bot', async (c) => {
+  const admin=await requireAdmin(c);if(admin.error)return admin.error;
+  c.header('cache-control','no-store');return c.json(await botStatus(c.env,true));
+});
 app.get('/api/gg/creators/:username/support', async (c) => {
   const creator = await db.getCreator(c.env, c.req.param('username'));
   if (!creator) return c.json({ detail: 'Creator not found.' }, 404);
@@ -168,6 +178,7 @@ const shouldNoindexHeader = (path: string) => {
   return path === '/api' || path.startsWith('/api/');
 };
 const FRONTEND_PATHS = [
+  /^\/playtest$/,
   /^\/mission$/, /^\/press$/,
   /^\/gg$/, /^\/arena$/,
   /^\/$/, /^\/games(?:\/.*)?$/, /^\/clips(?:\/.*)?$/, /^\/communities(?:\/.*)?$/,
@@ -222,6 +233,7 @@ const publicShellMeta = async (env: Env, path: string): Promise<{ meta: ShellMet
     return { meta: { ...base('GoodGame — Free Browser Games & the GG Solana Arcade', GG_DESCRIPTION, '/'), image: '/og/gg-arcade.png', jsonld: [siteLd(env), orgLd(env), itemListLd(env, 'New browser games', '/', games.map((g) => ({ name: g.title, path: `/games/${g.slug}` })))] } };
   }
   if (path === '/mission') return { meta: { ...base('GG First 100 — A Mission for Independent Game Creators', MISSION_DESCRIPTION, '/mission', false, 'GG First 100: publish, playtest, improve'), image: '/og/gg-arcade.png', jsonld: [breadcrumbLd(env,[{name:'GG First 100',path:'/mission'}])] } };
+  if (path === '/playtest') return { meta: { ...base('Playtest Indie Browser Games — GoodGame Playtest Club', 'Pick a free browser game, try one focused playtest, and leave feedback that helps an independent creator improve. Join the GoodGame playtest club.', '/playtest', false, 'Five minutes. One game. Useful feedback.'), image:'/og/gg-first-100.png', jsonld:[breadcrumbLd(env,[{name:'Playtest Club',path:'/playtest'}])] } };
   if (path === '/press') return { meta: { ...base('GoodGame & GG — Official Project Facts and Media Kit', 'Official GoodGame project facts, GG Solana mint, mission, live features, downloadable artwork, and verified public project links.', '/press', false, 'GoodGame and GG: official project facts'), image: '/og/gg-arcade.png', jsonld: [ggTokenLd(env.SITE_URL)] } };
   if (path === '/gg') return { meta: { ...base('GOODGAME (GG) on Solana — Token, Arcade & Wallet Perks', 'Explore GOODGAME (GG) on Solana: the First 100 creator mission, optional direct creator tips, token verification, and a gold Moon Dash pilot cosmetic.', '/gg', false, 'GOODGAME (GG) on Solana'), image: '/og/gg-arcade.png', jsonld: [ggTokenLd(env.SITE_URL), ggFaqLd(), breadcrumbLd(env, [{ name: 'GG on Solana', path: '/gg' }])] } };
   if (path === '/arena') return { meta: { ...base('GG Arena — Play Moon Dash & Challenge Your Friends', 'Play GG Moon Dash free in your browser. Collect game coins, dodge obstacles, earn device passport badges, and share a score challenge with friends.', '/arena', false, 'GG Moon Dash — Free Browser Arcade'), image: '/og/gg-arcade.png', jsonld: [{ '@context': 'https://schema.org', '@type': 'VideoGame', name: 'GG Moon Dash', url: `${env.SITE_URL}/arena`, description: 'A free 30-second, three-lane browser arcade game. Collect gold game coins, dodge red obstacles, and share your personal score.', gamePlatform: 'Web browser', genre: 'Arcade', playMode: 'SinglePlayer', isAccessibleForFree: true, publisher: orgLd(env) }, breadcrumbLd(env, [{ name: 'GG Arena', path: '/arena' }])] } };
@@ -368,6 +380,10 @@ const injectShellMeta = (html: string, env: Env, meta: ShellMeta) => {
     .replace(/<head>/i, `<head>${head}`);
 };
 async function crawlableExtra(env: Env, path: string) {
+  if (path === '/playtest') {
+    const data=await missionData(env);
+    return `<nav><a href="/">GoodGame</a> · <a href="/mission">GG First 100</a> · <a href="/games">Games</a></nav><section><h2>Five minutes. One game. Useful feedback.</h2><p>Join the GoodGame Playtest Club. Try an independent browser game, notice one thing you enjoyed and one thing to improve, then leave a specific written review on its game page. Free participation needs no wallet or GG purchase.</p><h2>Creator games that need feedback</h2><ul>${data.games.map(g=>`<li><a href="/games/${escapeXml(g.slug)}">${escapeXml(g.title)}</a> by @${escapeXml(g.username)} — ${g.feedback_count}/5 qualifying reviews</li>`).join('')}</ul><p>Reviews of at least 40 characters from different active accounts, excluding the creator, count toward the mission. Accounts are not independently verified people.</p><a href="/create">Publish your game</a> · <a href="/gg">GG live uses</a> · <a href="https://x.com/GGcenterhub">GoodGame on X</a> · <a href="https://bsky.app/profile/ggcenterhub.bsky.social">GoodGame on Bluesky</a></section>`;
+  }
   const nav = `<nav aria-label="Site"><a href="/">Home</a> · <a href="/games">Games</a> · <a href="/create">Host a game</a> · <a href="/creators">Creators</a> · <a href="/clips">Clips</a> · <a href="/communities">Communities</a> · <a href="/news">News</a> · <a href="/mission">GG First 100</a> · <a href="/press">Project facts</a> · <a href="/leaderboards">Leaderboards</a> · <a href="/activity">Activity</a></nav>`;
   if (path === '/mission') {
     const data = await missionData(env);
@@ -2086,7 +2102,7 @@ Sitemap: ${c.env.SITE_URL}/rss.xml
 `));
 
 const staticSitemapPaths = [
-  '/mission', '/press',
+  '/mission', '/press', '/playtest',
   '/gg', '/arena',
   '/', '/games', '/games/browser', '/create', '/clips', '/communities', '/creators', '/news',
   '/activity', '/leaderboards',
@@ -2209,6 +2225,7 @@ app.notFound((c) => {
 export default {
   fetch: (request: Request, env: Env, ctx: ExecutionContext) => app.fetch(request, env, ctx),
   scheduled: (event: ScheduledEvent, env: Env, ctx: ExecutionContext) => {
-    ctx.waitUntil(runNewsDesk(env));
+    if(event.cron===COMMUNITY_CRON)ctx.waitUntil(runCommunityBot(env));
+    else ctx.waitUntil(runNewsDesk(env));
   },
 };

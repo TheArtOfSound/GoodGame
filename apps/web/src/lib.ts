@@ -18,6 +18,15 @@ export type Env = {
   ADMIN_PASSWORD?: string;
   INDEXNOW_KEY?: string;
   GG_RPC_URL?: string;
+  COMMUNITY_BOT_ENABLED?: string;
+  COMMUNITY_AI_ENABLED?: string;
+  COMMUNITY_AI_FREE_PLAN_VERIFIED?: string;
+  GG_TELEGRAM_TOKEN?: string;
+  GG_TELEGRAM_WEBHOOK_SECRET?: string;
+  GG_TELEGRAM_USERNAME?: string;
+  GG_TELEGRAM_CHANNEL_ID?: string;
+  GG_TELEGRAM_CHANNEL_URL?: string;
+  GG_BLUESKY_APP_PASSWORD?: string;
 };
 
 export type SessionUser = {

@@ -45,6 +45,7 @@ export default function Footer() {
           title="About"
           links={[
             ["GG First 100", "/mission"],
+            ["Playtest Club", "/playtest"],
             ["Project & media kit", "/press"],
             ["Terms", "/legal/terms"],
             ["Privacy", "/legal/privacy"],

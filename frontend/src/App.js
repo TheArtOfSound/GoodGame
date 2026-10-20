@@ -6,6 +6,7 @@ import Home from "@/pages/Home";
 import Arena from "@/pages/Arena";
 import GGToken from "@/pages/GGToken";
 import Mission from "@/pages/Mission";
+import Playtest from "@/pages/Playtest";
 import Press from "@/pages/Press";
 import { GGProvider } from "@/context/GGContext";
 import Browse from "@/pages/Browse";
@@ -78,6 +79,7 @@ export default function App() {
               <Route path="/arena" element={<Arena />} />
               <Route path="/gg" element={<GGToken />} />
               <Route path="/mission" element={<Mission />} />
+              <Route path="/playtest" element={<Playtest />} />
               <Route path="/press" element={<Press />} />
               <Route path="/games" element={<Browse />} />
               <Route path="/games/browser" element={<Browse />} />

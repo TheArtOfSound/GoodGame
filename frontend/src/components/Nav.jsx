@@ -7,6 +7,7 @@ import DonateButton from "./DonateButton";
 const navItems = [
   { to: "/games", label: "Games" },
   { to: "/arena", label: "Arena" },
+  { to: "/playtest", label: "Playtest" },
   { to: "/gg", label: "$GG" },
   { to: "/mission", label: "Mission" },
   { to: "/creators", label: "Creators" },

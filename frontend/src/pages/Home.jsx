@@ -33,8 +33,8 @@ export default function Home() {
       <div className="gg-hero-copy">
         <div className="gg-kicker"><span className="gg-status-dot" /> THE ARCADE IS OPEN <span className="gg-kicker-tail">BUILT FOR PLAYERS. ON SOLANA.</span></div>
         <h1>Good games.<br /><span>Great company.</span></h1>
-        <p>Your next favorite game is one click away. Drop into the arcade, chase a high score, and make a little noise with the GG community.</p>
-        <div className="gg-actions"><a href="#arcade" className="gg-button"><Play size={17} fill="currentColor" /> Enter the arcade <ArrowRight size={18} /></a><Link to="/arena" className="gg-button gg-button-outline">Take the challenge <ArrowUpRight size={18} /></Link></div>
+        <p>Your next favorite game is one click away. Drop into the arcade, chase a high score, and help a small creator make their next version better.</p>
+        <div className="gg-actions"><a href="#arcade" className="gg-button"><Play size={17} fill="currentColor" /> Enter the arcade <ArrowRight size={18} /></a><Link to="/playtest" className="gg-button gg-button-outline">Join the playtest club <ArrowUpRight size={18} /></Link></div>
         <div className="gg-hero-proof"><span><Zap size={14} /> Instant browser play</span><span><Gamepad2 size={14} /> Free to get started</span><span><Coins size={14} /> GG on Solana</span></div>
       </div>
       <div className="gg-hero-scene">

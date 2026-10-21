@@ -11,19 +11,21 @@ async function equalSecret(a: string, b: string) {
   let diff=0;for(let i=0;i<ah.length;i++)diff|=ah.charCodeAt(i)^bh.charCodeAt(i);return diff===0;
 }
 async function bounded(response: Response, limit=65536): Promise<Uint8Array> {
-  if (!response.ok || !response.body) throw new Error('Remote service unavailable');
+  if (!response.ok || !response.body) throw new Error(`Remote HTTP ${response.status}`);
   const reader=response.body.getReader();const chunks:Uint8Array[]=[];let length=0;
   try {while(true){const part=await reader.read();if(part.done)break;length+=part.value.length;if(length>limit)throw new Error('Remote response too large');chunks.push(part.value);}}finally{await reader.cancel().catch(()=>{});}
   const out=new Uint8Array(length);let offset=0;for(const c of chunks){out.set(c,offset);offset+=c.length;}return out;
 }
 async function remoteJson(url: string, init: RequestInit={}) {
-  const response=await fetch(url,{...init,signal:AbortSignal.timeout(12000),redirect:'error'});
+  // Workers does not implement redirect:'error'. Returning redirects manually
+  // also prevents API credentials from being forwarded to another origin.
+  const response=await fetch(url,{...init,signal:AbortSignal.timeout(12000),redirect:'manual'});
   return JSON.parse(new TextDecoder().decode(await bounded(response)));
 }
 async function telegram(env: Env, method: string, body: unknown) {
   // Never log this URL: Telegram places the credential in the path.
   const data=await remoteJson(`https://api.telegram.org/bot${env.GG_TELEGRAM_TOKEN}/${method}`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
-  if(!data.ok)throw new Error('Telegram request rejected');return data.result;
+  if(!data.ok)throw new Error(`Telegram API ${Number.isInteger(data.error_code)?data.error_code:0}`);return data.result;
 }
 export async function botStatus(env: Env, privateView=false) {
   const telegramReady=Boolean(env.GG_TELEGRAM_TOKEN && env.GG_TELEGRAM_WEBHOOK_SECRET && /^[a-zA-Z0-9_]{5,32}bot$/i.test(env.GG_TELEGRAM_USERNAME||''));
@@ -54,11 +56,17 @@ export async function telegramWebhook(request: Request, env: Env): Promise<Respo
   const bucket=`telegram:${(await digest(String(message.chat.id))).slice(0,24)}:${Math.floor(Date.now()/60000)}`;
   const allowed=await env.DB.prepare('INSERT INTO community_bot_limits(bucket,used,expires_at) VALUES(?,1,?) ON CONFLICT(bucket) DO UPDATE SET used=used+1 WHERE used<5 RETURNING used').bind(bucket,Date.now()+24*HOUR).first();
   if(!allowed)return new Response('OK');
+  let stage='mission';
   try {
     const mission=await missionData(env);
+    stage='reply';
     await telegram(env,'sendMessage',{chat_id:message.chat.id,text:commandReply(command,mission),link_preview_options:{is_disabled:true}});
-  } catch { // No chat text, chat identifier, token, or raw provider error in logs.
-    console.warn('GoodGame Telegram command could not complete');
+  } catch(error) { // Allow only our fixed status codes; never log a raw provider error.
+    const reason=error instanceof Error && /^(Remote HTTP \d{3}|Telegram API \d{1,3}|Remote response too large)$/.test(error.message)?error.message:'unavailable';
+    console.warn(`GoodGame Telegram command could not complete: ${stage}; ${reason}`);
+    // Available only after the normal webhook secret check, for controlled
+    // owner delivery tests. Never return provider descriptions or credentials.
+    if(request.headers.get('X-GoodGame-Diagnostic')==='true')return Response.json({stage,reason},{status:502});
   }
   return new Response('OK');
 }
